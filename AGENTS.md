@@ -5,3 +5,13 @@
 - Для локальной правки, проверки ссылки или организации файлов читай только затронутые документы; роль и планы нужны лишь при изменении их содержания.
 - Ссылки — указатели, не команда загрузить всё. Дополнительные файлы читай только при условии, указанном рядом со ссылкой; не обходи ссылки рекурсивно и не перечитывай неизменённый контекст.
 - Текущий статус и следующий шаг хранятся в выбранном плане. Согласованные решения и проверенные результаты фиксируй в предназначенных для них документах по правилам плана; гипотезы не отмечай как результаты.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+## This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

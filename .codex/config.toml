@@ -1,0 +1,3 @@
+[mcp_servers.stitch]
+command = "C:\\Program Files\\Git\\bin\\bash.exe"
+args = ["C:/DATA/Development/js/z-trader-ai/.codex/stitch-mcp.sh"]

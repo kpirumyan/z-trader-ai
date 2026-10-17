@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="ru"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><meta content="web_dashboard" name="shell-type"/><title>Z-Trader AI Terminal</title><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "secondary-fixed": "#d6e3fe", "on-secondary-container": "#a8b6cf", "error-container": "#93000a", "on-tertiary-fixed-variant": "#0d458e", "on-background": "#e1e2e9", "on-primary-container": "#194177", "chart-grid": "#303946", "surface-container-low": "#191c21", "surface-dim": "#101418", "primary-container": "#8caeeb", "on-error": "#690005", "on-tertiary": "#002f68", "border-divider": "#414D5D", "text-primary": "#E6EBF1", "candle-up": "#52C997", "on-tertiary-container": "#003f87", "on-surface-variant": "#c3c6d1", "error": "#ffb4ab", "surface-bright": "#36393f", "on-surface": "#e1e2e9", "on-primary-fixed": "#001b3e", "surface-container-high": "#272a2f", "tertiary-fixed-dim": "#acc7ff", "on-tertiary-fixed": "#001a40", "surface-container-highest": "#32353a", "secondary-fixed-dim": "#bac7e1", "indicator-rsi": "#C4A1E8", "secondary": "#bac7e1", "outline-variant": "#43474f", "on-primary-fixed-variant": "#21477d", "secondary-container": "#3a475d", "inverse-primary": "#3b5f96", "primary-fixed": "#d6e3ff", "primary": "#adc9ff", "tertiary-fixed": "#d7e2ff", "candle-down": "#EE8794", "surface": "#101418", "on-primary": "#003064", "on-error-container": "#ffdad6", "on-secondary-fixed": "#0e1c2f", "outline": "#8d909b", "inverse-on-surface": "#2e3036", "on-secondary-fixed-variant": "#3a475d", "inverse-surface": "#e1e2e9", "surface-variant": "#32353a", "surface-tint": "#aac7ff", "text-secondary": "#A8B3C2", "tertiary": "#b0c9ff", "indicator-sma": "#E9B86E", "surface-container-lowest": "#0b0e13", "surface-container": "#1d2025", "surface-chrome": "#252C35", "on-secondary": "#243145", "surface-window": "#1D2229", "tertiary-container": "#84adfd", "background": "#101418", "primary-fixed-dim": "#aac7ff" }, "borderRadius": { "DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem" }, "spacing": { "gutter": "0.5rem", "space-xs": "0.25rem", "margin": "0.75rem", "space-sm": "0.5rem", "gutter-dense": "0.25rem", "space-xl": "1.5rem", "space-lg": "1rem", "space-md": "0.75rem" }, "fontFamily": { "label-mono": [ "JetBrains Mono" ], "body-default": [ "Geist" ], "dialog-title": [ "Geist" ], "status-bar": [ "JetBrains Mono" ], "data-metric": [ "JetBrains Mono" ], "body-dense": [ "Geist" ], "window-header": [ "Geist" ], "label-mono-bold": [ "JetBrains Mono" ] }, "fontSize": { "label-mono": [ "12px", { "lineHeight": "16px", "letterSpacing": "0em", "fontWeight": "400" } ], "body-default": [ "14px", { "lineHeight": "20px", "letterSpacing": "0em", "fontWeight": "400" } ], "dialog-title": [ "18px", { "lineHeight": "24px", "letterSpacing": "-0.01em", "fontWeight": "600" } ], "status-bar": [ "11px", { "lineHeight": "14px", "letterSpacing": "0.02em", "fontWeight": "400" } ], "data-metric": [ "14px", { "lineHeight": "20px", "letterSpacing": "-0.02em", "fontWeight": "500" } ], "body-dense": [ "13px", { "lineHeight": "18px", "letterSpacing": "0em", "fontWeight": "400" } ], "window-header": [ "14px", { "lineHeight": "20px", "letterSpacing": "0em", "fontWeight": "600" } ], "label-mono-bold": [ "12px", { "lineHeight": "16px", "letterSpacing": "0em", "fontWeight": "600" } ] } } } };</script></head><body class="bg-surface font-body-default text-on-surface antialiased select-none"><header class="fixed top-0 left-0 right-0 h-12 z-50 bg-surface-chrome border-b border-border-divider flex items-center justify-between px-space-md"><div class="flex items-center gap-space-md"><div class="flex items-center gap-space-sm"><div class="w-7 h-7 rounded bg-secondary-container flex items-center justify-center text-primary"><span class="material-symbols-outlined text-[18px]">terminal</span></div><span class="font-window-header text-window-header text-text-primary tracking-wide">Z-Trader <span class="text-primary font-bold">AI</span></span></div><button class="w-8 h-8 rounded flex items-center justify-center bg-surface-window border border-border-divider text-text-secondary hover:text-text-primary hover:border-primary transition-colors" title="Переключить боковую панель" type="button"><span class="material-symbols-outlined text-[18px]">view_sidebar</span></button><div class="h-4 w-px bg-border-divider mx-space-xs"></div><div class="flex items-center gap-space-xs"><button class="h-8 px-space-sm rounded bg-surface-window border border-border-divider text-text-secondary hover:text-text-primary hover:border-primary font-body-dense text-body-dense flex items-center gap-1 transition-colors" type="button"><span class="material-symbols-outlined text-[16px]">grid_view</span>Рядом</button><button class="h-8 px-space-sm rounded bg-surface-window border border-border-divider text-text-secondary hover:text-text-primary hover:border-primary font-body-dense text-body-dense flex items-center gap-1 transition-colors" type="button"><span class="material-symbols-outlined text-[16px]">filter_none</span>Каскадом</button><button class="h-8 px-space-sm rounded bg-surface-window border border-border-divider text-text-secondary hover:text-text-primary hover:border-primary font-body-dense text-body-dense flex items-center gap-1 transition-colors" type="button"><span class="material-symbols-outlined text-[16px]">restart_alt</span>Сбросить вид</button></div></div><div class="hidden lg:flex items-center gap-space-sm px-space-sm py-1 rounded bg-surface-dim border border-border-divider"><span class="w-2 h-2 rounded-full bg-candle-up animate-pulse"></span><span class="font-status-bar text-status-bar text-text-secondary">Демонстрационные данные · UTC</span></div><div class="flex items-center gap-space-md"><div class="flex items-center p-0.5 rounded bg-surface-window border border-border-divider"><button class="h-7 px-space-sm rounded bg-secondary-container text-text-primary font-body-dense text-body-dense font-medium flex items-center gap-1" type="button"><span class="material-symbols-outlined text-[14px]">dark_mode</span>Тёмная</button><button class="h-7 px-space-sm rounded text-text-secondary hover:text-text-primary font-body-dense text-body-dense flex items-center gap-1 transition-colors" type="button"><span class="material-symbols-outlined text-[14px]">light_mode</span>Светлая</button></div><button class="w-8 h-8 rounded bg-surface-window border border-border-divider text-text-secondary hover:text-text-primary hover:border-primary flex items-center justify-center transition-colors" title="Горячие клавиши и справка" type="button"><span class="material-symbols-outlined text-[18px]">keyboard</span></button></div></header><aside class="fixed left-0 top-12 bottom-7 w-56 z-40 bg-surface-window border-r border-border-divider flex flex-col"><div class="p-space-sm border-b border-border-divider"><div class="relative flex items-center"><span class="material-symbols-outlined text-[16px] text-text-secondary absolute left-2 pointer-events-none">search</span><input class="w-full h-8 pl-7 pr-2 rounded bg-surface-chrome border border-border-divider text-text-primary font-body-dense text-body-dense placeholder:text-outline focus:outline-none focus:border-primary transition-colors" placeholder="Поиск инструмента..." type="text"/></div></div><div class="flex-1 overflow-y-auto"><div class="px-space-sm py-1 bg-surface-dim border-b border-chart-grid flex items-center justify-between font-label-mono text-label-mono text-text-secondary"><span>СИМВОЛ</span><span>ПОСЛЕДНЯЯ / ИЗМ</span></div><nav class="divide-y divide-chart-grid/60" data-active-classes="bg-secondary-container border-l-2 border-primary"><a aria-current="page" class="flex items-center justify-between px-space-sm py-1.5 text-text-primary transition-colors bg-secondary-container border-l-2 border-primary" data-path="terminal-workspace" href="#"><div class="flex flex-col"><span class="font-label-mono-bold text-label-mono-bold text-text-primary">ES</span><span class="font-status-bar text-status-bar text-text-secondary">S&amp;P 500 E-mini</span></div><div class="text-right"><div class="font-data-metric text-data-metric text-text-primary">5 084.25</div><div class="font-label-mono text-label-mono text-candle-up">+0.42%</div></div></a><a class="flex items-center justify-between px-space-sm py-1.5 text-on-surface-variant hover:bg-surface-chrome hover:text-text-primary transition-colors" data-path="instrument-nq" href="#"><div class="flex flex-col"><span class="font-label-mono-bold text-label-mono-bold text-text-primary">NQ</span><span class="font-status-bar text-status-bar text-text-secondary">Nasdaq 100</span></div><div class="text-right"><div class="font-data-metric text-data-metric text-text-primary">18 112.50</div><div class="font-label-mono text-label-mono text-candle-down">-0.18%</div></div></a><a class="flex items-center justify-between px-space-sm py-1.5 text-on-surface-variant hover:bg-surface-chrome hover:text-text-primary transition-colors" data-path="instrument-ym" href="#"><div class="flex flex-col"><span class="font-label-mono-bold text-label-mono-bold text-text-primary">YM</span><span class="font-status-bar text-status-bar text-text-secondary">Dow Jones Mini</span></div><div class="text-right"><div class="font-data-metric text-data-metric text-text-primary">38 980.00</div><div class="font-label-mono text-label-mono text-candle-up">+0.12%</div></div></a><a class="flex items-center justify-between px-space-sm py-1.5 text-on-surface-variant hover:bg-surface-chrome hover:text-text-primary transition-colors" data-path="instrument-rty" href="#"><div class="flex flex-col"><span class="font-label-mono-bold text-label-mono-bold text-text-primary">RTY</span><span class="font-status-bar text-status-bar text-text-secondary">Russell 2000</span></div><div class="text-right"><div class="font-data-metric text-data-metric text-text-primary">2 054.10</div><div class="font-label-mono text-label-mono text-candle-up">+0.65%</div></div></a><a class="flex items-center justify-between px-space-sm py-1.5 text-on-surface-variant hover:bg-surface-chrome hover:text-text-primary transition-colors" data-path="instrument-cl" href="#"><div class="flex flex-col"><span class="font-label-mono-bold text-label-mono-bold text-text-primary">CL</span><span class="font-status-bar text-status-bar text-text-secondary">Crude Oil</span></div><div class="text-right"><div class="font-data-metric text-data-metric text-text-primary">78.45</div><div class="font-label-mono text-label-mono text-candle-down">-0.85%</div></div></a><a class="flex items-center justify-between px-space-sm py-1.5 text-on-surface-variant hover:bg-surface-chrome hover:text-text-primary transition-colors" data-path="instrument-gc" href="#"><div class="flex flex-col"><span class="font-label-mono-bold text-label-mono-bold text-text-primary">GC</span><span class="font-status-bar text-status-bar text-text-secondary">Gold Futures</span></div><div class="text-right"><div class="font-data-metric text-data-metric text-text-primary">2 165.30</div><div class="font-label-mono text-label-mono text-candle-up">+0.35%</div></div></a><a class="flex items-center justify-between px-space-sm py-1.5 text-on-surface-variant hover:bg-surface-chrome hover:text-text-primary transition-colors" data-path="instrument-6e" href="#"><div class="flex flex-col"><span class="font-label-mono-bold text-label-mono-bold text-text-primary">6E</span><span class="font-status-bar text-status-bar text-text-secondary">Euro FX</span></div><div class="text-right"><div class="font-data-metric text-data-metric text-text-primary">1.0892</div><div class="font-label-mono text-label-mono text-candle-down">-0.05%</div></div></a></nav></div><div class="p-space-sm border-t border-border-divider bg-surface-chrome"><button class="w-full h-8 rounded bg-primary-container hover:bg-primary text-on-primary-container font-body-dense text-body-dense font-semibold flex items-center justify-center gap-1.5 transition-colors" type="button"><span class="material-symbols-outlined text-[16px]">add_chart</span>Открыть график</button></div></aside><div class="pl-56"><main class="pt-12 pb-7 min-h-screen bg-surface-dim relative"><div class="flex flex-col w-full">
+<div class="relative w-full overflow-hidden bg-surface-dim select-none" style="min-height: 840px; height: calc(100vh - 76px);">
+<!-- SUB-BAR / WORKSPACE CANVAS BANNER -->
+<div class="absolute top-0 left-0 right-0 h-6 bg-surface-window/90 px-space-md flex items-center justify-between z-0 border-b border-chart-grid/40">
+<div class="flex items-center gap-space-sm text-status-bar font-status-bar text-text-secondary">
+<span class="inline-block w-1.5 h-1.5 rounded-full bg-candle-up"></span>
+<span class="font-medium text-text-primary">ПРОСТРАНСТВО 01:</span>
+<span>Мульти-таймфрейм анализ фьючерсов (ES / NQ)</span>
+<span class="text-outline">|</span>
+<span class="text-outline">MDI Сетка 1440×900</span>
+</div>
+<div class="flex items-center gap-space-md text-status-bar font-status-bar text-text-secondary">
+<span class="text-candle-up">Поток L1/L2: Активен</span>
+<span class="text-outline">·</span>
+<span>Пинг: 4 мс</span>
+<span class="text-outline">·</span>
+<span class="text-primary">Демонстрационные данные</span>
+</div>
+</div>
+<!-- MDI CANVAS WORKSPACE (Relative Container with 3 Draggable/Clickable Floating Windows) -->
+<div class="relative w-full h-full pt-6" id="mdi-canvas">
+<!-- ============================================================ -->
+<!-- ОКНО 2: ES · 1ч (НЕАКТИВНОЕ, ПЕРЕКРЫТОЕ СПРАВА-СВЕРХУ)          -->
+<!-- ============================================================ -->
+<div class="absolute rounded bg-surface-window border border-border-divider shadow-md transition-shadow cursor-default flex flex-col" id="win-2" onclick="bringToFront('win-2')" style="left: 620px; top: 32px; width: 560px; height: 420px; z-index: 10;">
+<!-- Заголовок окна 2 -->
+<div class="h-8 bg-surface-chrome px-space-sm flex items-center justify-between border-b border-border-divider">
+<div class="flex items-center gap-space-xs min-w-0">
+<span class="material-symbols-outlined text-[15px] text-text-secondary">candlestick_chart</span>
+<span class="font-window-header text-window-header text-text-secondary truncate">ES · 1ч (S&amp;P 500 E-mini Futures) — Часовой срез</span>
+</div>
+<div class="flex items-center gap-0.5 ml-2 shrink-0">
+<button class="w-6 h-6 flex items-center justify-center rounded hover:bg-surface-window text-text-secondary hover:text-text-primary" title="Свернуть" type="button">
+<span class="material-symbols-outlined text-[13px]">remove</span>
+</button>
+<button class="w-6 h-6 flex items-center justify-center rounded hover:bg-surface-window text-text-secondary hover:text-text-primary" title="Развернуть" type="button">
+<span class="material-symbols-outlined text-[13px]">check_box_outline_blank</span>
+</button>
+<button class="w-6 h-6 flex items-center justify-center rounded hover:bg-error-container text-text-secondary hover:text-error" title="Закрыть" type="button">
+<span class="material-symbols-outlined text-[13px]">close</span>
+</button>
+</div>
+</div>
+<!-- Подпанель инструментов окна 2 -->
+<div class="h-9 bg-surface-chrome/70 px-space-sm flex items-center justify-between border-b border-chart-grid text-body-dense font-body-dense">
+<div class="flex items-center gap-1">
+<button class="h-6 px-1.5 rounded text-text-secondary hover:text-text-primary text-status-bar font-status-bar">15м</button>
+<button class="h-6 px-1.5 rounded bg-secondary-container text-primary font-semibold text-status-bar font-status-bar">1ч</button>
+<button class="h-6 px-1.5 rounded text-text-secondary hover:text-text-primary text-status-bar font-status-bar">4ч</button>
+<button class="h-6 px-1.5 rounded text-text-secondary hover:text-text-primary text-status-bar font-status-bar">1д</button>
+<div class="h-3.5 w-px bg-border-divider mx-1"></div>
+<button class="h-6 px-1.5 rounded bg-surface-window border border-border-divider text-text-secondary hover:text-text-primary text-status-bar font-status-bar flex items-center gap-1">
+<span class="material-symbols-outlined text-[13px]">functions</span>Индикаторы
+            </button>
+</div>
+<button class="h-6 px-1.5 rounded text-text-secondary hover:text-text-primary text-status-bar font-status-bar flex items-center gap-1">
+<span class="material-symbols-outlined text-[13px]">restart_alt</span>Сбросить вид
+          </button>
+</div>
+<!-- Легенда свечи окна 2 -->
+<div class="px-space-sm py-1 bg-surface-window/80 flex items-center justify-between text-status-bar font-status-bar border-b border-chart-grid/30">
+<div class="flex items-center gap-2 text-text-secondary">
+<span>O: <span class="text-text-primary font-label-mono">5072.00</span></span>
+<span>H: <span class="text-text-primary font-label-mono">5088.50</span></span>
+<span>L: <span class="text-text-primary font-label-mono">5066.25</span></span>
+<span>C: <span class="text-candle-up font-label-mono">5084.25</span></span>
+<span class="text-candle-up">(+0.54%)</span>
+</div>
+<span class="text-outline text-status-bar font-status-bar">Интервал: 60M</span>
+</div>
+<!-- Холст графика окна 2 (SVG) -->
+<div class="relative flex-1 bg-surface-window overflow-hidden">
+<svg class="w-full h-full" preserveaspectratio="none" viewbox="0 0 560 300">
+<defs>
+<pattern height="30" id="grid-w2" patternunits="userSpaceOnUse" width="70">
+<path d="M 70 0 L 0 0 0 30" fill="none" stroke="#303946" stroke-dasharray="2,3" stroke-width="0.75"></path>
+</pattern>
+</defs>
+<rect fill="url(#grid-w2)" height="100%" width="100%"></rect>
+<!-- Горизонтальный уровень поддержки 5040.00 -->
+<line opacity="0.8" stroke="#E6EBF1" stroke-dasharray="5,4" stroke-width="1.2" x1="0" x2="495" y1="210" y2="210"></line>
+<rect fill="#252C35" height="16" rx="2" stroke="#414D5D" width="104" x="12" y="198"></rect>
+<text fill="#E6EBF1" font-family="JetBrains Mono" font-size="9.5" font-weight="500" x="18" y="210">Уровень 5 040.00</text>
+<!-- Часовые свечи -->
+<!-- Bar 1 Up -->
+<line stroke="#52C997" stroke-width="1" x1="30" x2="30" y1="230" y2="260"></line>
+<rect fill="#52C997" fill-opacity="0.3" height="18" stroke="#52C997" stroke-width="1" width="10" x="25" y="235"></rect>
+<!-- Bar 2 Down -->
+<line stroke="#EE8794" stroke-width="1" x1="55" x2="55" y1="220" y2="255"></line>
+<rect fill="#EE8794" height="20" width="10" x="50" y="228"></rect>
+<!-- Bar 3 Up -->
+<line stroke="#52C997" stroke-width="1" x1="80" x2="80" y1="210" y2="245"></line>
+<rect fill="#52C997" fill-opacity="0.3" height="18" stroke="#52C997" stroke-width="1" width="10" x="75" y="215"></rect>
+<!-- Bar 4 Up Rebound from 5040 -->
+<line stroke="#52C997" stroke-width="1" x1="105" x2="105" y1="195" y2="225"></line>
+<rect fill="#52C997" fill-opacity="0.3" height="15" stroke="#52C997" stroke-width="1" width="10" x="100" y="200"></rect>
+<!-- Bar 5 Up -->
+<line stroke="#52C997" stroke-width="1" x1="130" x2="130" y1="180" y2="215"></line>
+<rect fill="#52C997" fill-opacity="0.3" height="22" stroke="#52C997" stroke-width="1" width="10" x="125" y="185"></rect>
+<!-- Bar 6 Down Retest -->
+<line stroke="#EE8794" stroke-width="1" x1="155" x2="155" y1="182" y2="218"></line>
+<rect fill="#EE8794" height="16" width="10" x="150" y="190"></rect>
+<!-- Bar 7 Up -->
+<line stroke="#52C997" stroke-width="1" x1="180" x2="180" y1="160" y2="200"></line>
+<rect fill="#52C997" fill-opacity="0.3" height="25" stroke="#52C997" stroke-width="1" width="10" x="175" y="168"></rect>
+<!-- Bar 8 Up -->
+<line stroke="#52C997" stroke-width="1" x1="205" x2="205" y1="145" y2="185"></line>
+<rect fill="#52C997" fill-opacity="0.3" height="20" stroke="#52C997" stroke-width="1" width="10" x="200" y="152"></rect>
+<!-- Bar 9 Down pull -->
+<line stroke="#EE8794" stroke-width="1" x1="230" x2="230" y1="150" y2="175"></line>
+<rect fill="#EE8794" height="14" width="10" x="225" y="155"></rect>
+<!-- Bar 10 Up strong -->
+<line stroke="#52C997" stroke-width="1" x1="255" x2="255" y1="120" y2="165"></line>
+<rect fill="#52C997" fill-opacity="0.3" height="30" stroke="#52C997" stroke-width="1" width="10" x="250" y="128"></rect>
+<!-- Bar 11 Up -->
+<line stroke="#52C997" stroke-width="1" x1="280" x2="280" y1="105" y2="140"></line>
+<rect fill="#52C997" fill-opacity="0.3" height="20" stroke="#52C997" stroke-width="1" width="10" x="275" y="112"></rect>
+<!-- Bar 12 Down -->
+<line stroke="#EE8794" stroke-width="1" x1="305" x2="305" y1="110" y2="135"></line>
+<rect fill="#EE8794" height="15" width="10" x="300" y="115"></rect>
+<!-- Bar 13 Up -->
+<line stroke="#52C997" stroke-width="1" x1="330" x2="330" y1="85" y2="125"></line>
+<rect fill="#52C997" fill-opacity="0.3" height="26" stroke="#52C997" stroke-width="1" width="10" x="325" y="92"></rect>
+<!-- Bar 14 Up -->
+<line stroke="#52C997" stroke-width="1" x1="355" x2="355" y1="70" y2="105"></line>
+<rect fill="#52C997" fill-opacity="0.3" height="22" stroke="#52C997" stroke-width="1" width="10" x="350" y="78"></rect>
+<!-- Bar 15 Down doji -->
+<line stroke="#EE8794" stroke-width="1" x1="380" x2="380" y1="65" y2="95"></line>
+<rect fill="#EE8794" height="8" width="10" x="375" y="72"></rect>
+<!-- Bar 16 Up to 5084 -->
+<line stroke="#52C997" stroke-width="1" x1="405" x2="405" y1="52" y2="88"></line>
+<rect fill="#52C997" fill-opacity="0.3" height="20" stroke="#52C997" stroke-width="1" width="10" x="400" y="58"></rect>
+<!-- Bar 17 Up Current -->
+<line stroke="#52C997" stroke-width="1" x1="430" x2="430" y1="48" y2="80"></line>
+<rect fill="#52C997" height="18" stroke="#52C997" stroke-width="1" width="10" x="425" y="52"></rect>
+<!-- SMA Line -->
+<path d="M 25 240 Q 130 195 240 150 T 435 68" fill="none" opacity="0.8" stroke="#E9B86E" stroke-width="1.3"></path>
+</svg>
+<!-- Правая ценовая шкала Окна 2 -->
+<div class="absolute right-0 top-0 bottom-6 w-16 bg-surface-chrome/40 border-l border-chart-grid flex flex-col justify-between py-1 text-right pr-1 font-label-mono text-status-bar text-text-secondary pointer-events-none">
+<span>5 100.00</span>
+<span>5 080.00</span>
+<span>5 060.00</span>
+<span class="text-text-primary font-semibold">5 040.00</span>
+<span>5 020.00</span>
+<span>5 000.00</span>
+</div>
+<!-- Нижняя временная шкала Окна 2 -->
+<div class="absolute bottom-0 left-0 right-16 h-6 bg-surface-chrome/40 border-t border-chart-grid flex items-center justify-between px-space-sm font-label-mono text-status-bar text-text-secondary pointer-events-none">
+<span>04 Мар</span>
+<span>05 Мар</span>
+<span>06 Мар</span>
+<span>07 Мар</span>
+<span class="text-text-primary">08 Мар 14:00</span>
+</div>
+</div>
+</div>
+<!-- ============================================================ -->
+<!-- ОКНО 3: NQ · 5м (ТРЕТЬЕ, ВНИЗУ ПО ЦЕНТРУ / СПРАВА)           -->
+<!-- ============================================================ -->
+<div class="absolute rounded bg-surface-window border border-border-divider shadow-md transition-shadow cursor-default flex flex-col" id="win-3" onclick="bringToFront('win-3')" style="left: 510px; top: 400px; width: 660px; height: 380px; z-index: 15;">
+<!-- Заголовок окна 3 -->
+<div class="h-8 bg-surface-chrome px-space-sm flex items-center justify-between border-b border-border-divider">
+<div class="flex items-center gap-space-xs min-w-0">
+<span class="material-symbols-outlined text-[15px] text-text-secondary">trending_up</span>
+<span class="font-window-header text-window-header text-text-secondary truncate">NQ · 5м (Nasdaq 100 E-mini Futures)</span>
+</div>
+<div class="flex items-center gap-0.5 ml-2 shrink-0">
+<button class="w-6 h-6 flex items-center justify-center rounded hover:bg-surface-window text-text-secondary hover:text-text-primary" title="Свернуть" type="button">
+<span class="material-symbols-outlined text-[13px]">remove</span>
+</button>
+<button class="w-6 h-6 flex items-center justify-center rounded hover:bg-surface-window text-text-secondary hover:text-text-primary" title="Развернуть" type="button">
+<span class="material-symbols-outlined text-[13px]">check_box_outline_blank</span>
+</button>
+<button class="w-6 h-6 flex items-center justify-center rounded hover:bg-error-container text-text-secondary hover:text-error" title="Закрыть" type="button">
+<span class="material-symbols-outlined text-[13px]">close</span>
+</button>
+</div>
+</div>
+<!-- Подпанель инструментов окна 3 -->
+<div class="h-9 bg-surface-chrome/70 px-space-sm flex items-center justify-between border-b border-chart-grid text-body-dense font-body-dense">
+<div class="flex items-center gap-1">
+<button class="h-6 px-1.5 rounded text-text-secondary hover:text-text-primary text-status-bar font-status-bar">1м</button>
+<button class="h-6 px-1.5 rounded bg-secondary-container text-primary font-semibold text-status-bar font-status-bar">5м</button>
+<button class="h-6 px-1.5 rounded text-text-secondary hover:text-text-primary text-status-bar font-status-bar">15м</button>
+<button class="h-6 px-1.5 rounded text-text-secondary hover:text-text-primary text-status-bar font-status-bar">1ч</button>
+<div class="h-3.5 w-px bg-border-divider mx-1"></div>
+<button class="h-6 px-1.5 rounded bg-surface-window border border-border-divider text-text-secondary hover:text-text-primary text-status-bar font-status-bar flex items-center gap-1">
+<span class="material-symbols-outlined text-[13px]">functions</span>Индикаторы (1)
+            </button>
+<button class="h-6 px-1.5 rounded text-text-secondary hover:text-text-primary text-status-bar font-status-bar flex items-center gap-0.5">
+<span class="material-symbols-outlined text-[13px]">gesture</span>Разметка
+            </button>
+</div>
+<div class="font-label-mono text-status-bar text-text-secondary">
+            NQ: <span class="text-text-primary font-semibold">18 112.50</span> <span class="text-candle-down">-0.18%</span>
+</div>
+</div>
+<!-- Верхний ценовой график NQ (быстрые 5м свечи) -->
+<div class="relative h-[180px] bg-surface-window overflow-hidden border-b border-chart-grid">
+<svg class="w-full h-full" preserveaspectratio="none" viewbox="0 0 660 180">
+<pattern height="24" id="grid-w3" patternunits="userSpaceOnUse" width="60">
+<path d="M 60 0 L 0 0 0 24" fill="none" stroke="#303946" stroke-dasharray="2,3" stroke-width="0.6"></path>
+</pattern>
+<rect fill="url(#grid-w3)" height="100%" width="100%"></rect>
+<!-- Волатильный ряд свечей NQ 5m -->
+<!-- bar cluster -->
+<line stroke="#EE8794" stroke-width="1" x1="25" x2="25" y1="130" y2="160"></line>
+<rect fill="#EE8794" height="18" width="8" x="21" y="136"></rect>
+<line stroke="#52C997" stroke-width="1" x1="45" x2="45" y1="125" y2="155"></line>
+<rect fill="#52C997" fill-opacity="0.3" height="15" stroke="#52C997" stroke-width="1" width="8" x="41" y="130"></rect>
+<line stroke="#52C997" stroke-width="1" x1="65" x2="65" y1="110" y2="148"></line>
+<rect fill="#52C997" fill-opacity="0.3" height="22" stroke="#52C997" stroke-width="1" width="8" x="61" y="118"></rect>
+<line stroke="#EE8794" stroke-width="1" x1="85" x2="85" y1="115" y2="140"></line>
+<rect fill="#EE8794" height="14" width="8" x="81" y="120"></rect>
+<line stroke="#52C997" stroke-width="1" x1="105" x2="105" y1="95" y2="135"></line>
+<rect fill="#52C997" fill-opacity="0.3" height="24" stroke="#52C997" stroke-width="1" width="8" x="101" y="102"></rect>
+<line stroke="#52C997" stroke-width="1" x1="125" x2="125" y1="85" y2="120"></line>
+<rect fill="#52C997" fill-opacity="0.3" height="22" stroke="#52C997" stroke-width="1" width="8" x="121" y="90"></rect>
+<line stroke="#EE8794" stroke-width="1" x1="145" x2="145" y1="88" y2="118"></line>
+<rect fill="#EE8794" height="16" width="8" x="141" y="94"></rect>
+<line stroke="#EE8794" stroke-width="1" x1="165" x2="165" y1="92" y2="122"></line>
+<rect fill="#EE8794" height="18" width="8" x="161" y="98"></rect>
+<line stroke="#52C997" stroke-width="1" x1="185" x2="185" y1="75" y2="110"></line>
+<rect fill="#52C997" fill-opacity="0.3" height="24" stroke="#52C997" stroke-width="1" width="8" x="181" y="80"></rect>
+<line stroke="#52C997" stroke-width="1" x1="205" x2="205" y1="65" y2="100"></line>
+<rect fill="#52C997" fill-opacity="0.3" height="22" stroke="#52C997" stroke-width="1" width="8" x="201" y="70"></rect>
+<line stroke="#52C997" stroke-width="1" x1="225" x2="225" y1="55" y2="90"></line>
+<rect fill="#52C997" fill-opacity="0.3" height="24" stroke="#52C997" stroke-width="1" width="8" x="221" y="60"></rect>
+<line stroke="#EE8794" stroke-width="1" x1="245" x2="245" y1="58" y2="85"></line>
+<rect fill="#EE8794" height="14" width="8" x="241" y="62"></rect>
+<line stroke="#52C997" stroke-width="1" x1="265" x2="265" y1="45" y2="80"></line>
+<rect fill="#52C997" fill-opacity="0.3" height="24" stroke="#52C997" stroke-width="1" width="8" x="261" y="50"></rect>
+<line stroke="#52C997" stroke-width="1" x1="285" x2="285" y1="40" y2="72"></line>
+<rect fill="#52C997" fill-opacity="0.3" height="22" stroke="#52C997" stroke-width="1" width="8" x="281" y="44"></rect>
+<line stroke="#EE8794" stroke-width="1" x1="305" x2="305" y1="42" y2="68"></line>
+<rect fill="#EE8794" height="12" width="8" x="301" y="46"></rect>
+<line stroke="#52C997" stroke-width="1" x1="325" x2="325" y1="35" y2="62"></line>
+<rect fill="#52C997" fill-opacity="0.3" height="16" stroke="#52C997" stroke-width="1" width="8" x="321" y="38"></rect>
+<line stroke="#52C997" stroke-width="1" x1="345" x2="345" y1="30" y2="58"></line>
+<rect fill="#52C997" fill-opacity="0.3" height="18" stroke="#52C997" stroke-width="1" width="8" x="341" y="33"></rect>
+<line stroke="#EE8794" stroke-width="1" x1="365" x2="365" y1="34" y2="60"></line>
+<rect fill="#EE8794" height="15" width="8" x="361" y="38"></rect>
+<line stroke="#EE8794" stroke-width="1" x1="385" x2="385" y1="38" y2="65"></line>
+<rect fill="#EE8794" height="16" width="8" x="381" y="42"></rect>
+<line stroke="#52C997" stroke-width="1" x1="405" x2="405" y1="32" y2="56"></line>
+<rect fill="#52C997" fill-opacity="0.3" height="14" stroke="#52C997" stroke-width="1" width="8" x="401" y="35"></rect>
+<line stroke="#52C997" stroke-width="1" x1="425" x2="425" y1="28" y2="52"></line>
+<rect fill="#52C997" height="16" stroke="#52C997" stroke-width="1" width="8" x="421" y="30"></rect>
+<line stroke="#EE8794" stroke-width="1" x1="445" x2="445" y1="32" y2="55"></line>
+<rect fill="#EE8794" height="12" width="8" x="441" y="36"></rect>
+<line stroke="#EE8794" stroke-width="1" x1="465" x2="465" y1="30" y2="54"></line>
+<rect fill="#EE8794" height="14" width="8" x="461" y="34"></rect>
+<line stroke="#52C997" stroke-width="1" x1="485" x2="485" y1="26" y2="50"></line>
+<rect fill="#52C997" height="15" stroke="#52C997" stroke-width="1" width="8" x="481" y="28"></rect>
+<line stroke="#52C997" stroke-width="1" x1="505" x2="505" y1="25" y2="48"></line>
+<rect fill="#52C997" height="14" stroke="#52C997" stroke-width="1" width="8" x="501" y="26"></rect>
+<line stroke="#EE8794" stroke-width="1" x1="525" x2="525" y1="27" y2="46"></line>
+<rect fill="#EE8794" height="10" width="8" x="521" y="30"></rect>
+</svg>
+<!-- Шкала Y для NQ -->
+<div class="absolute right-0 top-0 bottom-0 w-16 bg-surface-chrome/40 border-l border-chart-grid flex flex-col justify-between py-1 text-right pr-1 font-label-mono text-status-bar text-text-secondary pointer-events-none">
+<span>18 160</span>
+<span>18 140</span>
+<span class="text-text-primary font-semibold">18 112.5</span>
+<span>18 090</span>
+<span>18 070</span>
+<span>18 050</span>
+</div>
+</div>
+<!-- Нижняя отдельная панель: RSI (14, close): 62.4 -->
+<div class="h-[110px] bg-surface-window flex flex-col relative">
+<!-- Заголовок панели индикатора RSI -->
+<div class="h-5 px-space-sm bg-surface-chrome/60 flex items-center justify-between text-status-bar font-status-bar border-b border-chart-grid/40">
+<div class="flex items-center gap-1.5">
+<span class="inline-block w-2 h-0.5 bg-indicator-rsi"></span>
+<span class="text-indicator-rsi font-medium">RSI (14, close):</span>
+<span class="font-label-mono text-text-primary font-semibold">62.4</span>
+</div>
+<span class="text-text-secondary text-[10px]">Диапазон: 0 — 100</span>
+</div>
+<!-- Область кривой осциллятора RSI -->
+<div class="relative flex-1 bg-surface-window">
+<svg class="w-full h-full" preserveaspectratio="none" viewbox="0 0 660 85">
+<!-- Заливка легкой вуалью между 30 и 70 -->
+<rect fill="#C4A1E8" fill-opacity="0.04" height="38" width="580" x="0" y="22"></rect>
+<!-- Уровень 70 (Перекупленность) -->
+<line stroke="#414D5D" stroke-dasharray="3,3" stroke-width="1" x1="0" x2="580" y1="22" y2="22"></line>
+<text fill="#A8B3C2" font-family="JetBrains Mono" font-size="9" x="540" y="18">70</text>
+<!-- Уровень 50 (Срединный уровень) -->
+<line stroke="#303946" stroke-dasharray="2,4" stroke-width="0.8" x1="0" x2="580" y1="41" y2="41"></line>
+<!-- Уровень 30 (Перепроданность) -->
+<line stroke="#414D5D" stroke-dasharray="3,3" stroke-width="1" x1="0" x2="580" y1="60" y2="60"></line>
+<text fill="#A8B3C2" font-family="JetBrains Mono" font-size="9" x="540" y="70">30</text>
+<!-- Осциллирующая плавная кривая RSI (#C4A1E8) со значением на конце 62.4 (~29px) -->
+<path d="M 15 68 C 45 66, 75 58, 105 48 C 135 38, 165 44, 195 40 C 225 35, 255 24, 285 20 C 315 25, 345 19, 375 22 C 405 28, 435 24, 465 21 C 495 23, 510 27, 525 29" fill="none" stroke="#C4A1E8" stroke-width="1.6"></path>
+<!-- Конечная точка текущего RSI -->
+<circle cx="525" cy="29" fill="#C4A1E8" r="3" stroke="#1D2229" stroke-width="1"></circle>
+</svg>
+<!-- Шкала индикатора RSI справа -->
+<div class="absolute right-0 top-0 bottom-0 w-16 bg-surface-chrome/40 border-l border-chart-grid flex flex-col justify-between py-1 text-right pr-1 font-label-mono text-[10px] text-text-secondary pointer-events-none">
+<span class="text-indicator-rsi">70.0</span>
+<span class="text-text-primary font-bold">62.4</span>
+<span>50.0</span>
+<span class="text-indicator-rsi">30.0</span>
+</div>
+</div>
+</div>
+</div>
+<!-- ============================================================ -->
+<!-- ОКНО 1: ГЛАВНОЕ, АКТИВНОЕ НА ПЕРЕДНЕМ ПЛАНЕ (ES · 15м)         -->
+<!-- ============================================================ -->
+<div class="absolute rounded bg-surface-window border border-primary-container shadow-2xl transition-all cursor-default flex flex-col" id="win-1" onclick="bringToFront('win-1')" style="left: 16px; top: 16px; width: 730px; height: 570px; z-index: 20; box-shadow: 0 4px 16px rgba(10, 14, 20, 0.35);">
+<!-- Заголовок активного окна 1 (Высота 32px, фон #252C35) -->
+<div class="h-8 bg-surface-chrome px-space-sm flex items-center justify-between border-b border-border-divider">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-[16px] text-primary">analytics</span>
+<span class="font-window-header text-window-header text-text-primary font-bold tracking-tight">ES · 15м (S&amp;P 500 E-mini Futures)</span>
+<span class="ml-2 px-1.5 py-0.2 rounded bg-surface-window border border-primary/40 font-status-bar text-[10px] text-primary font-medium">Фокус</span>
+</div>
+<div class="flex items-center gap-1">
+<button class="w-6 h-6 flex items-center justify-center rounded hover:bg-surface-window text-text-secondary hover:text-text-primary" title="Свернуть" type="button">
+<span class="material-symbols-outlined text-[14px]">remove</span>
+</button>
+<button class="w-6 h-6 flex items-center justify-center rounded hover:bg-surface-window text-text-secondary hover:text-text-primary" title="Развернуть" type="button">
+<span class="material-symbols-outlined text-[14px]">check_box_outline_blank</span>
+</button>
+<button class="w-6 h-6 flex items-center justify-center rounded hover:bg-error-container text-text-secondary hover:text-error" title="Закрыть" type="button">
+<span class="material-symbols-outlined text-[14px]">close</span>
+</button>
+</div>
+</div>
+<!-- Панель инструментов графика под заголовком (Высота 36px, фон #252C35) -->
+<div class="h-9 bg-surface-chrome px-space-sm flex items-center justify-between border-b border-border-divider">
+<!-- Таймфреймы и инструменты -->
+<div class="flex items-center gap-1">
+<div class="flex items-center bg-surface-window p-0.5 rounded border border-border-divider">
+<button class="h-6 px-1.5 rounded text-text-secondary hover:text-text-primary text-status-bar font-status-bar">1м</button>
+<button class="h-6 px-1.5 rounded text-text-secondary hover:text-text-primary text-status-bar font-status-bar">5м</button>
+<button class="h-6 px-2 rounded bg-secondary-container text-primary font-semibold text-status-bar font-status-bar">15м</button>
+<button class="h-6 px-1.5 rounded text-text-secondary hover:text-text-primary text-status-bar font-status-bar">1ч</button>
+<button class="h-6 px-1.5 rounded text-text-secondary hover:text-text-primary text-status-bar font-status-bar">4ч</button>
+<button class="h-6 px-1.5 rounded text-text-secondary hover:text-text-primary text-status-bar font-status-bar">1д</button>
+</div>
+<div class="h-4 w-px bg-border-divider mx-1"></div>
+<!-- Кнопка Индикаторы (3) f(x) -->
+<button class="h-7 px-2 rounded bg-surface-window border border-border-divider text-text-primary hover:border-primary text-body-dense font-body-dense flex items-center gap-1.5 transition-colors">
+<span class="font-serif italic font-bold text-primary text-[13px]">ƒ(x)</span>
+<span>Индикаторы (3)</span>
+</button>
+<div class="h-4 w-px bg-border-divider mx-1"></div>
+<!-- Инструменты ручной разметки -->
+<div class="flex items-center gap-0.5">
+<button class="w-7 h-7 rounded bg-secondary-container text-primary flex items-center justify-center border border-primary/50" title="Указатель">
+<span class="material-symbols-outlined text-[15px]">near_me</span>
+</button>
+<button class="w-7 h-7 rounded bg-surface-window text-text-secondary hover:text-text-primary flex items-center justify-center border border-border-divider hover:border-primary" title="Отрезок (/)">
+<span class="material-symbols-outlined text-[15px]">timeline</span>
+</button>
+<button class="w-7 h-7 rounded bg-surface-window text-text-secondary hover:text-text-primary flex items-center justify-center border border-border-divider hover:border-primary" title="Горизонтальный уровень (—)">
+<span class="material-symbols-outlined text-[15px]">horizontal_rule</span>
+</button>
+<button class="h-7 px-1.5 rounded bg-surface-window text-text-secondary hover:text-text-primary flex items-center gap-1 border border-border-divider hover:border-primary text-status-bar font-status-bar" title="Область / Прямоугольник">
+<span class="material-symbols-outlined text-[15px]">crop_square</span>
+<span class="hidden sm:inline">Область</span>
+</button>
+</div>
+</div>
+<!-- Кнопка 'Сбросить вид' -->
+<button class="h-7 px-2 rounded bg-surface-window border border-border-divider text-text-secondary hover:text-text-primary hover:border-primary text-body-dense font-body-dense flex items-center gap-1 transition-colors">
+<span class="material-symbols-outlined text-[14px]">restart_alt</span>
+<span>Сбросить вид</span>
+</button>
+</div>
+<!-- Верхняя легенда графика (O: 5081.50 H: 5086.75 L: 5079.25 C: 5084.25 (+0.42%)) -->
+<div class="px-space-sm py-1.5 bg-surface-window flex flex-wrap items-center justify-between border-b border-chart-grid/40 gap-y-1">
+<div class="flex items-center gap-2.5 font-label-mono text-label-mono text-text-secondary">
+<span>O: <span class="text-text-primary">5 081.50</span></span>
+<span>H: <span class="text-text-primary">5 086.75</span></span>
+<span>L: <span class="text-text-primary">5 079.25</span></span>
+<span>C: <span class="text-candle-up font-bold">5 084.25</span></span>
+<span class="text-candle-up font-semibold">(+0.42%)</span>
+</div>
+<!-- Легенда индикаторов SMA 20 и EMA 50 -->
+<div class="flex items-center gap-3 font-status-bar text-status-bar">
+<div class="flex items-center gap-1">
+<span class="w-2.5 h-0.5 bg-indicator-sma inline-block"></span>
+<span class="text-indicator-sma">SMA (20, close): 5 076.40</span>
+</div>
+<div class="flex items-center gap-1">
+<span class="w-2.5 h-0.5 bg-primary inline-block"></span>
+<span class="text-primary">EMA (50, close): 5 068.10</span>
+</div>
+</div>
+</div>
+<!-- ОСНОВНАЯ ОБЛАСТЬ СВЕЧНОГО ГРАФИКА (Высота ~300px) -->
+<div class="relative h-[290px] bg-surface-window overflow-hidden">
+<svg class="w-full h-full" preserveaspectratio="none" viewbox="0 0 730 290">
+<defs>
+<pattern height="28" id="grid-w1" patternunits="userSpaceOnUse" width="70">
+<path d="M 70 0 L 0 0 0 28" fill="none" stroke="#303946" stroke-dasharray="2,3" stroke-width="0.8"></path>
+</pattern>
+</defs>
+<rect fill="url(#grid-w1)" height="100%" width="100%"></rect>
+<!-- РУЧНАЯ РАЗМЕТКА: Прямоугольная область консолидации (5075.00 - 5085.00) -->
+<!-- Координаты: x=340 to 600, y=70 to 125 -->
+<rect fill="#E6EBF1" fill-opacity="0.08" height="55" stroke="#A8B3C2" stroke-dasharray="3,2" stroke-width="1" width="280" x="340" y="70"></rect>
+<!-- 4 аккуратные опорные точки по углам -->
+<rect fill="#E6EBF1" height="4" width="4" x="338" y="68"></rect>
+<rect fill="#E6EBF1" height="4" width="4" x="618" y="68"></rect>
+<rect fill="#E6EBF1" height="4" width="4" x="338" y="123"></rect>
+<rect fill="#E6EBF1" height="4" width="4" x="618" y="123"></rect>
+<text fill="#A8B3C2" font-family="JetBrains Mono" font-size="10" letter-spacing="0.05em" x="348" y="84">ЗОНА СОПРОТИВЛЕНИЯ [5075.00 – 5085.00]</text>
+<!-- ЛИНИЯ EMA 50 (синий #8CAEEB, толщина 1.5px, ниже цены) -->
+<path d="M 20 230 C 120 220, 240 205, 360 175 C 450 150, 540 140, 645 130" fill="none" stroke="#8CAEEB" stroke-linecap="round" stroke-width="1.5"></path>
+<!-- ЛИНИЯ SMA 20 (охра #E9B86E, толщина 1.5px, плавно вдоль тренда свечей) -->
+<path d="M 20 200 C 100 190, 180 170, 280 140 C 370 120, 470 100, 645 88" fill="none" stroke="#E9B86E" stroke-linecap="round" stroke-width="1.5"></path>
+<!-- Свечи: зеленые растущие полупрозрачные #52C997, красные падающие #EE8794 -->
+<!-- 1. Up -->
+<line stroke="#52C997" stroke-width="1" x1="30" x2="30" y1="210" y2="245"></line>
+<rect fill="#52C997" fill-opacity="0.3" height="20" stroke="#52C997" stroke-width="1" width="10" x="25" y="218"></rect>
+<!-- 2. Down -->
+<line stroke="#EE8794" stroke-width="1" x1="58" x2="58" y1="205" y2="240"></line>
+<rect fill="#EE8794" height="18" width="10" x="53" y="212"></rect>
+<!-- 3. Up -->
+<line stroke="#52C997" stroke-width="1" x1="86" x2="86" y1="195" y2="230"></line>
+<rect fill="#52C997" fill-opacity="0.3" height="20" stroke="#52C997" stroke-width="1" width="10" x="81" y="202"></rect>
+<!-- 4. Up -->
+<line stroke="#52C997" stroke-width="1" x1="114" x2="114" y1="180" y2="215"></line>
+<rect fill="#52C997" fill-opacity="0.3" height="22" stroke="#52C997" stroke-width="1" width="10" x="109" y="186"></rect>
+<!-- 5. Down Pullback -->
+<line stroke="#EE8794" stroke-width="1" x1="142" x2="142" y1="185" y2="210"></line>
+<rect fill="#EE8794" height="14" width="10" x="137" y="190"></rect>
+<!-- 6. Down -->
+<line stroke="#EE8794" stroke-width="1" x1="170" x2="170" y1="192" y2="222"></line>
+<rect fill="#EE8794" height="16" width="10" x="165" y="196"></rect>
+<!-- 7. Up Strong -->
+<line stroke="#52C997" stroke-width="1" x1="198" x2="198" y1="155" y2="200"></line>
+<rect fill="#52C997" fill-opacity="0.3" height="30" stroke="#52C997" stroke-width="1" width="10" x="193" y="162"></rect>
+<!-- 8. Up Continuation -->
+<line stroke="#52C997" stroke-width="1" x1="226" x2="226" y1="140" y2="178"></line>
+<rect fill="#52C997" fill-opacity="0.3" height="22" stroke="#52C997" stroke-width="1" width="10" x="221" y="148"></rect>
+<!-- 9. Down pause -->
+<line stroke="#EE8794" stroke-width="1" x1="254" x2="254" y1="145" y2="170"></line>
+<rect fill="#EE8794" height="12" width="10" x="249" y="150"></rect>
+<!-- 10. Up -->
+<line stroke="#52C997" stroke-width="1" x1="282" x2="282" y1="125" y2="160"></line>
+<rect fill="#52C997" fill-opacity="0.3" height="20" stroke="#52C997" stroke-width="1" width="10" x="277" y="132"></rect>
+<!-- 11. Up entering consolidation -->
+<line stroke="#52C997" stroke-width="1" x1="310" x2="310" y1="110" y2="145"></line>
+<rect fill="#52C997" fill-opacity="0.3" height="22" stroke="#52C997" stroke-width="1" width="10" x="305" y="118"></rect>
+<!-- 12. Up touch 5085 -->
+<line stroke="#52C997" stroke-width="1" x1="338" x2="338" y1="85" y2="128"></line>
+<rect fill="#52C997" fill-opacity="0.3" height="26" stroke="#52C997" stroke-width="1" width="10" x="333" y="94"></rect>
+<!-- 13. Down reject -->
+<line stroke="#EE8794" stroke-width="1" x1="366" x2="366" y1="88" y2="120"></line>
+<rect fill="#EE8794" height="18" width="10" x="361" y="92"></rect>
+<!-- 14. Down test zone floor -->
+<line stroke="#EE8794" stroke-width="1" x1="394" x2="394" y1="100" y2="130"></line>
+<rect fill="#EE8794" height="16" width="10" x="389" y="105"></rect>
+<!-- 15. Up pinbar -->
+<line stroke="#52C997" stroke-width="1" x1="422" x2="422" y1="95" y2="132"></line>
+<rect fill="#52C997" fill-opacity="0.3" height="14" stroke="#52C997" stroke-width="1" width="10" x="417" y="100"></rect>
+<!-- 16. Up rebound -->
+<line stroke="#52C997" stroke-width="1" x1="450" x2="450" y1="82" y2="115"></line>
+<rect fill="#52C997" fill-opacity="0.3" height="18" stroke="#52C997" stroke-width="1" width="10" x="445" y="88"></rect>
+<!-- 17. Down micro -->
+<line stroke="#EE8794" stroke-width="1" x1="478" x2="478" y1="86" y2="112"></line>
+<rect fill="#EE8794" height="14" width="10" x="473" y="90"></rect>
+<!-- 18. Up test high -->
+<line stroke="#52C997" stroke-width="1" x1="506" x2="506" y1="72" y2="105"></line>
+<rect fill="#52C997" fill-opacity="0.3" height="20" stroke="#52C997" stroke-width="1" width="10" x="501" y="78"></rect>
+<!-- 19. Down -->
+<line stroke="#EE8794" stroke-width="1" x1="534" x2="534" y1="76" y2="108"></line>
+<rect fill="#EE8794" height="16" width="10" x="529" y="82"></rect>
+<!-- 20. Up impulse -->
+<line stroke="#52C997" stroke-width="1" x1="562" x2="562" y1="65" y2="98"></line>
+<rect fill="#52C997" fill-opacity="0.3" height="22" stroke="#52C997" stroke-width="1" width="10" x="557" y="70"></rect>
+<!-- 21. Last Candle (5084.25) -->
+<line stroke="#52C997" stroke-width="1" x1="590" x2="590" y1="62" y2="92"></line>
+<rect fill="#52C997" height="18" stroke="#52C997" stroke-width="1.2" width="10" x="585" y="68"></rect>
+<!-- ПЕРЕКРЕСТИЕ (CROSSHAIR) ПУНКТИРОМ НА ТОЧКЕ ТЕКУЩЕЙ ЦЕНЫ 5084.25 (x=590, y=74) -->
+<line opacity="0.85" stroke="#8CAEEB" stroke-dasharray="3,3" stroke-width="1" x1="0" x2="655" y1="74" y2="74"></line>
+<line opacity="0.85" stroke="#8CAEEB" stroke-dasharray="3,3" stroke-width="1" x1="590" x2="590" y1="0" y2="290"></line>
+</svg>
+<!-- Плавающий Y-ярлык цены на правой шкале (5084.25) -->
+<div class="absolute right-0 top-[62px] h-6 px-2 bg-surface-chrome border border-primary text-text-primary font-label-mono text-label-mono font-bold flex items-center justify-center shadow z-30">
+            5 084.25
+          </div>
+<!-- Правая ценовая шкала (5060 - 5100) -->
+<div class="absolute right-0 top-0 bottom-0 w-[74px] bg-surface-chrome/40 border-l border-chart-grid flex flex-col justify-between py-1 text-right pr-1 font-label-mono text-label-mono text-text-secondary pointer-events-none">
+<span>5 100.00</span>
+<span>5 090.00</span>
+<span>5 080.00</span>
+<span>5 070.00</span>
+<span>5 060.00</span>
+</div>
+<!-- Плавающий X-ярлык времени снизу (14:45 UTC) -->
+<div class="absolute bottom-0 left-[550px] h-5 px-2 bg-surface-chrome border border-primary text-text-primary font-label-mono text-status-bar font-semibold flex items-center justify-center shadow z-30">
+            14:45 UTC
+          </div>
+</div>
+<!-- Нижняя временная шкала основного графика -->
+<div class="h-6 bg-surface-chrome/70 border-t border-b border-chart-grid flex items-center justify-between px-space-md font-label-mono text-status-bar text-text-secondary">
+<div class="flex items-center gap-12">
+<span>10:00</span>
+<span>11:00</span>
+<span>12:00</span>
+<span>13:00</span>
+<span>14:00</span>
+</div>
+<span class="text-text-primary font-medium pr-16">UTC</span>
+</div>
+<!-- Сплиттер-разделитель #414D5D -->
+<div class="h-[2px] bg-border-divider w-full"></div>
+<!-- НИЖНЯЯ ОТДЕЛЬНАЯ ПАНЕЛЬ 'ОБЪЁМ' (VOLUME) (высота ~100px) -->
+<div class="h-[105px] bg-surface-window flex flex-col relative">
+<!-- Заголовок панели объёма -->
+<div class="h-5 px-space-sm bg-surface-chrome/40 flex items-center justify-between text-status-bar font-status-bar border-b border-chart-grid/30">
+<div class="flex items-center gap-2">
+<span class="text-text-secondary font-medium">Объём:</span>
+<span class="font-label-mono text-candle-up font-semibold">14.82K</span>
+<span class="text-outline">SMA(20): 11.45K</span>
+</div>
+<span class="text-text-secondary">Vol Profile: On</span>
+</div>
+<!-- Гистограмма объемов под каждой свечой -->
+<div class="relative flex-1 bg-surface-window">
+<svg class="w-full h-full" preserveaspectratio="none" viewbox="0 0 730 80">
+<!-- Сетка объема -->
+<line stroke="#303946" stroke-dasharray="2,3" stroke-width="0.5" x1="0" x2="655" y1="25" y2="25"></line>
+<line stroke="#303946" stroke-dasharray="2,3" stroke-width="0.5" x1="0" x2="655" y1="50" y2="50"></line>
+<!-- Бары объемов синхронизированные по X со свечами -->
+<!-- 1 up -->
+<rect fill="#52C997" fill-opacity="0.8" height="35" width="10" x="25" y="45"></rect>
+<!-- 2 down -->
+<rect fill="#EE8794" height="28" width="10" x="53" y="52"></rect>
+<!-- 3 up -->
+<rect fill="#52C997" fill-opacity="0.8" height="32" width="10" x="81" y="48"></rect>
+<!-- 4 up -->
+<rect fill="#52C997" fill-opacity="0.8" height="42" width="10" x="109" y="38"></rect>
+<!-- 5 down -->
+<rect fill="#EE8794" height="20" width="10" x="137" y="60"></rect>
+<!-- 6 down -->
+<rect fill="#EE8794" height="24" width="10" x="165" y="56"></rect>
+<!-- 7 up surge -->
+<rect fill="#52C997" fill-opacity="0.8" height="60" width="10" x="193" y="20"></rect>
+<!-- 8 up -->
+<rect fill="#52C997" fill-opacity="0.8" height="48" width="10" x="221" y="32"></rect>
+<!-- 9 down -->
+<rect fill="#EE8794" height="16" width="10" x="249" y="64"></rect>
+<!-- 10 up -->
+<rect fill="#52C997" fill-opacity="0.8" height="40" width="10" x="277" y="40"></rect>
+<!-- 11 up -->
+<rect fill="#52C997" fill-opacity="0.8" height="45" width="10" x="305" y="35"></rect>
+<!-- 12 up -->
+<rect fill="#52C997" fill-opacity="0.8" height="56" width="10" x="333" y="24"></rect>
+<!-- 13 down -->
+<rect fill="#EE8794" height="36" width="10" x="361" y="44"></rect>
+<!-- 14 down -->
+<rect fill="#EE8794" height="30" width="10" x="389" y="50"></rect>
+<!-- 15 up -->
+<rect fill="#52C997" fill-opacity="0.8" height="38" width="10" x="417" y="42"></rect>
+<!-- 16 up -->
+<rect fill="#52C997" fill-opacity="0.8" height="50" width="10" x="445" y="30"></rect>
+<!-- 17 down -->
+<rect fill="#EE8794" height="22" width="10" x="473" y="58"></rect>
+<!-- 18 up -->
+<rect fill="#52C997" fill-opacity="0.8" height="52" width="10" x="501" y="28"></rect>
+<!-- 19 down -->
+<rect fill="#EE8794" height="32" width="10" x="529" y="48"></rect>
+<!-- 20 up impulse -->
+<rect fill="#52C997" fill-opacity="0.8" height="62" width="10" x="557" y="18"></rect>
+<!-- 21 last candle (14.82K) -->
+<rect fill="#52C997" height="58" width="10" x="585" y="22"></rect>
+<!-- Линия скользящей средней объёма (SMA Volume 20) -->
+<path d="M 25 50 Q 150 48 300 38 T 595 30" fill="none" stroke="#E9B86E" stroke-dasharray="2,2" stroke-width="1.2"></path>
+</svg>
+<!-- Шкала объёма справа -->
+<div class="absolute right-0 top-0 bottom-0 w-[74px] bg-surface-chrome/40 border-l border-chart-grid flex flex-col justify-between py-1 text-right pr-1 font-label-mono text-[10px] text-text-secondary pointer-events-none">
+<span>25.0K</span>
+<span class="text-candle-up font-semibold">14.8K</span>
+<span>5.0K</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<script>
+  // Простая MDI логика переключения фокуса окон
+  let topZ = 25;
+  function bringToFront(winId) {
+    const el = document.getElementById(winId);
+    if (!el) return;
+    topZ += 1;
+    el.style.zIndex = topZ;
+
+    // Сбросить визуальные стили фокуса со всех окон
+    ['win-1', 'win-2', 'win-3'].forEach(id => {
+      const w = document.getElementById(id);
+      if (!w) return;
+      if (id === winId) {
+        w.classList.remove('border-border-divider');
+        w.classList.add('border-primary-container', 'shadow-2xl');
+      } else {
+        w.classList.remove('border-primary-container', 'shadow-2xl');
+        w.classList.add('border-border-divider', 'shadow-md');
+      }
+    });
+  }
+</script></main></div><footer class="fixed bottom-0 left-0 right-0 h-7 z-50 bg-surface-chrome border-t border-border-divider flex items-center justify-between px-space-md"><div class="flex items-center gap-space-xs"><span class="font-status-bar text-status-bar text-text-secondary mr-1 uppercase">Окна:</span><button class="h-5 px-1.5 rounded bg-surface-window border border-border-divider text-text-primary font-status-bar text-status-bar hover:border-primary flex items-center gap-1 transition-colors" type="button"><span class="material-symbols-outlined text-[12px] text-primary">show_chart</span>ES · 1д</button><button class="h-5 px-1.5 rounded bg-surface-window border border-border-divider text-text-primary font-status-bar text-status-bar hover:border-primary flex items-center gap-1 transition-colors" type="button"><span class="material-symbols-outlined text-[12px] text-primary">show_chart</span>GC · 15м</button></div><div class="flex items-center gap-space-md"><span class="font-status-bar text-status-bar text-text-secondary hidden sm:inline"><span class="text-candle-up">●</span> Автосохранение активно · Настройки сохранены локально</span><div class="h-3 w-px bg-border-divider hidden sm:block"></div><div class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-candle-up"></span><span class="font-status-bar text-status-bar text-text-primary font-medium">Подключено</span></div></div></footer></body></html>

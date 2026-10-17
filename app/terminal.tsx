@@ -299,18 +299,11 @@ export default function Terminal() {
   const { setTheme, setWindows, setSidebar } = workspace;
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState("ES");
-  const saveStatus = !ready
-    ? "Загрузка рабочего места…"
-    : !storageAvailable
-      ? "Настройки не сохраняются на этом устройстве"
-      : recoveryWarning
-        ? "Не удалось восстановить настройки; открыт макет"
-        : "Настройки сохранены локально";
   const [dialog, setDialog] = useState<"help" | number | null>(null);
   const [undo, setUndo] = useState<ChartWindow | null>(null);
   const canvas = useRef<HTMLDivElement>(null);
   const modal = useRef<HTMLDialogElement>(null);
-  const [size, setSize] = useState({ width: 1200, height: 820 });
+  const [size, setSize] = useState({ width: 1200, height: 820, measured: false });
   const gesture = useRef<{
     id: number;
     mode: "move" | "resize";
@@ -319,6 +312,14 @@ export default function Terminal() {
     original: ChartWindow;
   } | null>(null);
   const active = windows.filter((w) => !w.minimized).at(-1)?.id;
+  const workspaceReady = ready && size.measured;
+  const saveStatus = !workspaceReady
+    ? "Загрузка рабочего места…"
+    : !storageAvailable
+      ? "Настройки не сохраняются на этом устройстве"
+      : recoveryWarning
+        ? "Не удалось восстановить настройки; открыт макет"
+        : "Настройки сохранены локально";
 
   useLayoutEffect(() => {
     if (ready) document.documentElement.dataset.theme = theme;
@@ -331,6 +332,7 @@ export default function Terminal() {
       setSize({
         width: entry.contentRect.width,
         height: entry.contentRect.height,
+        measured: true,
       }),
     );
     observer.observe(element);
@@ -497,7 +499,11 @@ export default function Terminal() {
             <i />
             Демонстрационные данные · UTC
           </div>
-          <div className="theme-switch" aria-label="Тема оформления">
+          <div
+            className="theme-switch"
+            aria-label="Тема оформления"
+            style={{ visibility: ready ? "visible" : "hidden" }}
+          >
             <button
               aria-pressed={theme === "dark"}
               onClick={() => setTheme("dark")}
@@ -605,7 +611,7 @@ export default function Terminal() {
               <span className="muted">ES / NQ · Демо</span>
             </div>
             <div className="canvas" ref={canvas}>
-              {!windows.some((w) => !w.minimized) && (
+              {workspaceReady && !windows.some((w) => !w.minimized) && (
                 <div className="empty">
                   <Icon name="chart" />
                   <p>Откройте инструмент из списка слева</p>
@@ -615,7 +621,9 @@ export default function Terminal() {
                 </div>
               )}
               {/* Keep DOM order stable while a window holds pointer capture. */}
-              {[...windows].sort((a, b) => a.id - b.id).map((win) => {
+              {workspaceReady && [...windows]
+                .sort((a, b) => a.id - b.id)
+                .map((win) => {
                 if (win.minimized) return null;
                 const index = windows.indexOf(win);
                 const info = details[win.kind];

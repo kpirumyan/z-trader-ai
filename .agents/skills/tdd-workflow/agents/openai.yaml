@@ -1,6 +1,6 @@
 interface:
-  display_name: "TDD: тестировщик → кодер → ревьюер"
-  short_description: "Цепочка сабагентов с RED, проверками и ревью"
-  default_prompt: "Используй $tdd-workflow для реализации задачи через тестировщика, кодера и ревьюера."
+  display_name: "TDD без архитектора"
+  short_description: "Реализация с тестировщиком, кодером и ревьюером"
+  default_prompt: "Используй $tdd-workflow для реализации задачи без отдельного архитектора по общей основе TDD."
 policy:
   allow_implicit_invocation: false

@@ -48,7 +48,8 @@ input:focus-visible,
   height: 100dvh;
   color-scheme: dark;
 }
-.terminal.light {
+.terminal.light,
+html[data-theme="light"] .terminal {
   --bg: #f1f3f5;
   --surface: #fff;
   --chrome: #f7f8fa;

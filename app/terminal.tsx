@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   useSyncExternalStore,
@@ -261,6 +262,9 @@ function createWorkspaceStore() {
           }
         } catch {
           next.recoveryWarning = true;
+          next.theme = document.documentElement.dataset.theme === "light"
+            ? "light"
+            : "dark";
         }
         save(next);
       }
@@ -315,6 +319,10 @@ export default function Terminal() {
     original: ChartWindow;
   } | null>(null);
   const active = windows.filter((w) => !w.minimized).at(-1)?.id;
+
+  useLayoutEffect(() => {
+    if (ready) document.documentElement.dataset.theme = theme;
+  }, [ready, theme]);
 
   useEffect(() => {
     const element = canvas.current;

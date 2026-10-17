@@ -1,0 +1,6 @@
+interface:
+  display_name: "TDD: тестировщик → кодер → ревьюер"
+  short_description: "Цепочка сабагентов с RED, проверками и ревью"
+  default_prompt: "Используй $tdd-workflow для реализации задачи через тестировщика, кодера и ревьюера."
+policy:
+  allow_implicit_invocation: false

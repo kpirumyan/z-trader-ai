@@ -1,0 +1,6 @@
+interface:
+  display_name: "Исследователь"
+  short_description: "Гипотезы, оценка и эксперименты анализа рынка"
+  default_prompt: "Используй $researcher для исследования текущей задачи проекта."
+policy:
+  allow_implicit_invocation: true

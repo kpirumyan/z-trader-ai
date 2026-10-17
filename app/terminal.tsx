@@ -4,6 +4,7 @@ import {
   useEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   type PointerEvent,
   type ReactNode,
 } from "react";
@@ -205,21 +206,107 @@ function validWindows(value: unknown): value is ChartWindow[] {
   );
 }
 
+function createWorkspaceStore() {
+  const serverSnapshot = {
+    theme: "dark" as Theme,
+    windows: initialWindows,
+    sidebar: true,
+    ready: false,
+    storageAvailable: true,
+    recoveryWarning: false,
+  };
+  let snapshot = serverSnapshot;
+  const listeners = new Set<() => void>();
+
+  function save(next: typeof snapshot) {
+    let storageAvailable = true;
+    try {
+      const { theme, windows, sidebar } = next;
+      localStorage.setItem(STORAGE, JSON.stringify({ theme, windows, sidebar }));
+    } catch {
+      storageAvailable = false;
+    }
+    snapshot = { ...next, storageAvailable };
+    listeners.forEach((listener) => listener());
+  }
+
+  return {
+    getSnapshot: () => snapshot,
+    getServerSnapshot: () => serverSnapshot,
+    subscribe(listener: () => void) {
+      listeners.add(listener);
+      // Load only after hydration; StrictMode resubscriptions keep this snapshot.
+      if (!snapshot.ready) {
+        let next = { ...snapshot, ready: true };
+        try {
+          const saved = localStorage.getItem(STORAGE);
+          if (saved) {
+            const data = JSON.parse(saved);
+            if (
+              !validWindows(data.windows) ||
+              !["dark", "light"].includes(data.theme) ||
+              typeof data.sidebar !== "boolean"
+            )
+              throw new Error("Invalid workspace");
+            next = {
+              ...next,
+              windows: data.windows,
+              theme: data.theme,
+              sidebar: data.sidebar,
+            };
+          } else {
+            next.theme = matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light";
+          }
+        } catch {
+          next.recoveryWarning = true;
+        }
+        save(next);
+      }
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    setTheme(theme: Theme) {
+      save({ ...snapshot, theme });
+    },
+    setSidebar(sidebar: boolean) {
+      save({ ...snapshot, sidebar });
+    },
+    setWindows(value: ChartWindow[] | ((items: ChartWindow[]) => ChartWindow[])) {
+      const windows = typeof value === "function" ? value(snapshot.windows) : value;
+      save({ ...snapshot, windows });
+    },
+    reset() {
+      save({ ...snapshot, windows: initialWindows, recoveryWarning: false });
+    },
+  };
+}
+
 export default function Terminal() {
-  const [theme, setTheme] = useState<Theme>("dark");
-  const [windows, setWindows] = useState(initialWindows);
-  const [sidebar, setSidebar] = useState(true);
+  const [workspace] = useState(createWorkspaceStore);
+  const { theme, windows, sidebar, ready, storageAvailable, recoveryWarning } =
+    useSyncExternalStore(
+      workspace.subscribe,
+      workspace.getSnapshot,
+      workspace.getServerSnapshot,
+    );
+  const { setTheme, setWindows, setSidebar } = workspace;
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState("ES");
-  const [ready, setReady] = useState(false);
-  const [saveStatus, setSaveStatus] = useState("Загрузка рабочего места…");
+  const saveStatus = !ready
+    ? "Загрузка рабочего места…"
+    : !storageAvailable
+      ? "Настройки не сохраняются на этом устройстве"
+      : recoveryWarning
+        ? "Не удалось восстановить настройки; открыт макет"
+        : "Настройки сохранены локально";
   const [dialog, setDialog] = useState<"help" | number | null>(null);
   const [undo, setUndo] = useState<ChartWindow | null>(null);
   const canvas = useRef<HTMLDivElement>(null);
   const modal = useRef<HTMLDialogElement>(null);
   const [size, setSize] = useState({ width: 1200, height: 820 });
-  const [storageAvailable, setStorageAvailable] = useState(true);
-  const [recoveryWarning, setRecoveryWarning] = useState(false);
   const gesture = useRef<{
     id: number;
     mode: "move" | "resize";
@@ -229,47 +316,6 @@ export default function Terminal() {
   } | null>(null);
   const active = windows.filter((w) => !w.minimized).at(-1)?.id;
 
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE);
-      if (saved) {
-        const data = JSON.parse(saved);
-        if (
-          !validWindows(data.windows) ||
-          !["dark", "light"].includes(data.theme) ||
-          typeof data.sidebar !== "boolean"
-        )
-          throw new Error("Invalid workspace");
-        setWindows(data.windows);
-        setTheme(data.theme);
-        setSidebar(data.sidebar);
-      } else
-        setTheme(
-          matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
-        );
-    } catch {
-      setRecoveryWarning(true);
-    }
-    setReady(true);
-  }, []);
-  useEffect(() => {
-    if (!ready) return;
-    try {
-      localStorage.setItem(
-        STORAGE,
-        JSON.stringify({ theme, windows, sidebar }),
-      );
-      setSaveStatus(
-        recoveryWarning
-          ? "Не удалось восстановить настройки; открыт макет"
-          : "Настройки сохранены локально",
-      );
-      setStorageAvailable(true);
-    } catch {
-      setStorageAvailable(false);
-      setSaveStatus("Настройки не сохраняются на этом устройстве");
-    }
-  }, [theme, windows, sidebar, ready, recoveryWarning]);
   useEffect(() => {
     const element = canvas.current;
     if (!element) return;
@@ -435,12 +481,7 @@ export default function Terminal() {
             <Icon name="cascade" />
             Каскадом
           </button>
-          <button
-            onClick={() => {
-              setWindows(initialWindows);
-              setRecoveryWarning(false);
-            }}
-          >
+          <button onClick={workspace.reset}>
             <Icon name="reset" />
             Сбросить вид
           </button>

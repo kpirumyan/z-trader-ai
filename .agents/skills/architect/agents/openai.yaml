@@ -1,6 +1,0 @@
-interface:
-  display_name: "Архитектор"
-  short_description: "Мозговой штурм функционала и контракт для TDD"
-  default_prompt: "Используй $architect для обсуждения и проектирования следующей функции."
-policy:
-  allow_implicit_invocation: false

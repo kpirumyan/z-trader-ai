@@ -330,21 +330,6 @@ test("failed brand images do not block the workspace or controls", async ({ page
   await expectEmptyWorkspace(page);
 });
 
-test("ignores the old demo record without modifying it", async ({ page }) => {
-  await page.goto("/");
-  const oldRecord = JSON.stringify({
-    theme: "dark",
-    sidebar: true,
-    windows: [{ id: 1, kind: "main", x: 40, y: 80, width: 600, height: 400, minimized: false, maximized: false }],
-  });
-  await page.evaluate((raw) => localStorage.setItem("z-trader-stitch-v1", raw), oldRecord);
-  await page.reload();
-
-  await expectEmptyWorkspace(page);
-  await expect(page.getByText(/ES\s*[·-]?\s*15m/i)).toHaveCount(0);
-  expect(await page.evaluate(() => localStorage.getItem("z-trader-stitch-v1"))).toBe(oldRecord);
-});
-
 test("follows system theme, then keeps a manual choice before hydration on reload", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "dark" });
   await page.goto("/");

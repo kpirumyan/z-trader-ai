@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-
-const RETRY_DELAY_MS = 250;
+import { STORAGE_RETRY_DELAY_MS } from "../constants/storage";
 
 type StorageRecoveryBannerProps =
   | {
@@ -52,7 +51,7 @@ export function StorageRecoveryBanner(props: StorageRecoveryBannerProps) {
           setIsRetrying(false);
         }
       }
-    }, RETRY_DELAY_MS);
+    }, STORAGE_RETRY_DELAY_MS);
   };
 
   const handleStartEmpty = () => {

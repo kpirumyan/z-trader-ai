@@ -1,6 +1,7 @@
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { createElement, Suspense, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { WORKSPACE_STORAGE_KEY } from "@/app/constants/storage";
 import { useWorkspace } from "@/app/hooks/use-workspace";
 import {
   createEmptyWorkspace,
@@ -8,8 +9,6 @@ import {
   saveWorkspace,
 } from "@/app/storage/workspace-storage";
 import type { WorkspaceStorageEnvelope } from "@/app/types/workspace";
-
-const WORKSPACE_KEY = "z-trader-workspace-v1";
 
 function suspenseWrapper({ children }: { children: ReactNode }) {
   return createElement(Suspense, { fallback: null }, children);
@@ -62,7 +61,7 @@ describe("workspace-storage and useWorkspace initialization", () => {
           { id: "ws-2", windows: [] },
         ],
       };
-      window.localStorage.setItem(WORKSPACE_KEY, JSON.stringify(envelope));
+      window.localStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify(envelope));
 
       expect(readWorkspace()).toEqual({
         status: "ready",
@@ -126,12 +125,12 @@ describe("workspace-storage and useWorkspace initialization", () => {
         }),
       },
     ])("returns corrupted without overwriting storage for $name", ({ raw }) => {
-      window.localStorage.setItem(WORKSPACE_KEY, raw);
+      window.localStorage.setItem(WORKSPACE_STORAGE_KEY, raw);
       const setItemSpy = vi.spyOn(Storage.prototype, "setItem");
       const removeItemSpy = vi.spyOn(Storage.prototype, "removeItem");
 
       expect(readWorkspace()).toEqual({ status: "corrupted" });
-      expect(window.localStorage.getItem(WORKSPACE_KEY)).toBe(raw);
+      expect(window.localStorage.getItem(WORKSPACE_STORAGE_KEY)).toBe(raw);
       expect(setItemSpy).not.toHaveBeenCalled();
       expect(removeItemSpy).not.toHaveBeenCalled();
     });
@@ -165,7 +164,7 @@ describe("workspace-storage and useWorkspace initialization", () => {
       };
 
       expect(saveWorkspace(envelope)).toBe("ready");
-      expect(JSON.parse(window.localStorage.getItem(WORKSPACE_KEY)!)).toEqual(
+      expect(JSON.parse(window.localStorage.getItem(WORKSPACE_STORAGE_KEY)!)).toEqual(
         envelope,
       );
     });
@@ -201,7 +200,7 @@ describe("workspace-storage and useWorkspace initialization", () => {
       expect(result.current.state.status).toBe("ready");
       if (result.current.state.status === "ready") {
         const stored = JSON.parse(
-          window.localStorage.getItem(WORKSPACE_KEY)!,
+          window.localStorage.getItem(WORKSPACE_STORAGE_KEY)!,
         ) as WorkspaceStorageEnvelope;
         expect(stored).toEqual(result.current.state.workspace);
         expect(stored.workspaces).toHaveLength(1);
@@ -215,7 +214,7 @@ describe("workspace-storage and useWorkspace initialization", () => {
         activeWorkspaceId: "existing-workspace-id",
         workspaces: [{ id: "existing-workspace-id", windows: [] }],
       };
-      window.localStorage.setItem(WORKSPACE_KEY, JSON.stringify(existing));
+      window.localStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify(existing));
 
       const { result } = renderHook(() => useWorkspace(), {
         wrapper: suspenseWrapper,
@@ -225,21 +224,21 @@ describe("workspace-storage and useWorkspace initialization", () => {
         status: "ready",
         workspace: existing,
       });
-      expect(JSON.parse(window.localStorage.getItem(WORKSPACE_KEY)!)).toEqual(
+      expect(JSON.parse(window.localStorage.getItem(WORKSPACE_STORAGE_KEY)!)).toEqual(
         existing,
       );
     });
 
     it("reports corrupted state and does not overwrite a corrupted record on mount", () => {
       const corruptedRaw = "{corrupted-json";
-      window.localStorage.setItem(WORKSPACE_KEY, corruptedRaw);
+      window.localStorage.setItem(WORKSPACE_STORAGE_KEY, corruptedRaw);
 
       const { result } = renderHook(() => useWorkspace(), {
         wrapper: suspenseWrapper,
       });
 
       expect(result.current.state).toEqual({ status: "corrupted" });
-      expect(window.localStorage.getItem(WORKSPACE_KEY)).toBe(corruptedRaw);
+      expect(window.localStorage.getItem(WORKSPACE_STORAGE_KEY)).toBe(corruptedRaw);
     });
 
     it("falls back to unavailable state with an in-memory empty workspace when read or write fails", () => {

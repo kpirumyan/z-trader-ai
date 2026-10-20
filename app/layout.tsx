@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { GeistSans } from "geist/font/sans";
 import { JetBrains_Mono } from "next/font/google";
+import { THEME_STORAGE_KEY } from "./constants/storage";
 import "./globals.css";
 
 const jetbrainsMono = JetBrains_Mono({
@@ -20,7 +21,7 @@ export const metadata: Metadata = {
 const initializeTheme = `(() => {
   let theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   try {
-    const saved = window.localStorage.getItem('z-trader-theme-v1');
+    const saved = window.localStorage.getItem('${THEME_STORAGE_KEY}');
     if (saved === 'light' || saved === 'dark') theme = saved;
   } catch {}
   document.documentElement.dataset.theme = theme;

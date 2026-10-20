@@ -1,11 +1,13 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { Suspense } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  STORAGE_RETRY_DELAY_MS,
+  WORKSPACE_STORAGE_KEY,
+} from "@/app/constants/storage";
 import { StorageRecoveryBanner } from "@/app/components/storage-recovery-banner";
 import { useWorkspace } from "@/app/hooks/use-workspace";
 import type { WorkspaceStorageEnvelope } from "@/app/types/workspace";
-
-const WORKSPACE_KEY = "z-trader-workspace-v1";
 
 function WorkspaceHarness() {
   const { state, retry, startEmpty } = useWorkspace();
@@ -74,7 +76,7 @@ describe("StorageRecoveryBanner and workspace recovery flow", () => {
     expect(onRetry).not.toHaveBeenCalled();
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(249);
+      await vi.advanceTimersByTimeAsync(STORAGE_RETRY_DELAY_MS - 1);
     });
     expect(onRetry).not.toHaveBeenCalled();
     expect((retryButton as HTMLButtonElement).disabled).toBe(true);
@@ -132,7 +134,7 @@ describe("StorageRecoveryBanner and workspace recovery flow", () => {
   it("recovers via Retry when the stored record is repaired, or replaces it on Start empty", async () => {
     vi.useFakeTimers();
     const broken = "{corrupted";
-    window.localStorage.setItem(WORKSPACE_KEY, broken);
+    window.localStorage.setItem(WORKSPACE_STORAGE_KEY, broken);
 
     render(
       <Suspense fallback={null}>
@@ -143,27 +145,27 @@ describe("StorageRecoveryBanner and workspace recovery flow", () => {
     expect(
       screen.getByRole("heading", { name: "Unable to restore your workspace" }),
     ).toBeTruthy();
-    expect(window.localStorage.getItem(WORKSPACE_KEY)).toBe(broken);
+    expect(window.localStorage.getItem(WORKSPACE_STORAGE_KEY)).toBe(broken);
 
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(250);
+      await vi.advanceTimersByTimeAsync(STORAGE_RETRY_DELAY_MS);
     });
     expect(
       screen.getByRole("heading", { name: "Unable to restore your workspace" }),
     ).toBeTruthy();
-    expect(window.localStorage.getItem(WORKSPACE_KEY)).toBe(broken);
+    expect(window.localStorage.getItem(WORKSPACE_STORAGE_KEY)).toBe(broken);
 
     const repaired: WorkspaceStorageEnvelope = {
       version: 1,
       activeWorkspaceId: "repaired-ws",
       workspaces: [{ id: "repaired-ws", windows: [] }],
     };
-    window.localStorage.setItem(WORKSPACE_KEY, JSON.stringify(repaired));
+    window.localStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify(repaired));
 
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(250);
+      await vi.advanceTimersByTimeAsync(STORAGE_RETRY_DELAY_MS);
     });
 
     expect(screen.getByTestId("workspace-id").textContent).toBe("repaired-ws");
@@ -173,7 +175,7 @@ describe("StorageRecoveryBanner and workspace recovery flow", () => {
   });
 
   it("replaces corrupted storage with a fresh empty workspace on Start empty", () => {
-    window.localStorage.setItem(WORKSPACE_KEY, "{corrupted");
+    window.localStorage.setItem(WORKSPACE_STORAGE_KEY, "{corrupted");
 
     render(
       <Suspense fallback={null}>
@@ -186,7 +188,7 @@ describe("StorageRecoveryBanner and workspace recovery flow", () => {
     const activeId = screen.getByTestId("workspace-id").textContent;
     expect(activeId).toBeTruthy();
     const saved = JSON.parse(
-      window.localStorage.getItem(WORKSPACE_KEY)!,
+      window.localStorage.getItem(WORKSPACE_STORAGE_KEY)!,
     ) as WorkspaceStorageEnvelope;
     expect(saved.activeWorkspaceId).toBe(activeId);
     expect(saved.workspaces).toEqual([{ id: activeId, windows: [] }]);

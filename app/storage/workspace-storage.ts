@@ -1,10 +1,12 @@
+import {
+  CURRENT_WORKSPACE_VERSION,
+  WORKSPACE_STORAGE_KEY,
+} from "../constants/storage";
 import type {
   WorkspaceReadResult,
   WorkspaceRecord,
   WorkspaceStorageEnvelope,
 } from "../types/workspace";
-
-const WORKSPACE_STORAGE_KEY = "z-trader-workspace-v1";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -26,7 +28,7 @@ function isWorkspace(value: unknown): value is WorkspaceRecord {
 function isEnvelope(value: unknown): value is WorkspaceStorageEnvelope {
   if (
     !isRecord(value) ||
-    value.version !== 1 ||
+    value.version !== CURRENT_WORKSPACE_VERSION ||
     !isId(value.activeWorkspaceId) ||
     !Array.isArray(value.workspaces) ||
     value.workspaces.length === 0 ||
@@ -64,7 +66,7 @@ export function readWorkspace(): WorkspaceReadResult {
 export function createEmptyWorkspace(): WorkspaceStorageEnvelope {
   const id = crypto.randomUUID();
   return {
-    version: 1,
+    version: CURRENT_WORKSPACE_VERSION,
     activeWorkspaceId: id,
     workspaces: [{ id, windows: [] }],
   };

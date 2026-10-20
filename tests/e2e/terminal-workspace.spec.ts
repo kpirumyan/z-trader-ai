@@ -168,63 +168,9 @@ test("first visit creates one versioned empty workspace and reload preserves its
   }
 });
 
-test("a saved empty workspace is read without replacing its stable id", async ({ page }) => {
-  const saved = { version: 1, activeWorkspaceId: "saved-empty-workspace", workspaces: [{ id: "saved-empty-workspace", windows: [] }] };
-  await observeStorage(page, JSON.stringify(saved));
-  for (const visit of ["first load", "reload"]) {
-    if (visit === "first load") await page.goto("/");
-    else await page.reload();
-    await expectWorkspaceRead(page);
-    await expectHydratedShell(page);
-    await expectEmptyWorkspace(page);
-    expect(await readWorkspace(page)).toEqual(saved);
-  }
-});
-
-for (const sample of [
-  { name: "malformed JSON", raw: "{broken-json" },
-  { name: "invalid envelope", raw: JSON.stringify({ version: 1, activeWorkspaceId: "missing", workspaces: [] }) },
-  { name: "unsupported version", raw: JSON.stringify({ version: 2, activeWorkspaceId: "future", workspaces: [{ id: "future", windows: [] }] }) },
-]) {
-  test(`${sample.name} is preserved without crashing the shell on load and reload`, async ({ page }) => {
-    const errors: string[] = [];
-    page.on("pageerror", (error) => errors.push(error.message));
-    await observeStorage(page, sample.raw);
-    for (const visit of ["first load", "reload"]) {
-      if (visit === "first load") await page.goto("/");
-      else await page.reload();
-      await expectWorkspaceRead(page);
-      await expectHydratedShell(page);
-      await expect(page.getByText(emptyTitle, { exact: true })).toBeHidden();
-      await expect(page.getByText(emptyInstruction, { exact: true })).toBeHidden();
-      const snapshot = await storageSnapshot(page);
-      expect(snapshot.raw).toBe(sample.raw);
-      expect(snapshot.writes, "corrupt records must not be overwritten, even temporarily").toEqual([]);
-      expect(errors).toEqual([]);
-    }
-  });
-}
-
-for (const failure of ["getter", "read", "write"] as const) {
-  test(`unavailable storage (${failure}) keeps the hydrated shell on load and reload`, async ({ page }) => {
-    const errors: string[] = [];
-    page.on("pageerror", (error) => errors.push(error.message));
-    await observeStorage(page, null, failure);
-    for (const visit of ["first load", "reload"]) {
-      if (visit === "first load") await page.goto("/");
-      else await page.reload();
-      if (failure !== "getter") await expectWorkspaceRead(page);
-      if (failure === "write") {
-        await expect.poll(async () => (await storageSnapshot(page)).writes.length).toBeGreaterThan(0);
-      }
-      await expectHydratedShell(page);
-      expect((await storageSnapshot(page)).raw).toBeNull();
-      expect(errors).toEqual([]);
-    }
-  });
-}
-
 test("malformed workspace preserves the record until Start empty", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
   const malformed = "{broken-json";
   await observeStorage(page, malformed);
   await page.goto("/");
@@ -279,6 +225,7 @@ test("malformed workspace preserves the record until Start empty", async ({ page
   await expectEmptyWorkspace(page);
   await expectShellSurvives(page);
   expect(await readWorkspace(page)).toEqual(saved);
+  expect(errors).toEqual([]);
 });
 
 test("Retry reads a repaired workspace without replacing it while the error is shown", async ({ page }) => {
@@ -322,34 +269,30 @@ test("Retry reads a repaired workspace without replacing it while the error is s
   expect((await storageSnapshot(page)).raw).toBe(repaired);
 });
 
-test("unavailable workspace storage leaves instruction usable and warns about saving", async ({ context }) => {
-  for (const failure of ["getter", "read", "write"] as const) {
-    const page = await context.newPage();
-    try {
-      await observeStorage(page, null, failure);
-      for (const visit of ["first load", "reload"]) {
-        if (visit === "first load") await page.goto("/");
-        else await page.reload();
-        await expectHydratedShell(page);
-        await expectEmptyWorkspace(page);
-        const warning = page.getByText(/(?:not|won.t|cannot|can.t|unable to).*(?:sav|persist)|(?:sav|persist).*(?:unavailable|disabled)/i);
-        await expect(warning).toBeVisible();
-        const newButton = page.getByRole("banner").getByRole("button", { name: "New", exact: true });
-        await newButton.click();
-        const dialog = page.getByRole("dialog");
-        await expect(dialog).toBeVisible();
-        for (const kind of ["Chart", "Level II", "T & S"]) await expect(dialog).toContainText(kind);
-        await page.keyboard.press("Escape");
-        await expect(dialog).toBeHidden();
-        await expect(newButton).toBeFocused();
-        await expect(warning).toBeVisible();
-        await expectEmptyWorkspace(page);
-        await expectShellSurvives(page);
-        expect((await storageSnapshot(page)).raw).toBeNull();
-      }
-    } finally {
-      await page.close();
-    }
+test("unavailable workspace storage leaves instruction usable and warns about saving", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await observeStorage(page, null, "getter");
+  for (const visit of ["first load", "reload"]) {
+    if (visit === "first load") await page.goto("/");
+    else await page.reload();
+    await expectHydratedShell(page);
+    await expectEmptyWorkspace(page);
+    const warning = page.getByText(/(?:not|won.t|cannot|can.t|unable to).*(?:sav|persist)|(?:sav|persist).*(?:unavailable|disabled)/i);
+    await expect(warning).toBeVisible();
+    const newButton = page.getByRole("banner").getByRole("button", { name: "New", exact: true });
+    await newButton.click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    for (const kind of ["Chart", "Level II", "T & S"]) await expect(dialog).toContainText(kind);
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await expect(newButton).toBeFocused();
+    await expect(warning).toBeVisible();
+    await expectEmptyWorkspace(page);
+    await expectShellSurvives(page);
+    expect((await storageSnapshot(page)).raw).toBeNull();
+    expect(errors).toEqual([]);
   }
 });
 

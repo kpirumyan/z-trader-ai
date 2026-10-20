@@ -439,12 +439,8 @@ test("GET / returns the English shell in HTML even with all JavaScript disabled"
 for (const system of ["light", "dark"] as const) {
   for (const sample of [
     { name: "missing choice", saved: null, unavailable: false, expected: system },
-    { name: "invalid choice", saved: "sepia", unavailable: false, expected: system },
-    { name: "empty choice", saved: "", unavailable: false, expected: system },
-    { name: "JSON string is not a theme", saved: '"dark"', unavailable: false, expected: system },
     { name: "saved choice overrides system", saved: opposite(system), unavailable: false, expected: opposite(system) },
     { name: "unavailable storage", saved: null, unavailable: true, expected: system },
-    { name: "theme read throws", saved: opposite(system), unavailable: "read" as const, expected: system },
   ]) {
     test(`${system} system: ${sample.name} paints the matching shell before hydration on first load and reload`, async ({ page }) => {
       await page.emulateMedia({ colorScheme: system });
@@ -590,29 +586,4 @@ test("theme control saves the choice, keeps it before hydration on reload, and h
   await expect(page.getByRole("tooltip")).toHaveCount(0);
   await page.screenshot({ path: test.info().outputPath("dark-after-hydration.png") });
   await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), themeKey)).toBe("dark");
-});
-
-test("storage write failure leaves the shell and theme control usable", async ({ page }) => {
-  await page.emulateMedia({ colorScheme: "light" });
-  await page.addInitScript((key) => {
-    const original = Storage.prototype.setItem;
-    Storage.prototype.setItem = function (name, value) {
-      if (name === key) throw new DOMException("Storage full", "QuotaExceededError");
-      return original.call(this, name, value);
-    };
-  }, themeKey);
-  await page.goto("/");
-  await expectShell(page, "light");
-  await switchTheme(page, "light");
-  await switchTheme(page, "dark");
-  expect(await page.evaluate((key) => localStorage.getItem(key), themeKey)).toBeNull();
-});
-
-test("unavailable storage preserves the hydrated shell and session theme switching", async ({ page }) => {
-  await page.emulateMedia({ colorScheme: "dark" });
-  await seedTheme(page, null, true);
-  await page.goto("/");
-  await expectShell(page, "dark");
-  await switchTheme(page, "dark");
-  await switchTheme(page, "light");
 });

@@ -3,6 +3,19 @@ import { expect, test, type Page, type Route } from "@playwright/test";
 const workspaceKey = "z-trader-workspace-v1";
 const clientScripts = /\/_next\/static\/.*\.js(?:\?.*)?$/;
 const probeKey = "__workspaceStorageProbe";
+const emptyTitle = "Your workspace is empty";
+const emptyInstruction = "Use New to open a Chart, Level II, or T & S window.";
+const brandAssets = /(?:logo(?:-full)?|brand)(?:-dark)?\.png(?:[?&#].*)?$/;
+const themeButton = (page: Page) => page.getByRole("banner")
+  .getByRole("button", { name: /Switch to (dark|light) theme/ });
+
+async function expectEmptyWorkspace(page: Page) {
+  const main = page.getByRole("main");
+  await expect(main.getByText(emptyTitle, { exact: true })).toBeVisible();
+  await expect(main.getByText(emptyInstruction, { exact: true })).toBeVisible();
+  await expect(main.getByRole("button")).toHaveCount(0);
+  expect(await page.locator("body").innerText()).not.toMatch(/[А-Яа-яЁё]/);
+}
 type Failure = "none" | "getter" | "read" | "write";
 type Probe = {
   reads: number;
@@ -126,11 +139,14 @@ test("first visit creates one versioned empty workspace and reload preserves its
       else await page.reload({ waitUntil: "commit" });
       await expect.poll(() => held).toBeGreaterThan(0);
       await expectShellSurvives(page);
+      await expect(page.getByText(emptyTitle, { exact: true })).toBeHidden();
+      await expect(page.getByText(emptyInstruction, { exact: true })).toBeHidden();
       expect((await storageSnapshot(page)).reads).toBe(0);
       expect(await readWorkspace(page)).toEqual(visit === "first load" ? null : saved);
 
       release();
       await expectWorkspaceRead(page);
+      await expectEmptyWorkspace(page);
       await expect.poll(() => readWorkspace(page)).toMatchObject({
         version: 1,
         activeWorkspaceId: expect.any(String),
@@ -143,6 +159,7 @@ test("first visit creates one versioned empty workspace and reload preserves its
       if (visit === "reload") expect(record).toEqual(saved);
       saved = record;
       await expectHydratedShell(page);
+      await expectEmptyWorkspace(page);
       expect(await readWorkspace(page)).toEqual(saved);
     } finally {
       release();
@@ -159,6 +176,7 @@ test("a saved empty workspace is read without replacing its stable id", async ({
     else await page.reload();
     await expectWorkspaceRead(page);
     await expectHydratedShell(page);
+    await expectEmptyWorkspace(page);
     expect(await readWorkspace(page)).toEqual(saved);
   }
 });
@@ -177,6 +195,8 @@ for (const sample of [
       else await page.reload();
       await expectWorkspaceRead(page);
       await expectHydratedShell(page);
+      await expect(page.getByText(emptyTitle, { exact: true })).toBeHidden();
+      await expect(page.getByText(emptyInstruction, { exact: true })).toBeHidden();
       const snapshot = await storageSnapshot(page);
       expect(snapshot.raw).toBe(sample.raw);
       expect(snapshot.writes, "corrupt records must not be overwritten, even temporarily").toEqual([]);
@@ -203,3 +223,135 @@ for (const failure of ["getter", "read", "write"] as const) {
     }
   });
 }
+
+for (const colorScheme of ["light", "dark"] as const) {
+  test(`${colorScheme}: empty instruction uses Geist and inline emphasis without extra controls`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme });
+    await page.goto("/");
+    await expectEmptyWorkspace(page);
+    await page.evaluate(() => document.fonts.ready.then(() => undefined));
+    const title = page.getByRole("main").getByText(emptyTitle, { exact: true });
+    const instruction = page.getByRole("main").getByText(emptyInstruction, { exact: true });
+    const titleStyle = await title.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return { font: style.fontFamily, weight: style.fontWeight, color: style.color };
+    });
+    expect(titleStyle.font).toMatch(/geist/i);
+    expect(titleStyle.weight).toBe("400");
+
+    // Inspect rendered text runs, allowing span/strong or other semantic markup.
+    const runs = await instruction.evaluate((element) => {
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      const result: { text: string; font: string; weight: string; color: string; plain: boolean }[] = [];
+      let node: Node | null;
+      while ((node = walker.nextNode())) {
+        if (!node.textContent) continue;
+        const owner = node.parentElement!;
+        const style = getComputedStyle(owner);
+        let plain = true;
+        for (let ancestor: Element | null = owner; ancestor && element.contains(ancestor); ancestor = ancestor.parentElement) {
+          const decoration = getComputedStyle(ancestor);
+          plain &&= decoration.fontStyle === "normal" && decoration.textDecorationLine === "none"
+            && [decoration.borderTopWidth, decoration.borderRightWidth, decoration.borderBottomWidth, decoration.borderLeftWidth]
+              .every((width) => Number.parseFloat(width) === 0);
+        }
+        result.push({ text: node.textContent, font: style.fontFamily, weight: style.fontWeight, color: style.color, plain });
+      }
+      return result;
+    });
+    const text = runs.map((run) => run.text).join("");
+    const emphasis = ["New", "Chart", "Level II", "T & S"].map((word) => {
+      const start = text.indexOf(word);
+      expect(start).toBeGreaterThanOrEqual(0);
+      return { start, end: start + word.length };
+    });
+    let offset = 0;
+    const accentColors = new Set<string>();
+    const regularColors = new Set<string>();
+    for (const run of runs) {
+      expect(run.font).toMatch(/geist/i);
+      expect(run.plain, `plain inline text: ${run.text}`).toBe(true);
+      for (const [index, character] of [...run.text].entries()) {
+        if (!character.trim()) continue;
+        const accent = emphasis.some(({ start, end }) => offset + index >= start && offset + index < end);
+        expect(run.weight, `weight for ${run.text}`).toBe(accent ? "600" : "400");
+        (accent ? accentColors : regularColors).add(run.color);
+      }
+      offset += run.text.length;
+    }
+    expect(accentColors.size).toBe(1);
+    expect([...regularColors]).toEqual([titleStyle.color]);
+    expect([...accentColors][0]).not.toBe(titleStyle.color);
+    await expect(instruction.locator("button, a, input, select, textarea, [role=button]")).toHaveCount(0);
+    await expect(page.getByRole("banner").getByRole("button")).toHaveCount(2);
+  });
+
+  test(`${colorScheme}: failed brand images leave instruction and New usable`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme });
+    await page.route(brandAssets, (route) => route.abort());
+    await page.goto("/");
+    await expectEmptyWorkspace(page);
+    const newButton = page.getByRole("button", { name: "New", exact: true });
+    await newButton.click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toBeHidden();
+    await expect(newButton).toBeFocused();
+    await themeButton(page).click();
+    await expectShellSurvives(page);
+    await expectEmptyWorkspace(page);
+  });
+}
+
+test("New explains the next stage, traps focus and closes without changing workspace", async ({ page }) => {
+  await observeStorage(page);
+  await page.goto("/");
+  await expectWorkspaceRead(page);
+  await expectEmptyWorkspace(page);
+  const baseline = await storageSnapshot(page);
+  expect(baseline.raw).not.toBeNull();
+  const expectWorkspaceUnchanged = async () => {
+    const snapshot = await storageSnapshot(page);
+    expect(snapshot.raw).toBe(baseline.raw);
+    // Idempotent persistence is allowed; even a temporary different record is not.
+    for (const raw of snapshot.writes.slice(baseline.writes.length)) expect(raw).toBe(baseline.raw);
+  };
+  const newButton = page.getByRole("banner").getByRole("button", { name: "New", exact: true });
+  await expect(newButton).toBeEnabled();
+  const explanation = page.getByRole("dialog");
+  for (const closing of ["Escape", "Close"] as const) {
+    await newButton.focus();
+    await newButton.press("Enter");
+    await expect(explanation).toBeVisible();
+    await expect(explanation).toHaveAccessibleName(/\S/);
+    for (const kind of ["Chart", "Level II", "T & S"]) await expect(explanation).toContainText(kind);
+    await expect(explanation).toContainText(/next/i);
+    await expect(explanation).toContainText(/window/i);
+    expect(await explanation.innerText()).not.toMatch(/[А-Яа-яЁё]/);
+    await expect.poll(() => explanation.evaluate((element) => element.contains(document.activeElement))).toBe(true);
+    const controls = await explanation.locator("button, a[href], input, select, textarea, [tabindex]:not([tabindex='-1'])").count();
+    for (const direction of ["Tab", "Shift+Tab"]) {
+      // Traverse past a complete cycle in both directions, including a single-control dialog.
+      for (let step = 0; step < controls + 2; step += 1) {
+        await page.keyboard.press(direction);
+        expect(await explanation.evaluate((element) => element.contains(document.activeElement))).toBe(true);
+      }
+    }
+    await expectWorkspaceUnchanged();
+    if (closing === "Escape") await page.keyboard.press("Escape");
+    else await explanation.getByRole("button", { name: "Close", exact: true }).click();
+    await expect(explanation).toBeHidden();
+    await expect(newButton).toBeFocused();
+    await expectShellSurvives(page);
+    await expectEmptyWorkspace(page);
+    await expectWorkspaceUnchanged();
+  }
+  await themeButton(page).click();
+  await expectShellSurvives(page);
+  await expectEmptyWorkspace(page);
+  await expectWorkspaceUnchanged();
+  await page.reload();
+  await expectEmptyWorkspace(page);
+  await expect(explanation).toBeHidden();
+  expect((await storageSnapshot(page)).raw).toBe(baseline.raw);
+});

@@ -3,10 +3,13 @@ import { expect, test, type Locator, type Page, type Route } from "@playwright/t
 
 type Theme = "light" | "dark";
 type Box = { x: number; y: number; width: number; height: number };
+type TextLayout = { lines: string[]; clipped: string[] };
 const themeKey = "z-trader-theme-v1";
 const chunks = /\/_next\/static\/.*\.js(?:\?.*)?$/;
 const pngs = /(?:logo(?:-full)?|brand)(?:-dark)?\.png(?:[?&#].*)?$/;
 const fonts = /\.(?:woff2?|ttf|otf)(?:\?.*)?$/;
+const emptyTitle = "Your workspace is empty";
+const emptyInstruction = "Use New to open a Chart, Level II, or T & S window.";
 const opposite = (theme: Theme): Theme => theme === "light" ? "dark" : "light";
 const themeButton = (page: Page, theme: Theme) => page.getByRole("banner")
   .getByRole("button", { name: `Switch to ${opposite(theme)} theme`, exact: true });
@@ -209,6 +212,159 @@ function expectStable(before: Box[], after: Box[]) {
   }
 }
 
+async function instructionBoxes(page: Page): Promise<Box[]> {
+  const targets = [emptyTitle, emptyInstruction].map((text) => page.getByText(text, { exact: true }));
+  return Promise.all(targets.map(async (target) => {
+    await expect(target).toBeVisible();
+    const bounds = await target.boundingBox();
+    expect(bounds).not.toBeNull();
+    const viewport = page.viewportSize()!;
+    expect(bounds!.x).toBeGreaterThanOrEqual(0);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewport.width);
+    expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport.height);
+    return bounds!;
+  }));
+}
+
+function expectInstructionStable(before: Box[], after: Box[]) {
+  for (const [index, initial] of before.entries()) {
+    for (const edge of ["x", "y", "width", "height"] as const) {
+      expect(Math.abs(after[index][edge] - initial[edge]), `instruction ${index} ${edge}`)
+        .toBeLessThanOrEqual(0.5);
+    }
+  }
+}
+
+async function instructionTextLayout(page: Page): Promise<TextLayout[]> {
+  // Rects detect wrapping and clipping; individual glyph metrics may change as Geist loads.
+  return Promise.all([emptyTitle, emptyInstruction].map((text) => page.getByText(text, { exact: true })
+    .evaluate((element) => {
+      const lines: { text: string; top: number; bottom: number }[] = [];
+      const clipped: string[] = [];
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      let node: Node | null;
+      while ((node = walker.nextNode())) {
+        const content = node.textContent ?? "";
+        const owner = node.parentElement!;
+        const clip = { left: 0, top: 0, right: innerWidth, bottom: innerHeight };
+        for (let ancestor: Element | null = owner; ancestor; ancestor = ancestor.parentElement) {
+          const bounds = ancestor.getBoundingClientRect();
+          const style = getComputedStyle(ancestor);
+          if (style.display === "inline" || style.display === "contents") continue;
+          if (/(hidden|clip|scroll|auto)/.test(style.overflowX)) {
+            clip.left = Math.max(clip.left, bounds.left + ancestor.clientLeft);
+            clip.right = Math.min(clip.right, bounds.left + ancestor.clientLeft + ancestor.clientWidth);
+          }
+          if (/(hidden|clip|scroll|auto)/.test(style.overflowY)) {
+            clip.top = Math.max(clip.top, bounds.top + ancestor.clientTop);
+            clip.bottom = Math.min(clip.bottom, bounds.top + ancestor.clientTop + ancestor.clientHeight);
+          }
+        }
+        for (let index = 0; index < content.length; index += 1) {
+          const character = content[index];
+          if (!character.trim()) continue;
+          const range = document.createRange();
+          range.setStart(node, index);
+          range.setEnd(node, index + 1);
+          const rects = [...range.getClientRects()].filter((rect) => rect.width > 0 && rect.height > 0);
+          if (!rects.length) clipped.push(`${character}: no rendered rect`);
+          for (const rect of rects) {
+            if (rect.left < clip.left - 0.5 || rect.top < clip.top - 0.5
+              || rect.right > clip.right + 0.5 || rect.bottom > clip.bottom + 0.5) {
+              clipped.push(`${character}: outside viewport or overflow clip`);
+            }
+            const line = lines.find((line) => Math.min(line.bottom, rect.bottom)
+              - Math.max(line.top, rect.top) > Math.min(line.bottom - line.top, rect.height) / 2);
+            if (!line) lines.push({ text: character, top: rect.top, bottom: rect.bottom });
+            else {
+              line.top = Math.min(line.top, rect.top);
+              line.bottom = Math.max(line.bottom, rect.bottom);
+              line.text += character;
+            }
+          }
+        }
+      }
+      return { lines: lines.map((line) => line.text), clipped };
+    })));
+}
+
+function expectCompleteText(layout: TextLayout[]) {
+  for (const [index, expected] of [emptyTitle, emptyInstruction].entries()) {
+    expect(layout[index].clipped, `text ${index} must remain fully visible`).toEqual([]);
+    expect(layout[index].lines.join("")).toBe(expected.replace(/\s/g, ""));
+  }
+}
+
+function expectTextWrapping(before: TextLayout[], after: TextLayout[]) {
+  expectCompleteText(after);
+  for (const [index, initial] of before.entries()) {
+    expect(after[index].lines, `text ${index}: unchanged wrapping`).toEqual(initial.lines);
+  }
+}
+
+async function instructionFontState(page: Page, load = false) {
+  return page.getByText(emptyInstruction, { exact: true }).evaluate(async (element, load) => {
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+    const queries: { family: string; font: string; text: string }[] = [];
+    let node: Node | null;
+    while ((node = walker.nextNode())) {
+      if (!node.textContent?.trim()) continue;
+      const style = getComputedStyle(node.parentElement!);
+      const family = style.fontFamily.split(",")[0].trim().replace(/^['"]|['"]$/g, "");
+      queries.push({
+        family,
+        font: `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${JSON.stringify(family)}`,
+        text: node.textContent,
+      });
+    }
+    return Promise.all(queries.map(async ({ family, font, text }) => {
+      const faces = load ? await document.fonts.load(font, text)
+        : [...document.fonts].filter((face) => face.family.replace(/^['"]|['"]$/g, "") === family);
+      return {
+        family, font, text, ready: document.fonts.check(font, text),
+        faces: faces.map((face) => ({ family: face.family.replace(/^['"]|['"]$/g, ""), status: face.status })),
+      };
+    }));
+  }, load);
+}
+
+async function visibleArtworkBottom(logo: Locator) {
+  return logo.evaluate((element) => {
+    const image = element as HTMLImageElement;
+    const canvas = document.createElement("canvas");
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    const context = canvas.getContext("2d")!;
+    context.drawImage(image, 0, 0);
+    const rgba = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    let last = -1;
+    for (let y = canvas.height - 1; y >= 0 && last < 0; y -= 1) {
+      for (let x = 0; x < canvas.width; x += 1) {
+        if (rgba[(y * canvas.width + x) * 4 + 3] > 8) { last = y; break; }
+      }
+    }
+    if (last < 0) throw new Error("Full logo has no visible artwork");
+    const bounds = image.getBoundingClientRect();
+    const style = getComputedStyle(image);
+    const contain = Math.min(bounds.width / canvas.width, bounds.height / canvas.height);
+    const cover = Math.max(bounds.width / canvas.width, bounds.height / canvas.height);
+    const scale = style.objectFit === "cover" ? cover
+      : style.objectFit === "contain" ? contain
+        : style.objectFit === "scale-down" ? Math.min(1, contain)
+          : style.objectFit === "none" ? 1 : bounds.height / canvas.height;
+    const space = bounds.height - canvas.height * scale;
+    const position = style.objectPosition.split(/\s+/)[1] ?? "50%";
+    const offset = position.endsWith("%") ? space * Number.parseFloat(position) / 100 : Number.parseFloat(position);
+    let bottom = Math.min(bounds.bottom, bounds.top + offset + (last + 1) * scale);
+    for (let ancestor = image.parentElement; ancestor; ancestor = ancestor.parentElement) {
+      if (/(hidden|clip|auto|scroll)/.test(getComputedStyle(ancestor).overflowY)) {
+        bottom = Math.min(bottom, ancestor.getBoundingClientRect().bottom);
+      }
+    }
+    return bottom;
+  });
+}
+
 function gate() {
   let release!: () => void;
   const ready = new Promise<void>((resolve) => { release = resolve; });
@@ -319,7 +475,7 @@ for (const system of ["light", "dark"] as const) {
 for (const theme of ["light", "dark"] as const) {
   for (const width of [1440, 320]) {
     for (const visit of ["first load", "reload"] as const) {
-      test(`${theme} ${width}px ${visit}: PNG, fonts and hydration preserve shell geometry`, async ({ page }) => {
+      test(`${theme} ${width}px ${visit}: client instruction, PNG and fonts preserve shell and text geometry`, async ({ page }) => {
         await page.setViewportSize({ width, height: 900 });
         await page.emulateMedia({ colorScheme: theme });
         await seedTheme(page, null);
@@ -344,26 +500,62 @@ for (const theme of ["light", "dark"] as const) {
           await expect.poll(typography.held).toBeGreaterThan(0);
           await frames(page);
           const initial = await shellBoxes(page, theme);
+          await expect(page.getByText(emptyTitle, { exact: true })).toBeHidden();
+          await expect(page.getByText(emptyInstruction, { exact: true })).toBeHidden();
+          await expect(page.getByText(/restoring workspace|loading workspace/i)).toHaveCount(0);
           for (const image of images(page, theme)) {
             expect(await image.evaluate((element) => (element as HTMLImageElement).naturalWidth)).toBe(0);
+          }
+
+          scripts.release();
+          const initialText = await instructionBoxes(page);
+          await frames(page);
+          const pendingGeist = await instructionFontState(page);
+          expect(pendingGeist.length).toBeGreaterThan(0);
+          for (const query of pendingGeist) {
+            expect(query.family, `requested instruction font: ${query.font}`).toMatch(/geist/i);
+            expect(query.ready, `instruction font must still be held: ${query.font}`).toBe(false);
+            expect(query.faces.some((face) => face.status === "loading"), `pending Geist face: ${query.font}`).toBe(true);
+          }
+          const initialLayout = await instructionTextLayout(page);
+          expectCompleteText(initialLayout);
+          expectStable(initial, await shellBoxes(page, theme));
+          expect(initialText[0].y + initialText[0].height).toBeLessThan(initialText[1].y);
+          if (width === 320) {
+            expect(initialLayout[1].lines.length).toBeGreaterThan(1);
           }
 
           pictures.release();
           for (const image of images(page, theme)) await expectDecoded(image);
           await frames(page);
           expectStable(initial, await shellBoxes(page, theme));
+          expectInstructionStable(initialText, await instructionBoxes(page));
+          expectTextWrapping(initialLayout, await instructionTextLayout(page));
+          expect(await visibleArtworkBottom(images(page, theme)[2])).toBeLessThan(initialText[0].y);
 
           typography.release();
+          const loadedGeist = await instructionFontState(page, true);
+          expect(loadedGeist.map(({ family, font, text }) => ({ family, font, text })))
+            .toEqual(pendingGeist.map(({ family, font, text }) => ({ family, font, text })));
+          for (const query of loadedGeist) {
+            expect(query.ready, `Geist must now be available: ${query.font}`).toBe(true);
+            expect(query.faces.length, `loaded faces for ${query.font}`).toBeGreaterThan(0);
+            expect(query.faces.every((face) => face.family === query.family && face.status === "loaded")).toBe(true);
+          }
           await page.evaluate(() => document.fonts.ready.then(() => undefined));
           await frames(page);
           expectStable(initial, await shellBoxes(page, theme));
+          expectInstructionStable(initialText, await instructionBoxes(page));
+          expectTextWrapping(initialLayout, await instructionTextLayout(page));
 
-          scripts.release();
           await switchTheme(page, theme);
           await switchTheme(page, opposite(theme));
           await frames(page);
           await expectShell(page, theme);
           expectStable(initial, await shellBoxes(page, theme));
+          expectInstructionStable(initialText, await instructionBoxes(page));
+          expectTextWrapping(initialLayout, await instructionTextLayout(page));
+          await expect(page.getByText(/restoring workspace|loading workspace/i)).toHaveCount(0);
         } finally {
           scripts.release();
           pictures.release();

@@ -117,11 +117,7 @@ button {
   width: 42px;
   flex: 0 0 42px;
   text-align: center;
-}
-
-.new-button:disabled {
-  opacity: 1;
-  cursor: default;
+  cursor: pointer;
 }
 
 .theme-toggle {
@@ -155,17 +151,19 @@ button {
   border: 0;
 }
 
-.theme-button:hover {
+.theme-button:hover, .new-button:hover {
   background: var(--surface-raised);
   border-color: var(--border);
 }
 
-.theme-button:focus-visible {
+.theme-button:focus-visible, .new-button:focus-visible, .new-dialog button:focus-visible {
   outline: 2px solid var(--brand-gold);
   outline-offset: 1px;
 }
 
 .workspace-canvas {
+  --watermark-width: min(440px, calc(100cqw - 48px), calc(max(0px, 100dvh - 256px) * 1110 / 860));
+  container-type: inline-size;
   position: relative;
   min-height: 0;
   flex: 1;
@@ -178,7 +176,7 @@ button {
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: min(440px, calc(100% - 48px), calc((100dvh - 80px) * 1110 / 860));
+  width: var(--watermark-width);
   aspect-ratio: 1110 / 860;
   opacity: 0.12;
   pointer-events: none;
@@ -191,6 +189,73 @@ button {
   height: auto;
   left: calc(-100% * 70 / 1110);
   top: calc(-100% * 200 / 860);
+}
+
+.empty-instruction {
+  position: absolute;
+  top: calc(50% + var(--watermark-width) * 860 / 1110 / 2 + 24px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(440px, calc(100% - 48px));
+  height: 80px;
+  color: var(--text-secondary);
+  text-align: center;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 22px;
+}
+
+.empty-instruction h1 {
+  margin: 0 0 8px;
+  height: 24px;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 24px;
+}
+
+.empty-instruction p {
+  margin: 0;
+  height: 44px;
+}
+
+.empty-instruction strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.new-dialog {
+  width: min(400px, calc(100% - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.new-dialog::backdrop {
+  background: rgb(0 0 0 / 35%);
+}
+
+.new-dialog h2 {
+  margin: 0 0 12px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.new-dialog p {
+  margin: 0 0 20px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.new-dialog button {
+  min-height: 32px;
+  padding: 4px 16px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--surface-raised);
+  cursor: pointer;
 }
 
 .theme-dark-only {

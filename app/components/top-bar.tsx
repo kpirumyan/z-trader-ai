@@ -1,7 +1,14 @@
 import Image from "next/image";
+import type { Ref } from "react";
 import { ThemeToggle } from "./theme-toggle";
 
-export function TopBar() {
+type TopBarProps = {
+  newButtonRef: Ref<HTMLButtonElement>;
+  isNewOpen: boolean;
+  onNew: () => void;
+};
+
+export function TopBar({ newButtonRef, isNewOpen, onNew }: TopBarProps) {
   return (
     <header className="top-bar" role="banner">
       <div className="terminal-brand" aria-label="Z-Trader AI">
@@ -26,7 +33,14 @@ export function TopBar() {
           />
         </span>
       </div>
-      <button className="new-button" type="button" disabled>
+      <button
+        ref={newButtonRef}
+        className="new-button"
+        type="button"
+        aria-haspopup="dialog"
+        aria-expanded={isNewOpen}
+        onClick={onNew}
+      >
         New
       </button>
       <ThemeToggle />

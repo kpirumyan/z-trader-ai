@@ -1,48 +1,37 @@
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useRef } from "react";
+import { windowKindLabels } from "../constants/terminal-window";
+import type { WindowKind } from "../types/terminal-window";
 
-export function NewMenuPopover({ onClose }: { onClose: () => void }) {
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const closeButtonRef = useRef<HTMLButtonElement>(null);
-  const titleId = useId();
-  const descriptionId = useId();
+type NewMenuPopoverProps = { onClose: () => void; onSelect: (kind: WindowKind) => void };
 
-  function dismiss() {
-    dialogRef.current?.close();
-    onClose();
-  }
-
+export function NewMenuPopover({ onClose, onSelect }: NewMenuPopoverProps) {
+  const menuRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const dialog = dialogRef.current;
-    dialog?.showModal();
-    closeButtonRef.current?.focus();
-    return () => dialog?.close();
-  }, []);
-
+    menuRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    function outsideClick(event: PointerEvent) {
+      if (event.target instanceof Node && !menuRef.current?.parentElement?.contains(event.target)) onClose();
+    }
+    document.addEventListener("pointerdown", outsideClick);
+    return () => document.removeEventListener("pointerdown", outsideClick);
+  }, [onClose]);
   return (
-    <dialog
-      ref={dialogRef}
-      className="new-dialog"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={titleId}
-      aria-describedby={descriptionId}
-      onCancel={(event) => {
-        event.preventDefault();
-        dismiss();
-      }}
+    <div ref={menuRef} className="new-menu" role="menu" aria-label="New window"
       onKeyDown={(event) => {
-        // Close is the only action in this stage's explanatory dialog.
-        if (event.key === "Tab") {
+        if (event.key === "Escape") { event.preventDefault(); onClose(); }
+        else if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
           event.preventDefault();
-          closeButtonRef.current?.focus();
-        }
-      }}
-    >
-      <h2 id={titleId}>New window</h2>
-      <p id={descriptionId}>
-        Opening Chart, Level II, and T &amp; S windows will be available in the next stage.
-      </p>
-      <button ref={closeButtonRef} type="button" onClick={dismiss}>Close</button>
-    </dialog>
+          const items = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>("button") ?? []);
+          const index = items.indexOf(document.activeElement as HTMLButtonElement);
+          const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1
+            : (index + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+          items[next]?.focus();
+        } else if (event.key === "Tab") onClose();
+      }}>
+      {(Object.keys(windowKindLabels) as WindowKind[]).map((kind) => (
+        <button key={kind} type="button" role="menuitem" onClick={() => onSelect(kind)}>
+          {windowKindLabels[kind]}
+        </button>
+      ))}
+    </div>
   );
 }

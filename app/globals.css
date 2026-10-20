@@ -29,7 +29,8 @@
   box-sizing: border-box;
 }
 
-html, body {
+html,
+body {
   margin: 0;
   width: 100%;
   height: 100%;
@@ -75,7 +76,9 @@ button:disabled {
   flex: none;
 }
 
-.brand-symbol, .brand-wordmark, .workspace-watermark {
+.brand-symbol,
+.brand-wordmark,
+.workspace-watermark {
   position: relative;
   display: block;
   overflow: hidden;
@@ -109,7 +112,8 @@ button:disabled {
   top: calc(-100% * 400 / 280);
 }
 
-.new-button, .theme-button {
+.new-button,
+.theme-button {
   height: 26px;
   padding: 0;
   border: 1px solid transparent;
@@ -156,12 +160,16 @@ button:disabled {
   border: 0;
 }
 
-.theme-button:hover, .new-button:hover {
+.theme-button:hover,
+.new-button:hover {
   background: var(--surface-raised);
   border-color: var(--border);
 }
 
-.theme-button:focus-visible, .new-button:focus-visible, .new-dialog button:focus-visible, .storage-recovery button:focus-visible {
+.theme-button:focus-visible,
+.new-button:focus-visible,
+.new-dialog button:focus-visible,
+.storage-recovery button:focus-visible {
   outline: 2px solid var(--brand-gold);
   outline-offset: 1px;
 }
@@ -336,3 +344,177 @@ button:disabled {
   display: block;
 }
 
+
+.new-menu-anchor {
+  position: relative;
+  flex: 0 0 42px;
+}
+
+.new-menu {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 3px);
+  left: 0;
+  width: 152px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 15%);
+}
+
+.new-menu button {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.new-menu button:hover,
+.new-menu button:focus-visible,
+.instrument-results button:hover {
+  background: var(--surface-raised);
+}
+
+.new-menu button:focus-visible,
+.instrument-dialog :focus-visible,
+.terminal-window:focus-visible,
+.terminal-window button:focus-visible {
+  outline: 2px solid var(--brand-gold);
+  outline-offset: -2px;
+}
+
+.instrument-dialog {
+  width: min(440px, calc(100% - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.instrument-dialog::backdrop {
+  background: rgb(0 0 0 / 35%);
+}
+
+.instrument-dialog-heading,
+.terminal-window-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.instrument-dialog h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.instrument-dialog-heading {
+  margin-bottom: 16px;
+}
+
+.instrument-dialog button,
+.terminal-window button {
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--surface-raised);
+  cursor: pointer;
+}
+
+.instrument-dialog input {
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--canvas);
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.instrument-search-results {
+  min-height: 64px;
+  margin-top: 12px;
+}
+
+.instrument-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.instrument-results button {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 10px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.instrument-results strong {
+  min-width: 40px;
+  font-family: var(--font-mono);
+}
+
+.instrument-results span {
+  color: var(--text-secondary);
+}
+
+.search-loading {
+  display: flex;
+  justify-content: center;
+  padding: 20px;
+}
+
+.search-spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border);
+  border-top-color: var(--brand-gold);
+  border-radius: 50%;
+  animation: search-spin 700ms linear infinite;
+}
+
+@keyframes search-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .search-spinner {
+    animation: none;
+  }
+}
+
+.workspace-windows {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+}
+
+.terminal-window {
+  position: absolute;
+  width: 360px;
+  height: 220px;
+  border: 1px solid var(--border);
+  background: var(--canvas);
+  pointer-events: auto;
+}
+
+.terminal-window-heading {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}

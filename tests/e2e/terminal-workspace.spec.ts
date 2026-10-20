@@ -282,9 +282,13 @@ test("unavailable workspace storage leaves instruction usable and warns about sa
     await expect(warning).toBeVisible();
     const newButton = page.getByRole("banner").getByRole("button", { name: "New", exact: true });
     await newButton.click();
+    const menu = page.getByRole("menu");
+    await expect(menu.getByRole("menuitem")).toHaveText(["Chart", "Level II", "T & S"]);
+    await menu.getByRole("menuitem", { name: "Chart", exact: true }).click();
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
-    for (const kind of ["Chart", "Level II", "T & S"]) await expect(dialog).toContainText(kind);
+    await expect(dialog).toHaveAccessibleName(/Chart/);
+    await expect(dialog.getByRole("searchbox", { name: "Search instruments" })).toBeFocused();
     await page.keyboard.press("Escape");
     await expect(dialog).toBeHidden();
     await expect(newButton).toBeFocused();
@@ -365,7 +369,9 @@ for (const colorScheme of ["light", "dark"] as const) {
     await expectEmptyWorkspace(page);
     const newButton = page.getByRole("button", { name: "New", exact: true });
     await newButton.click();
+    await page.getByRole("menu").getByRole("menuitem", { name: "Chart", exact: true }).click();
     await expect(page.getByRole("dialog")).toBeVisible();
+    await expect(page.getByRole("dialog").getByRole("searchbox", { name: "Search instruments" })).toBeFocused();
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog")).toBeHidden();
     await expect(newButton).toBeFocused();
@@ -375,7 +381,7 @@ for (const colorScheme of ["light", "dark"] as const) {
   });
 }
 
-test("New explains the next stage, traps focus and closes without changing workspace", async ({ page }) => {
+test("New opens instrument search, traps focus and cancels without changing workspace storage", async ({ page }) => {
   await observeStorage(page);
   await page.goto("/");
   await expectWorkspaceRead(page);
@@ -394,11 +400,18 @@ test("New explains the next stage, traps focus and closes without changing works
   for (const closing of ["Escape", "Close"] as const) {
     await newButton.focus();
     await newButton.press("Enter");
+    const menu = page.getByRole("menu");
+    await expect(menu.getByRole("menuitem")).toHaveText(["Chart", "Level II", "T & S"]);
+    await menu.getByRole("menuitem", { name: "Chart", exact: true }).focus();
+    await menu.getByRole("menuitem", { name: "Chart", exact: true }).press("Enter");
     await expect(explanation).toBeVisible();
-    await expect(explanation).toHaveAccessibleName(/\S/);
-    for (const kind of ["Chart", "Level II", "T & S"]) await expect(explanation).toContainText(kind);
-    await expect(explanation).toContainText(/next/i);
-    await expect(explanation).toContainText(/window/i);
+    await expect(explanation).toHaveAccessibleName(/Chart/);
+    const search = explanation.getByRole("searchbox", { name: "Search instruments" });
+    await expect(search).toHaveValue("");
+    await expect(search).toBeFocused();
+    await expect(explanation.getByRole("button", { name: "Open", exact: true })).toHaveCount(0);
+    await search.fill("no-such-instrument-xyz");
+    await expect(explanation.getByRole("status")).toHaveText("No results");
     expect(await explanation.innerText()).not.toMatch(/[А-Яа-яЁё]/);
     await expect.poll(() => explanation.evaluate((element) => element.contains(document.activeElement))).toBe(true);
     const controls = await explanation.locator("button, a[href], input, select, textarea, [tabindex]:not([tabindex='-1'])").count();

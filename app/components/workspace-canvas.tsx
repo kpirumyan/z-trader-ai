@@ -3,30 +3,26 @@ import type { ReactNode } from "react";
 import { useWorkspace } from "../hooks/use-workspace";
 import { StorageRecoveryBanner } from "./storage-recovery-banner";
 
-export function WorkspaceState() {
+export function WorkspaceState({ hasWindows = false, children }: { hasWindows?: boolean; children?: ReactNode }) {
   const { state, retry, startEmpty } = useWorkspace();
-  if (state.status === "corrupted") {
-    return (
-      <StorageRecoveryBanner
-        status="corrupted" onRetry={retry} onStartEmpty={startEmpty}
-      />
-    );
-  }
-
-  const activeWorkspace = state.workspace.workspaces.find(
+  const activeWorkspace = state.status === "corrupted" ? undefined : state.workspace.workspaces.find(
     (workspace) => workspace.id === state.workspace.activeWorkspaceId,
   );
-  if (!activeWorkspace || activeWorkspace.windows.length > 0) return null;
+  const showEmptyInstruction = !hasWindows && activeWorkspace && activeWorkspace.windows.length === 0;
 
   return (
     <>
+      {children}
+      {state.status === "corrupted" && (
+        <StorageRecoveryBanner status="corrupted" onRetry={retry} onStartEmpty={startEmpty} />
+      )}
       {state.status === "unavailable" && <StorageRecoveryBanner status="unavailable" />}
-      <section className="empty-instruction" aria-labelledby="empty-workspace-title">
+      {showEmptyInstruction && <section className="empty-instruction" aria-labelledby="empty-workspace-title">
         <h1 id="empty-workspace-title">Your workspace is empty</h1>
         <p>
           Use <strong>New</strong> to open a <strong>Chart</strong>, <strong>Level II</strong>, or <strong>T &amp; S</strong> window.
         </p>
-      </section>
+      </section>}
     </>
   );
 }

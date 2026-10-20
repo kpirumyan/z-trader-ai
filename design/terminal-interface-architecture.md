@@ -1,6 +1,6 @@
 # Архитектура интерфейса терминала
 
-Статус: контракт и визуальный ориентир первого экрана в обеих темах утверждены 2026-10-18; состояния диалога и восстановления согласованы; этап T1.5 реализован. Сценарии создания окон относятся к следующим этапам. Согласованные решения и текущий этап — в [глобальном плане](../.agents/plans/global.md); список работ — в [реестре задач](../.agents/plans/tasks.md).
+Статус: контракт и визуальный ориентир первого экрана в обеих темах утверждены; состояния диалога и восстановления согласованы; этап T1 реализован. Сценарии создания окон относятся к следующим этапам. Согласованные решения и текущий этап — в [глобальном плане](../.agents/plans/global.md); список работ — в [реестре задач](../.agents/plans/tasks.md).
 
 ## Первый интерфейсный этап
 
@@ -16,7 +16,7 @@
 - Текст инструкции набран Geist: обычные слова — вес 400 и спокойный цвет, **New**, **Chart**, **Level II**, **T & S** — вес 600 и основной цвет текста. Курсив, подчёркивание, рамки и отдельные кнопки вокруг этих слов не применяются.
 - Других видимых элементов на стартовом экране нет. Макеты первого экрана нужны в светлой и тёмной темах; читаемость логотипа, инструкции и акцентов проверяется в обеих.
 
-Следующий сценарий: **New → Chart / Level II / T & S → диалог поиска инструмента → новое свободное окно**. Это единственный запланированный путь создания нового окна. На T1.5 `New` открывает доступное пояснение о следующем этапе и пока не создаёт окно; утверждённый текст пустого экрана сохранён дословно. Состояния диалога и восстановления описаны ниже; они не добавляют элементы на обычный пустой стартовый экран.
+Следующий сценарий: **New → Chart / Level II / T & S → диалог поиска инструмента → новое свободное окно**. Это единственный запланированный путь создания нового окна. Пока этап создания окон не реализован, `New` открывает доступное пояснение о следующем этапе и не создаёт окно; утверждённый текст пустого экрана сохранён дословно. Состояния диалога и восстановления описаны ниже; они не добавляют элементы на обычный пустой стартовый экран.
 
 ### Выбор инструмента и восстановление
 
@@ -51,41 +51,11 @@
 
 Один компонент не должен одновременно управлять геометрией, хранением, отображением графика и содержимым стакана. Декомпозиция нужна по этим обязанностям, а не ради количества файлов.
 
-## План проектирования кода T1.5 (утверждён 2026-10-20)
+### Технические инварианты рендеринга и хранилища
 
-### 1. Структура файлов в `app/` и ответственность
-
-- `app/globals.css` — CSS-токены светлой и тёмной тем из `DESIGN.md`, использование CSS-переменных шрифтов `GeistSans` (`geist/font/sans`) и `JetBrains_Mono` (`next/font/google`), правила переключения парных изображений темы (`.theme-light-only` / `.theme-dark-only`) и фиксированной геометрии без сдвигов (CLS = 0).
-- `app/layout.tsx` — серверный корневой layout (`<html lang="en" suppressHydrationWarning>`): метаданные и синхронный блокирующий inline-скрипт в `<head>`, выставляющий `document.documentElement.dataset.theme` (`light` | `dark`) из `localStorage.getItem("z-trader-theme-v1")` или `prefers-color-scheme` до первой отрисовки.
-- `app/page.tsx` — серверная страница Next.js (RSC): не читает браузерное хранилище, рендерит клиентскую оболочку `TerminalShell`.
-- `app/types/workspace.ts` — доменные типы рабочего места и состояний хранилища:
-  - `WorkspaceRecord = { id: string; windows: [] }`;
-  - `WorkspaceStorageEnvelope = { version: 1; activeWorkspaceId: string; workspaces: WorkspaceRecord[] }`;
-  - `WorkspaceReadResult = { status: "ready"; workspace: WorkspaceStorageEnvelope } | { status: "missing" } | { status: "corrupted" } | { status: "unavailable" }`;
-  - `WorkspaceState = { status: "ready"; workspace: WorkspaceStorageEnvelope } | { status: "corrupted" } | { status: "unavailable"; workspace: WorkspaceStorageEnvelope }`.
-- `app/storage/workspace-storage.ts` — чистый клиентский модуль чтения, валидации и записи `localStorage` по ключу `z-trader-workspace-v1` (без зависимости от React):
-  - `readWorkspace(): WorkspaceReadResult` — читает и валидирует схему конверта `version: 1` (непустой массив `workspaces`, уникальные непустые `id`, `windows: []`, `activeWorkspaceId` присутствует среди `workspaces`); перехватывает исключения доступа к хранилищу (`{ status: "unavailable" }`) и ошибки парсинга/валидации схемы (`{ status: "corrupted" }`), не перезаписывая повреждённую запись автоматически; при отсутствии ключа возвращает `{ status: "missing" }`.
-  - `createEmptyWorkspace(): WorkspaceStorageEnvelope` — создаёт новый конверт `{ version: 1, activeWorkspaceId: id, workspaces: [{ id, windows: [] }] }`.
-  - `saveWorkspace(workspace: WorkspaceStorageEnvelope): "ready" | "unavailable"` — записывает JSON в `z-trader-workspace-v1` и возвращает `"ready"` либо `"unavailable"` при исключении записи.
-- `app/hooks/use-theme.ts` — клиентский хук управления темой оформления (`useTheme(): { toggleTheme: () => void }`), переключающий `document.documentElement.dataset.theme` (`"dark"` ↔ `"light"`) и сохраняющий выбранную тему в `localStorage` по ключу `z-trader-theme-v1` (перехватывая ошибки записи без падения текущей сессии).
-- `app/hooks/use-workspace.ts` — клиентский хук состояния рабочего места (`useWorkspace(): { state: WorkspaceState; retry: () => void; startEmpty: () => void }`): использует синхронную инициализацию на клиенте (совместно с `use(browser("Workspace state is stored in localStorage"))` из `react` и `react-dom`), автоматически создаёт и сохраняет пустое рабочее место `{ version: 1, activeWorkspaceId, workspaces: [{ id, windows: [] }] }` при первом входе (`missing`), сохраняет нетронутой повреждённую запись при `corrupted`, и предоставляет действия восстановления `retry()` (повторная инициализация из хранилища) и `startEmpty()` (создание и сохранение нового пустого рабочего места).
-- `app/components/terminal-shell.tsx` — корневой клиентский компонент (`'use client'`, `TerminalShell`), объединяющий `TopBar`, основную область `<main>` с фоновым логотипом, `<Suspense fallback={null}>` вокруг клиентского состояния рабочего места и диалог `NewMenuPopover`.
-- `app/components/top-bar.tsx` — верхняя панель (`<header role="banner">`, `TopBar`) фиксированной высоты: значок (`logo.png` / `logo-dark.png`) и бренд (`brand.png` / `brand-dark.png`) рядом с явно зафиксированными размерами (`width`, `height`, `aspect-ratio`), компактная кнопка `New` и `ThemeToggle`.
-- `app/components/theme-toggle.tsx` — одна кнопка переключения темы (`ThemeToggle`) с заметной иконкой и доступным именем `Switch to dark theme` / `Switch to light theme`, без атрибута `title` и видимой подсказки (`role="tooltip"` отсутствует). Имя задаётся скрытым от зрения текстом, соответствующий вариант выбирает CSS темы уже до гидратации; при смене темы кнопка сохраняется в DOM и не теряет клавиатурный фокус.
-- `app/components/workspace-canvas.tsx` — рабочая область (`<main>`, `WorkspaceCanvas`): содержит постоянно видимый полупрозрачный фоновый логотип (`logo-full.png` / `logo-full-dark.png`) с фиксированными размерами и геометрией, не зависящей от загрузки картинок и от появления блока инструкции ниже него, а также клиентскую часть (через `use(browser())` из `react-dom`), рендерящую инструкцию пустого состояния либо `StorageRecoveryBanner`.
-- `app/components/new-menu-popover.tsx` — доступный диалог (`role="dialog"`, `NewMenuPopover`) для кнопки `New` на этапе T1.5: объясняет, что открытие окон `Chart`, `Level II` и `T & S` появится на следующем этапе, удерживает клавиатурный фокус внутри диалога и по `Escape` / закрытию возвращает фокус на кнопку `New`.
-- `app/components/storage-recovery-banner.tsx` — отображение состояний сбоя хранилища (`StorageRecoveryBanner`, пропсы `{ status: "corrupted"; onRetry: () => void | Promise<void>; onStartEmpty: () => void } | { status: "unavailable" }`): при повреждённой записи (`corrupted`) показывает заголовок `Unable to restore your workspace`, объяснение (`The saved workspace is corrupted or has an unsupported format. Retry to read it again, or start empty to replace it with a new workspace.`) и кнопки `Retry` (с блокировкой `disabled` и `aria-busy="true"` на `250ms` перед вызовом `onRetry` и очисткой таймера при размонтировании или `Start empty`) и `Start empty` (скрывая инструкцию пустого рабочего места); при недоступном хранилище (`unavailable`) показывает неблокирующее предупреждение (`Local storage is unavailable. Changes in this session will not be saved.`, `role="status"`), оставляя пустое рабочее место доступным.
-
-### 2. Ключевые технические решения и паттерны
-
-1. **Клиентский рендеринг состояния хранилища через React 19.3 `use(browser())`**:
-   - Вместо `useEffect` и промежуточного статуса `initializing` клиентский слой состояния рабочего места вызывает `use(browser("Workspace state is stored in localStorage"))` (из `react` и `react-dom`) внутри границы `<Suspense fallback={null}>`.
-   - Во время SSR/пререндера сервер отдаёт `TopBar` и фоновый логотип снаружи `<Suspense>`, не рендеря заведомо неизвестное серверу состояние `localStorage`. В браузере `browser()` сразу разрешается при первом рендере, и `localStorage` читается синхронно без расхождения гидратации и без мигания неверной раскладки.
-2. **Нулевой сдвиг (CLS = 0) для `TopBar` и рабочего поля**:
-   - Все брендовые изображения (`logo`, `brand` в `TopBar` и `logo-full` в `<main>`) имеют явно заданные геометрические размеры контейнеров и `width`/`height`/`aspect-ratio` в CSS/HTML.
-   - Позиция фонового логотипа зафиксирована независимо от присутствия текста инструкции ниже него, поэтому ни монтирование инструкции после чтения `localStorage` (включая перенос строк на узком экране `320px`), ни декодирование PNG не меняют `boundingClientRect` логотипа или элементов шапки.
-3. **Бесшовная тема до гидратации**:
-   - Синхронный inline-скрипт в `<head>` выставляет `data-theme` до первой отрисовки, а светлые и тёмные версии логотипов переключаются чисто через CSS (`[data-theme="dark"]` / `[data-theme="light"]`), поэтому тема и нужные ассеты видны сразу даже до загрузки внешних JS-скриптов.
+- **Клиентский рендеринг состояния хранилища через React 19.3 `use(browser())`**: клиентский слой состояния рабочего места вызывает `use(browser())` внутри границы `<Suspense fallback={null}>`, тогда как `TopBar` и фоновый логотип рендерятся снаружи `<Suspense>` уже в исходном HTML без расхождения гидратации и мигания неверной раскладки.
+- **Нулевой сдвиг (CLS = 0) для `TopBar` и рабочего поля**: брендовые изображения имеют явно заданные геометрические размеры контейнеров и `width`/`height`/`aspect-ratio`, а позиция фонового логотипа зафиксирована независимо от монтирования блока инструкции или баннера восстановления ниже него.
+- **Бесшовная тема до гидратации**: синхронный inline-скрипт в `<head>` выставляет `data-theme` (`light` | `dark`) из `localStorage` (`z-trader-theme-v1`) или `prefers-color-scheme` до первой отрисовки, а парные ассеты тем переключаются через CSS.
 
 ## Поведение и приёмка
 

@@ -1,0 +1,42 @@
+import type { Metadata } from "next";
+import type { ReactNode } from "react";
+import { GeistSans } from "geist/font/sans";
+import { JetBrains_Mono } from "next/font/google";
+import "./globals.css";
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-jetbrains-mono",
+  display: "swap",
+});
+
+export const metadata: Metadata = {
+  title: "Z-Trader AI",
+  description: "Z-Trader AI trading terminal",
+  icons: { icon: "/logo.ico" },
+};
+
+// A parser-blocking script selects the theme before the body can be painted.
+const initializeTheme = `(() => {
+  let theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  try {
+    const saved = window.localStorage.getItem('z-trader-theme-v1');
+    if (saved === 'light' || saved === 'dark') theme = saved;
+  } catch {}
+  document.documentElement.dataset.theme = theme;
+})();`;
+
+export default function RootLayout({ children }: { children: ReactNode }) {
+  return (
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${GeistSans.variable} ${jetbrainsMono.variable}`}
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: initializeTheme }} />
+      </head>
+      <body>{children}</body>
+    </html>
+  );
+}

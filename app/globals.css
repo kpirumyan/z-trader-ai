@@ -44,6 +44,11 @@ button {
   color: inherit;
 }
 
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .terminal-shell {
   display: flex;
   flex-direction: column;
@@ -156,7 +161,7 @@ button {
   border-color: var(--border);
 }
 
-.theme-button:focus-visible, .new-button:focus-visible, .new-dialog button:focus-visible {
+.theme-button:focus-visible, .new-button:focus-visible, .new-dialog button:focus-visible, .storage-recovery button:focus-visible {
   outline: 2px solid var(--brand-gold);
   outline-offset: 1px;
 }
@@ -221,6 +226,67 @@ button {
 .empty-instruction strong {
   color: var(--text-primary);
   font-weight: 600;
+}
+
+.storage-warning {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  right: 16px;
+  margin: 0;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  line-height: 22px;
+}
+
+.storage-recovery {
+  position: absolute;
+  top: calc(50% + var(--watermark-width) * 860 / 1110 / 2 + 24px);
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(440px, calc(100% - 48px));
+  overflow: auto;
+  padding: 2px;
+  text-align: center;
+}
+
+.storage-recovery h1 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 24px;
+}
+
+.storage-recovery p {
+  margin: 0 0 16px;
+  color: var(--text-secondary);
+  line-height: 22px;
+}
+
+.storage-recovery-actions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-bottom: 2px;
+}
+
+.storage-recovery button {
+  min-height: 32px;
+  padding: 4px 16px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--surface-raised);
+  cursor: pointer;
+}
+
+.storage-recovery button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .new-dialog {

@@ -224,6 +224,135 @@ for (const failure of ["getter", "read", "write"] as const) {
   });
 }
 
+test("malformed workspace preserves the record until Start empty", async ({ page }) => {
+  const malformed = "{broken-json";
+  await observeStorage(page, malformed);
+  await page.goto("/");
+  await expectWorkspaceRead(page);
+  await expectHydratedShell(page);
+  const explanation = page.getByRole("main").getByText(
+    /workspace.*(?:corrupt|damag|invalid|could not|cannot|unable|couldn't|can't)|(?:corrupt|damag|invalid).*workspace|(?:could not|cannot|unable to|couldn't|can't).*(?:read|load|restor).*workspace/i,
+  ).first();
+  const retry = page.getByRole("button", { name: "Retry", exact: true });
+  const startEmpty = page.getByRole("button", { name: "Start empty", exact: true });
+  await expect(explanation).toBeVisible();
+  await expect(retry).toBeVisible();
+  await expect(retry).toBeEnabled();
+  await expect(startEmpty).toBeVisible();
+  await expect(page.getByText(emptyTitle, { exact: true })).toBeHidden();
+  await expect(page.getByText(emptyInstruction, { exact: true })).toBeHidden();
+  expect(await page.locator("body").innerText()).not.toMatch(/[А-Яа-яЁё]/);
+  expect((await storageSnapshot(page)).raw).toBe(malformed);
+  expect((await storageSnapshot(page)).writes).toEqual([]);
+
+  const readsBeforeRetry = (await storageSnapshot(page)).reads;
+  await retry.click();
+  await expect(retry).toBeDisabled();
+  await expectShellSurvives(page);
+  await expect(page.getByRole("banner").getByRole("button", { name: "New", exact: true })).toBeEnabled();
+  await expect(themeButton(page)).toBeEnabled();
+  await expect.poll(async () => (await storageSnapshot(page)).reads).toBeGreaterThan(readsBeforeRetry);
+  await expect(retry).toBeEnabled();
+  await expect(retry).not.toHaveAttribute("aria-busy", "true");
+  await expect(explanation).toBeVisible();
+  await expect(startEmpty).toBeVisible();
+  await expectShellSurvives(page);
+  expect((await storageSnapshot(page)).raw).toBe(malformed);
+  expect((await storageSnapshot(page)).writes).toEqual([]);
+
+  await startEmpty.click();
+  await expectEmptyWorkspace(page);
+  await expectShellSurvives(page);
+  await expect(retry).toBeHidden();
+  await expect(startEmpty).toBeHidden();
+  await expect(explanation).toBeHidden();
+  await expect.poll(() => readWorkspace(page)).toMatchObject({
+    version: 1,
+    activeWorkspaceId: expect.any(String),
+    workspaces: [{ id: expect.any(String), windows: [] }],
+  });
+  const saved = await readWorkspace(page);
+  expect(saved.activeWorkspaceId.trim()).not.toBe("");
+  expect(saved.workspaces).toHaveLength(1);
+  expect(saved.workspaces[0].id).toBe(saved.activeWorkspaceId);
+  await page.reload();
+  await expectEmptyWorkspace(page);
+  await expectShellSurvives(page);
+  expect(await readWorkspace(page)).toEqual(saved);
+});
+
+test("Retry reads a repaired workspace without replacing it while the error is shown", async ({ page }) => {
+  const malformed = "{broken-json";
+  const repaired = JSON.stringify({
+    version: 1,
+    activeWorkspaceId: "externally-repaired-workspace",
+    workspaces: [{ id: "externally-repaired-workspace", windows: [] }],
+  });
+  await observeStorage(page, malformed);
+  await page.goto("/");
+  await expectWorkspaceRead(page);
+  const retry = page.getByRole("button", { name: "Retry", exact: true });
+  const startEmpty = page.getByRole("button", { name: "Start empty", exact: true });
+  await expect(retry).toBeVisible();
+  await expect(retry).toBeEnabled();
+  await expect(startEmpty).toBeVisible();
+  await expectShellSurvives(page);
+  await expect(page.getByText(emptyTitle, { exact: true })).toBeHidden();
+  expect((await storageSnapshot(page)).raw).toBe(malformed);
+  expect((await storageSnapshot(page)).writes).toEqual([]);
+
+  await page.evaluate(({ key, raw }) => localStorage.setItem(key, raw), { key: workspaceKey, raw: repaired });
+  const readsBeforeRetry = (await storageSnapshot(page)).reads;
+  await retry.click();
+  await expect(retry).toBeDisabled();
+  await expectShellSurvives(page);
+  await expect(page.getByRole("banner").getByRole("button", { name: "New", exact: true })).toBeEnabled();
+  await expect(themeButton(page)).toBeEnabled();
+  await expect.poll(async () => (await storageSnapshot(page)).reads).toBeGreaterThan(readsBeforeRetry);
+  await expectEmptyWorkspace(page);
+  await expectShellSurvives(page);
+  await expect(retry).toBeHidden();
+  await expect(startEmpty).toBeHidden();
+  const snapshot = await storageSnapshot(page);
+  expect(snapshot.raw).toBe(repaired);
+  for (const raw of snapshot.writes) expect(raw).toBe(repaired);
+  await page.reload();
+  await expectEmptyWorkspace(page);
+  await expectShellSurvives(page);
+  expect((await storageSnapshot(page)).raw).toBe(repaired);
+});
+
+test("unavailable workspace storage leaves instruction usable and warns about saving", async ({ context }) => {
+  for (const failure of ["getter", "read", "write"] as const) {
+    const page = await context.newPage();
+    try {
+      await observeStorage(page, null, failure);
+      for (const visit of ["first load", "reload"]) {
+        if (visit === "first load") await page.goto("/");
+        else await page.reload();
+        await expectHydratedShell(page);
+        await expectEmptyWorkspace(page);
+        const warning = page.getByText(/(?:not|won.t|cannot|can.t|unable to).*(?:sav|persist)|(?:sav|persist).*(?:unavailable|disabled)/i);
+        await expect(warning).toBeVisible();
+        const newButton = page.getByRole("banner").getByRole("button", { name: "New", exact: true });
+        await newButton.click();
+        const dialog = page.getByRole("dialog");
+        await expect(dialog).toBeVisible();
+        for (const kind of ["Chart", "Level II", "T & S"]) await expect(dialog).toContainText(kind);
+        await page.keyboard.press("Escape");
+        await expect(dialog).toBeHidden();
+        await expect(newButton).toBeFocused();
+        await expect(warning).toBeVisible();
+        await expectEmptyWorkspace(page);
+        await expectShellSurvives(page);
+        expect((await storageSnapshot(page)).raw).toBeNull();
+      }
+    } finally {
+      await page.close();
+    }
+  }
+});
+
 for (const colorScheme of ["light", "dark"] as const) {
   test(`${colorScheme}: empty instruction uses Geist and inline emphasis without extra controls`, async ({ page }) => {
     await page.emulateMedia({ colorScheme });

@@ -21,8 +21,18 @@ function initializeWorkspace(): WorkspaceState {
   return { status: saveWorkspace(workspace), workspace };
 }
 
-export function useWorkspace(): WorkspaceState {
+export function useWorkspace() {
   use(browser("Workspace state is stored in localStorage"));
-  const [workspace] = useState(initializeWorkspace);
-  return workspace;
+  const [state, setState] = useState(initializeWorkspace);
+
+  function retry() {
+    setState(initializeWorkspace());
+  }
+
+  function startEmpty() {
+    const workspace = createEmptyWorkspace();
+    setState({ status: saveWorkspace(workspace), workspace });
+  }
+
+  return { state, retry, startEmpty };
 }

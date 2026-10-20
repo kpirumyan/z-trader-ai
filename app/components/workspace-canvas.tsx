@@ -1,6 +1,13 @@
 import Image from "next/image";
+import type { ReactNode } from "react";
+import { useWorkspace } from "../hooks/use-workspace";
 
-export function WorkspaceCanvas() {
+export function WorkspaceState() {
+  useWorkspace();
+  return null;
+}
+
+export function WorkspaceCanvas({ children }: { children?: ReactNode }) {
   return (
     <main className="workspace-canvas" aria-label="Workspace">
       <div className="workspace-watermark" aria-hidden="true">
@@ -13,6 +20,7 @@ export function WorkspaceCanvas() {
           width={1254} height={1254} loading="eager" fetchPriority="high" unoptimized
         />
       </div>
+      {children}
     </main>
   );
 }

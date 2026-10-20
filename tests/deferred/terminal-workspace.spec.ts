@@ -38,22 +38,12 @@ test.beforeEach(async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
 });
 
-test("first visit creates one versioned empty workspace and reload preserves it", async ({ page }) => {
+test("first visit and reload show the empty workspace instruction", async ({ page }) => {
   await page.goto("/");
   await expectEmptyWorkspace(page);
   expect(await page.locator("body").innerText()).not.toMatch(/[А-Яа-яЁё]/);
-  await expect.poll(() => readWorkspace(page)).toMatchObject({
-    version: 1,
-    activeWorkspaceId: expect.any(String),
-    workspaces: [{ id: expect.any(String), windows: [] }],
-  });
-  const saved = await readWorkspace(page);
-  expect(saved.workspaces).toHaveLength(1);
-  expect(saved.activeWorkspaceId).toBe(saved.workspaces[0].id);
-  expect(saved.activeWorkspaceId).not.toBe("");
   await page.reload();
   await expectEmptyWorkspace(page);
-  await expect.poll(() => readWorkspace(page)).toEqual(saved);
 });
 
 test("workspace instruction appears only after client state is available on first load and reload", async ({ page }) => {

@@ -1,1 +1,1 @@
-pnpm pre-commit && pnpm typecheck
+pnpm exec lint-staged && pnpm typecheck

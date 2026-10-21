@@ -3,6 +3,8 @@ import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactCompiler from "eslint-plugin-react-compiler";
+import stylistic from "@stylistic/eslint-plugin";
+import prettierConfig from "eslint-config-prettier";
 
 const eslintConfig = defineConfig([
   ...nextVitals,
@@ -10,7 +12,26 @@ const eslintConfig = defineConfig([
   reactCompiler.configs.recommended,
   {
     files: ["**/*.{js,jsx,mjs,ts,tsx,mts,cts}"],
-    rules: reactHooks.configs.flat["recommended-latest"].rules,
+    plugins: {
+      "@stylistic": stylistic,
+    },
+    rules: {
+      ...reactHooks.configs.flat["recommended-latest"].rules,
+      "@stylistic/padding-line-between-statements": [
+        "error",
+        { blankLine: "always", prev: "*", next: "return" },
+        { blankLine: "always", prev: "*", next: ["const", "let", "var"] },
+        { blankLine: "always", prev: ["const", "let", "var"], next: "*" },
+        { blankLine: "any", prev: ["const", "let", "var"], next: ["const", "let", "var"] },
+        { blankLine: "always", prev: "multiline-block-like", next: "*" },
+        { blankLine: "always", prev: "*", next: "multiline-block-like" },
+        { blankLine: "always", prev: "multiline-expression", next: "*" },
+        { blankLine: "always", prev: "*", next: "multiline-expression" },
+        { blankLine: "always", prev: "directive", next: "*" },
+        { blankLine: "any", prev: "directive", next: "directive" },
+        { blankLine: "always", prev: ["case", "default"], next: "*" },
+      ],
+    },
   },
   {
     files: ["app/types/**/*.{ts,tsx}"],
@@ -19,11 +40,13 @@ const eslintConfig = defineConfig([
         "error",
         {
           selector: "ExportNamedDeclaration > VariableDeclaration",
-          message: "Do not export runtime variables/constants from app/types/. Place constants in app/constants/.",
+          message:
+            "Do not export runtime variables/constants from app/types/. Place constants in app/constants/.",
         },
         {
           selector: "ExportNamedDeclaration > FunctionDeclaration",
-          message: "Do not export runtime functions from app/types/. Place functions in appropriate utility or domain files.",
+          message:
+            "Do not export runtime functions from app/types/. Place functions in appropriate utility or domain files.",
         },
         {
           selector: "ExportDefaultDeclaration",
@@ -48,8 +71,11 @@ const eslintConfig = defineConfig([
       ],
     },
   },
+  prettierConfig,
   globalIgnores([
     ".next/**",
+    ".agents/**",
+    ".codex/**",
     "out/**",
     "build/**",
     "coverage/**",

@@ -6,6 +6,47 @@ import reactCompiler from "eslint-plugin-react-compiler";
 import stylistic from "@stylistic/eslint-plugin";
 import prettierConfig from "eslint-config-prettier";
 
+const englishCodePlugin = {
+  rules: {
+    "only-english": {
+      meta: {
+        type: "problem",
+        docs: {
+          description: "Enforce English-only comments and identifiers in source files",
+        },
+        schema: [],
+      },
+      create(context) {
+        const sourceCode = context.sourceCode;
+
+        return {
+          Program() {
+            const comments = sourceCode.getAllComments();
+
+            for (const comment of comments) {
+              if (/[\u0400-\u04FF]/.test(comment.value)) {
+                context.report({
+                  loc: comment.loc,
+                  message:
+                    "In-code comments must be strictly in English. Cyrillic characters are forbidden.",
+                });
+              }
+            }
+          },
+          Identifier(node) {
+            if (/[\u0400-\u04FF]/.test(node.name)) {
+              context.report({
+                node,
+                message: `Identifier '${node.name}' must be strictly in English. Cyrillic characters are forbidden.`,
+              });
+            }
+          },
+        };
+      },
+    },
+  },
+};
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -14,8 +55,10 @@ const eslintConfig = defineConfig([
     files: ["**/*.{js,jsx,mjs,ts,tsx,mts,cts}"],
     plugins: {
       "@stylistic": stylistic,
+      "english-code": englishCodePlugin,
     },
     rules: {
+      "english-code/only-english": "error",
       ...reactHooks.configs.flat["recommended-latest"].rules,
       "@stylistic/padding-line-between-statements": [
         "error",

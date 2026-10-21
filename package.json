@@ -17,7 +17,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm test:all",
-    "prepare": "husky"
+    "prepare": "husky",
+    "pre-commit": "lint-staged"
   },
   "dependencies": {
     "geist": "^1.8.1",
@@ -42,6 +43,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "husky": "^9.1.7",
     "jsdom": "^30.1.3",
+    "lint-staged": "^17.6.0",
     "prettier": "^3.9.10",
     "typescript": "^5.9.3",
     "vitest": "^5.0.5"

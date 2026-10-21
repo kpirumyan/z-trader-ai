@@ -6,8 +6,10 @@ export type { Instrument, InstrumentCatalogProvider };
 export const demoInstrumentCatalog: InstrumentCatalogProvider = {
   async search(query) {
     const normalized = query.trim().toLowerCase();
-    return DEMO_INSTRUMENTS.filter(({ symbol, name }) =>
-      symbol.toLowerCase().includes(normalized) || name.toLowerCase().includes(normalized),
+
+    return DEMO_INSTRUMENTS.filter(
+      ({ symbol, name }) =>
+        symbol.toLowerCase().includes(normalized) || name.toLowerCase().includes(normalized),
     ).map((instrument) => ({ ...instrument }));
   },
 };

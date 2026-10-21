@@ -1,31 +1,22 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { Suspense } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  STORAGE_RETRY_DELAY_MS,
-  WORKSPACE_STORAGE_KEY,
-} from "@/app/constants/storage";
+import { STORAGE_RETRY_DELAY_MS, WORKSPACE_STORAGE_KEY } from "@/app/constants/storage";
 import { StorageRecoveryBanner } from "@/app/components/storage-recovery-banner";
 import { useWorkspace } from "@/app/hooks/use-workspace";
 import type { WorkspaceStorageEnvelope } from "@/app/types/workspace";
 
 function WorkspaceHarness() {
   const { state, retry, startEmpty } = useWorkspace();
+
   if (state.status === "corrupted") {
-    return (
-      <StorageRecoveryBanner
-        status="corrupted"
-        onRetry={retry}
-        onStartEmpty={startEmpty}
-      />
-    );
+    return <StorageRecoveryBanner status="corrupted" onRetry={retry} onStartEmpty={startEmpty} />;
   }
+
   return (
     <div>
       <span data-testid="workspace-id">{state.workspace.activeWorkspaceId}</span>
-      {state.status === "unavailable" ? (
-        <StorageRecoveryBanner status="unavailable" />
-      ) : null}
+      {state.status === "unavailable" ? <StorageRecoveryBanner status="unavailable" /> : null}
     </div>
   );
 }
@@ -44,20 +35,16 @@ describe("StorageRecoveryBanner and workspace recovery flow", () => {
 
   it("renders corrupted recovery copy and delays onRetry by 250ms with disabled/aria-busy state", async () => {
     vi.useFakeTimers();
+
     const onRetry = vi.fn();
     const onStartEmpty = vi.fn();
 
     render(
-      <StorageRecoveryBanner
-        status="corrupted"
-        onRetry={onRetry}
-        onStartEmpty={onStartEmpty}
-      />,
+      <StorageRecoveryBanner status="corrupted" onRetry={onRetry} onStartEmpty={onStartEmpty} />,
     );
 
-    expect(
-      screen.getByRole("heading", { name: "Unable to restore your workspace" }),
-    ).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Unable to restore your workspace" })).toBeTruthy();
+
     expect(
       screen.getByText(
         "The saved workspace is corrupted or has an unsupported format. Retry to read it again, or start empty to replace it with a new workspace.",
@@ -66,6 +53,7 @@ describe("StorageRecoveryBanner and workspace recovery flow", () => {
 
     const retryButton = screen.getByRole("button", { name: "Retry" });
     const startEmptyButton = screen.getByRole("button", { name: "Start empty" });
+
     expect((retryButton as HTMLButtonElement).disabled).toBe(false);
     expect(retryButton.getAttribute("aria-busy")).not.toBe("true");
     expect((startEmptyButton as HTMLButtonElement).disabled).toBe(false);
@@ -78,12 +66,14 @@ describe("StorageRecoveryBanner and workspace recovery flow", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(STORAGE_RETRY_DELAY_MS - 1);
     });
+
     expect(onRetry).not.toHaveBeenCalled();
     expect((retryButton as HTMLButtonElement).disabled).toBe(true);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
     });
+
     expect(onRetry).toHaveBeenCalledTimes(1);
     expect((retryButton as HTMLButtonElement).disabled).toBe(false);
     expect(retryButton.getAttribute("aria-busy")).not.toBe("true");
@@ -91,15 +81,12 @@ describe("StorageRecoveryBanner and workspace recovery flow", () => {
 
   it("cancels a pending Retry timer when Start empty is clicked or when unmounted", async () => {
     vi.useFakeTimers();
+
     const onRetry = vi.fn();
     const onStartEmpty = vi.fn();
 
     const { unmount } = render(
-      <StorageRecoveryBanner
-        status="corrupted"
-        onRetry={onRetry}
-        onStartEmpty={onStartEmpty}
-      />,
+      <StorageRecoveryBanner status="corrupted" onRetry={onRetry} onStartEmpty={onStartEmpty} />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
@@ -109,6 +96,7 @@ describe("StorageRecoveryBanner and workspace recovery flow", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(300);
     });
+
     expect(onRetry).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
@@ -117,6 +105,7 @@ describe("StorageRecoveryBanner and workspace recovery flow", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(300);
     });
+
     expect(onRetry).not.toHaveBeenCalled();
   });
 
@@ -124,16 +113,20 @@ describe("StorageRecoveryBanner and workspace recovery flow", () => {
     render(<StorageRecoveryBanner status="unavailable" />);
 
     const status = screen.getByRole("status");
+
     expect(status.textContent).toContain(
       "Local storage is unavailable. Changes in this session will not be saved.",
     );
+
     expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Start empty" })).toBeNull();
   });
 
   it("recovers via Retry when the stored record is repaired, or replaces it on Start empty", async () => {
     vi.useFakeTimers();
+
     const broken = "{corrupted";
+
     window.localStorage.setItem(WORKSPACE_STORAGE_KEY, broken);
 
     render(
@@ -142,18 +135,16 @@ describe("StorageRecoveryBanner and workspace recovery flow", () => {
       </Suspense>,
     );
 
-    expect(
-      screen.getByRole("heading", { name: "Unable to restore your workspace" }),
-    ).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Unable to restore your workspace" })).toBeTruthy();
     expect(window.localStorage.getItem(WORKSPACE_STORAGE_KEY)).toBe(broken);
 
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
     await act(async () => {
       await vi.advanceTimersByTimeAsync(STORAGE_RETRY_DELAY_MS);
     });
-    expect(
-      screen.getByRole("heading", { name: "Unable to restore your workspace" }),
-    ).toBeTruthy();
+
+    expect(screen.getByRole("heading", { name: "Unable to restore your workspace" })).toBeTruthy();
     expect(window.localStorage.getItem(WORKSPACE_STORAGE_KEY)).toBe(broken);
 
     const repaired: WorkspaceStorageEnvelope = {
@@ -161,17 +152,17 @@ describe("StorageRecoveryBanner and workspace recovery flow", () => {
       activeWorkspaceId: "repaired-ws",
       workspaces: [{ id: "repaired-ws", windows: [] }],
     };
+
     window.localStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify(repaired));
 
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
     await act(async () => {
       await vi.advanceTimersByTimeAsync(STORAGE_RETRY_DELAY_MS);
     });
 
     expect(screen.getByTestId("workspace-id").textContent).toBe("repaired-ws");
-    expect(
-      screen.queryByRole("heading", { name: "Unable to restore your workspace" }),
-    ).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Unable to restore your workspace" })).toBeNull();
   });
 
   it("replaces corrupted storage with a fresh empty workspace on Start empty", () => {
@@ -186,10 +177,13 @@ describe("StorageRecoveryBanner and workspace recovery flow", () => {
     fireEvent.click(screen.getByRole("button", { name: "Start empty" }));
 
     const activeId = screen.getByTestId("workspace-id").textContent;
+
     expect(activeId).toBeTruthy();
+
     const saved = JSON.parse(
       window.localStorage.getItem(WORKSPACE_STORAGE_KEY)!,
     ) as WorkspaceStorageEnvelope;
+
     expect(saved.activeWorkspaceId).toBe(activeId);
     expect(saved.workspaces).toEqual([{ id: activeId, windows: [] }]);
   });

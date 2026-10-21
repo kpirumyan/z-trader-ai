@@ -18,14 +18,17 @@ export function StorageRecoveryBanner(props: StorageRecoveryBannerProps) {
 
   const onRetry = props.status === "corrupted" ? props.onRetry : undefined;
   const onRetryRef = useRef(onRetry);
+
   useEffect(() => {
     onRetryRef.current = onRetry;
   }, [onRetry]);
 
   useEffect(() => {
     isMountedRef.current = true;
+
     return () => {
       isMountedRef.current = false;
+
       if (timeoutIdRef.current !== null) {
         clearTimeout(timeoutIdRef.current);
       }
@@ -43,6 +46,7 @@ export function StorageRecoveryBanner(props: StorageRecoveryBannerProps) {
   const handleRetry = () => {
     if (isRetrying) return;
     setIsRetrying(true);
+
     timeoutIdRef.current = setTimeout(async () => {
       try {
         await onRetryRef.current?.();
@@ -58,6 +62,7 @@ export function StorageRecoveryBanner(props: StorageRecoveryBannerProps) {
     if (timeoutIdRef.current !== null) {
       clearTimeout(timeoutIdRef.current);
     }
+
     props.onStartEmpty();
   };
 
@@ -66,8 +71,8 @@ export function StorageRecoveryBanner(props: StorageRecoveryBannerProps) {
       <div role="status">
         <h1 id="storage-recovery-title">Unable to restore your workspace</h1>
         <p>
-          The saved workspace is corrupted or has an unsupported format. Retry to
-          read it again, or start empty to replace it with a new workspace.
+          The saved workspace is corrupted or has an unsupported format. Retry to read it again, or
+          start empty to replace it with a new workspace.
         </p>
       </div>
       <div className="storage-recovery-actions">
@@ -86,4 +91,3 @@ export function StorageRecoveryBanner(props: StorageRecoveryBannerProps) {
     </section>
   );
 }
-

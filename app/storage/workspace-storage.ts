@@ -1,7 +1,4 @@
-import {
-  CURRENT_WORKSPACE_VERSION,
-  WORKSPACE_STORAGE_KEY,
-} from "../constants/storage";
+import { CURRENT_WORKSPACE_VERSION, WORKSPACE_STORAGE_KEY } from "../constants/storage";
 import type {
   WorkspaceReadResult,
   WorkspaceRecord,
@@ -18,10 +15,7 @@ function isId(value: unknown): value is string {
 
 function isWorkspace(value: unknown): value is WorkspaceRecord {
   return (
-    isRecord(value) &&
-    isId(value.id) &&
-    Array.isArray(value.windows) &&
-    value.windows.length === 0
+    isRecord(value) && isId(value.id) && Array.isArray(value.windows) && value.windows.length === 0
   );
 }
 
@@ -38,13 +32,13 @@ function isEnvelope(value: unknown): value is WorkspaceStorageEnvelope {
   }
 
   const ids = value.workspaces.map((workspace) => workspace.id);
-  return (
-    new Set(ids).size === ids.length && ids.includes(value.activeWorkspaceId)
-  );
+
+  return new Set(ids).size === ids.length && ids.includes(value.activeWorkspaceId);
 }
 
 export function readWorkspace(): WorkspaceReadResult {
   let raw: string | null;
+
   try {
     raw = window.localStorage.getItem(WORKSPACE_STORAGE_KEY);
   } catch {
@@ -55,9 +49,8 @@ export function readWorkspace(): WorkspaceReadResult {
 
   try {
     const parsed: unknown = JSON.parse(raw);
-    return isEnvelope(parsed)
-      ? { status: "ready", workspace: parsed }
-      : { status: "corrupted" };
+
+    return isEnvelope(parsed) ? { status: "ready", workspace: parsed } : { status: "corrupted" };
   } catch {
     return { status: "corrupted" };
   }
@@ -65,6 +58,7 @@ export function readWorkspace(): WorkspaceReadResult {
 
 export function createEmptyWorkspace(): WorkspaceStorageEnvelope {
   const id = crypto.randomUUID();
+
   return {
     version: CURRENT_WORKSPACE_VERSION,
     activeWorkspaceId: id,
@@ -72,11 +66,10 @@ export function createEmptyWorkspace(): WorkspaceStorageEnvelope {
   };
 }
 
-export function saveWorkspace(
-  workspace: WorkspaceStorageEnvelope,
-): "ready" | "unavailable" {
+export function saveWorkspace(workspace: WorkspaceStorageEnvelope): "ready" | "unavailable" {
   try {
     window.localStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify(workspace));
+
     return "ready";
   } catch {
     return "unavailable";

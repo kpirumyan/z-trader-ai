@@ -11,6 +11,7 @@ describe("useTheme and ThemeToggle", () => {
     if (originalLocalStorage) {
       Object.defineProperty(window, "localStorage", originalLocalStorage);
     }
+
     window.localStorage.clear();
     document.documentElement.dataset.theme = "dark";
   });
@@ -18,9 +19,11 @@ describe("useTheme and ThemeToggle", () => {
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
+
     if (originalLocalStorage) {
       Object.defineProperty(window, "localStorage", originalLocalStorage);
     }
+
     window.localStorage.clear();
     delete document.documentElement.dataset.theme;
   });
@@ -31,12 +34,14 @@ describe("useTheme and ThemeToggle", () => {
     act(() => {
       result.current.toggleTheme();
     });
+
     expect(document.documentElement.dataset.theme).toBe("light");
     expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe("light");
 
     act(() => {
       result.current.toggleTheme();
     });
+
     expect(document.documentElement.dataset.theme).toBe("dark");
     expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe("dark");
   });
@@ -51,6 +56,7 @@ describe("useTheme and ThemeToggle", () => {
     act(() => {
       result.current.toggleTheme();
     });
+
     expect(document.documentElement.dataset.theme).toBe("light");
 
     Object.defineProperty(window, "localStorage", {
@@ -63,6 +69,7 @@ describe("useTheme and ThemeToggle", () => {
     act(() => {
       result.current.toggleTheme();
     });
+
     expect(document.documentElement.dataset.theme).toBe("dark");
   });
 
@@ -72,6 +79,7 @@ describe("useTheme and ThemeToggle", () => {
     const button = screen.getByRole("button", {
       name: /Switch to (light|dark) theme/,
     });
+
     expect(button.getAttribute("title")).toBeNull();
     expect(screen.queryByRole("tooltip")).toBeNull();
 
@@ -81,9 +89,7 @@ describe("useTheme and ThemeToggle", () => {
     fireEvent.click(button);
     expect(document.documentElement.dataset.theme).toBe("light");
     expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe("light");
-    expect(
-      screen.getByRole("button", { name: /Switch to (light|dark) theme/ }),
-    ).toBe(button);
+    expect(screen.getByRole("button", { name: /Switch to (light|dark) theme/ })).toBe(button);
     expect(document.activeElement).toBe(button);
 
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {

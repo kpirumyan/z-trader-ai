@@ -6,7 +6,9 @@ import type { Theme } from "../types/theme";
 function switchTheme(): void {
   const root = document.documentElement;
   const nextTheme: Theme = root.dataset.theme === "dark" ? "light" : "dark";
+
   root.dataset.theme = nextTheme;
+
   try {
     window.localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
   } catch {

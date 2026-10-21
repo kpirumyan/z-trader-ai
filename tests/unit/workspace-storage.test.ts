@@ -21,15 +21,18 @@ describe("workspace-storage and useWorkspace initialization", () => {
     if (originalLocalStorage) {
       Object.defineProperty(window, "localStorage", originalLocalStorage);
     }
+
     window.localStorage.clear();
   });
 
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
+
     if (originalLocalStorage) {
       Object.defineProperty(window, "localStorage", originalLocalStorage);
     }
+
     window.localStorage.clear();
   });
 
@@ -40,9 +43,7 @@ describe("workspace-storage and useWorkspace initialization", () => {
 
       expect(first.version).toBe(1);
       expect(first.activeWorkspaceId.trim().length).toBeGreaterThan(0);
-      expect(first.workspaces).toEqual([
-        { id: first.activeWorkspaceId, windows: [] },
-      ]);
+      expect(first.workspaces).toEqual([{ id: first.activeWorkspaceId, windows: [] }]);
       expect(second.activeWorkspaceId).not.toBe(first.activeWorkspaceId);
     });
   });
@@ -61,6 +62,7 @@ describe("workspace-storage and useWorkspace initialization", () => {
           { id: "ws-2", windows: [] },
         ],
       };
+
       window.localStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify(envelope));
 
       expect(readWorkspace()).toEqual({
@@ -126,6 +128,7 @@ describe("workspace-storage and useWorkspace initialization", () => {
       },
     ])("returns corrupted without overwriting storage for $name", ({ raw }) => {
       window.localStorage.setItem(WORKSPACE_STORAGE_KEY, raw);
+
       const setItemSpy = vi.spyOn(Storage.prototype, "setItem");
       const removeItemSpy = vi.spyOn(Storage.prototype, "removeItem");
 
@@ -164,9 +167,7 @@ describe("workspace-storage and useWorkspace initialization", () => {
       };
 
       expect(saveWorkspace(envelope)).toBe("ready");
-      expect(JSON.parse(window.localStorage.getItem(WORKSPACE_STORAGE_KEY)!)).toEqual(
-        envelope,
-      );
+      expect(JSON.parse(window.localStorage.getItem(WORKSPACE_STORAGE_KEY)!)).toEqual(envelope);
     });
 
     it("returns unavailable when setItem throws QuotaExceededError", () => {
@@ -175,6 +176,7 @@ describe("workspace-storage and useWorkspace initialization", () => {
       });
 
       const envelope = createEmptyWorkspace();
+
       expect(saveWorkspace(envelope)).toBe("unavailable");
     });
 
@@ -187,6 +189,7 @@ describe("workspace-storage and useWorkspace initialization", () => {
       });
 
       const envelope = createEmptyWorkspace();
+
       expect(saveWorkspace(envelope)).toBe("unavailable");
     });
   });
@@ -198,10 +201,12 @@ describe("workspace-storage and useWorkspace initialization", () => {
       });
 
       expect(result.current.state.status).toBe("ready");
+
       if (result.current.state.status === "ready") {
         const stored = JSON.parse(
           window.localStorage.getItem(WORKSPACE_STORAGE_KEY)!,
         ) as WorkspaceStorageEnvelope;
+
         expect(stored).toEqual(result.current.state.workspace);
         expect(stored.workspaces).toHaveLength(1);
         expect(stored.workspaces[0].id).toBe(stored.activeWorkspaceId);
@@ -214,6 +219,7 @@ describe("workspace-storage and useWorkspace initialization", () => {
         activeWorkspaceId: "existing-workspace-id",
         workspaces: [{ id: "existing-workspace-id", windows: [] }],
       };
+
       window.localStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify(existing));
 
       const { result } = renderHook(() => useWorkspace(), {
@@ -224,13 +230,13 @@ describe("workspace-storage and useWorkspace initialization", () => {
         status: "ready",
         workspace: existing,
       });
-      expect(JSON.parse(window.localStorage.getItem(WORKSPACE_STORAGE_KEY)!)).toEqual(
-        existing,
-      );
+
+      expect(JSON.parse(window.localStorage.getItem(WORKSPACE_STORAGE_KEY)!)).toEqual(existing);
     });
 
     it("reports corrupted state and does not overwrite a corrupted record on mount", () => {
       const corruptedRaw = "{corrupted-json";
+
       window.localStorage.setItem(WORKSPACE_STORAGE_KEY, corruptedRaw);
 
       const { result } = renderHook(() => useWorkspace(), {
@@ -251,8 +257,10 @@ describe("workspace-storage and useWorkspace initialization", () => {
       });
 
       expect(result.current.state.status).toBe("unavailable");
+
       if (result.current.state.status === "unavailable") {
         expect(result.current.state.workspace.version).toBe(1);
+
         expect(result.current.state.workspace.workspaces).toEqual([
           {
             id: result.current.state.workspace.activeWorkspaceId,
@@ -264,6 +272,7 @@ describe("workspace-storage and useWorkspace initialization", () => {
       act(() => {
         result.current.startEmpty();
       });
+
       expect(result.current.state.status).toBe("unavailable");
     });
   });

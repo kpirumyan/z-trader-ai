@@ -7,12 +7,6 @@
       "skillPath": "skills/agent-browser/SKILL.md",
       "computedHash": "80161e6836b3b40f4e83730a290deb40ac14d877d38c97ad5f6d71be37ce74c3"
     },
-    "before-and-after": {
-      "source": "vercel-labs/before-and-after",
-      "sourceType": "github",
-      "skillPath": "skill/SKILL.md",
-      "computedHash": "d3e059a03864cd72392d24e2b218ea825b3533383418b5dc1f947a9b084e3742"
-    },
     "find-skills": {
       "source": "vercel-labs/skills",
       "sourceType": "github",

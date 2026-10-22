@@ -1,2 +1,3 @@
 allowBuilds:
   unrs-resolver: true
+  agent-browser: true

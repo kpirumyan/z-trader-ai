@@ -1,5 +1,5 @@
 ---
-name: tester
+name: Tester
 description: "Пишет тесты по публичному контракту в TDD; не читает реализацию и не запускает проверки."
 model: inherit
 mainAgent: false

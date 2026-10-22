@@ -1,5 +1,5 @@
 ---
-name: coder
+name: Coder
 description: "Реализует согласованный контракт после подтверждённого RED; самостоятельно проверяет код командами проверок."
 model: inherit
 mainAgent: false

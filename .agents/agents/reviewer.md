@@ -1,5 +1,5 @@
 ---
-name: reviewer
+name: Reviewer
 description: "Независимо проверяет контракт, архитектуру, diff и доказательства после обязательных проверок; файлы не меняет."
 model: pro
 mainAgent: false

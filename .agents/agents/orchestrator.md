@@ -1,5 +1,5 @@
 ---
-name: orchestrator
+name: Orchestrator
 description: "Координирует задачу, контракт, делегирование, проверки и итоговую приёмку по роли оркестратора проекта."
 model: inherit
 mainAgent: true

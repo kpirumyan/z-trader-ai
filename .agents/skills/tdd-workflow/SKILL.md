@@ -52,9 +52,10 @@ If either counter exceeds **2**, stop immediately, preserve the workspace state,
 ## 4. Stage 2: Coder → Verify GREEN
 
 1. Invoke `coder` with the user's goal, the same alignment input, target implementation paths, and confirmation that `RED` is verified.
-   - Instruct `coder` to validate its edits locally using `pnpm format`, `pnpm lint:fix`, `pnpm typecheck`, and `pnpm lint` only, without running test suites.
-2. After `coder` finishes, run `pnpm check:fast` (`format:check`, `typecheck`, `lint`, and `test:unit`) yourself.
-   - Never run `pnpm test:e2e`, `pnpm test:all`, or `pnpm check` in the sandbox.
+2. Handle `coder` verdict:
+   - **`NEEDS_INPUT`**: Clarify missing public seam details or resolve architectural flaws (via the contract, `architect`, or `ask_question` if a product decision is required) and re-invoke `coder` before proceeding.
+   - **`READY`**: Run `pnpm check:fast` (`format:check`, `typecheck`, `lint`, and `test:unit`) yourself.
+     - Never run `pnpm test:e2e`, `pnpm test:all`, or `pnpm check` in the sandbox.
 3. **Handle failures (consumes `check_fixes_used`):**
    - If `check:fast` fails due to implementation issues, strip all test source snippets/assertions from the logs and send only the behavioral discrepancy to `coder`.
    - If a test itself is proven defective against the specification, send the fix to `tester` without exposing implementation code.

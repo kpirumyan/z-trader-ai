@@ -58,6 +58,8 @@ Return one of two explicit verdicts to the Orchestrator via `send_message`:
   - **Unit / Component (`tests/unit/`, Vitest + React Testing Library):** Isolated functions, hooks, storage modules, and component state/interactions.
   - **End-to-End (`tests/e2e/`, Playwright):** Browser user journeys, cross-reload persistence, responsive layout, and full shell/workspace integration.
   - Combine levels for complex or critical behaviors; use a single well-targeted level for localized tasks.
+- **No Redundant or Duplicate Tests:**
+  - Before writing tests, inspect existing suites in `tests/**` to prevent duplicate coverage. Extend existing test files instead of creating fragmented duplicates, verify detailed edge cases in unit tests rather than E2E, and never author tests with identical equivalence classes.
 - **Observable Behavior & Positive Survival Invariants:**
   - Assert observable behavior, public seams, accessible roles/names, boundary conditions, and error handling—never internal state structure or private helpers.
   - Negative assertions ("invalid state is absent") are insufficient on their own if unmounting or breaking the surrounding UI/shell would also satisfy them; always verify that required UI and controls remain present and operable during and after transitions.

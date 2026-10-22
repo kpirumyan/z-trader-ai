@@ -70,6 +70,7 @@ Evaluate every review across three independent pillars:
 3. **Test & Evidence Quality (`[Tests]`):**
    - Inspect test files (`tests/unit/**`, `tests/e2e/**`) and verification results to confirm meaningful coverage of acceptance criteria, boundary conditions, and failure modes.
    - Ensure assertions verify observable user/system behavior and positive survival invariants (required UI and controls remain present and operable across state transitions) rather than private implementation internals or tautological checks.
+   - **Check for Test Duplication & Redundancy:** Verify that newly added or modified tests do not duplicate existing test coverage, assert identical equivalence classes redundantly, or replicate low-level unit permutations inside end-to-end tests. Reject test bloat and flag redundant tests under `CHANGES_REQUESTED`.
    - If verification evidence for a critical criterion is missing, do not issue `APPROVED`—return `CHANGES_REQUESTED` specifying the exact missing scenario or evidence.
 
 ## 4. Verdict & Defect Reporting Standard

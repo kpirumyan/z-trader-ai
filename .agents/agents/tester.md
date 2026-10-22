@@ -61,6 +61,9 @@ Return one of two explicit verdicts to the Orchestrator via `send_message`:
 - **Observable Behavior & Positive Survival Invariants:**
   - Assert observable behavior, public seams, accessible roles/names, boundary conditions, and error handling—never internal state structure or private helpers.
   - Negative assertions ("invalid state is absent") are insufficient on their own if unmounting or breaking the surrounding UI/shell would also satisfy them; always verify that required UI and controls remain present and operable during and after transitions.
+- **No Tautological or Mirroring Tests:**
+  - NEVER author tests that merely assert raw values of exported constants, static config objects, or trivial literal assignments (e.g., `expect(DEFAULT_THEME).toBe("dark")` or `expect(THEMES).toEqual([...])`). Static declarations are already checked by TypeScript compilation; asserting their values directly provides zero ROI and creates brittle tests that duplicate definitions without testing behavior.
+  - Always verify the **behavioral consequence** of those constants: test how functions, hooks, UI components, fallbacks, or state machines behave when consuming or defaulting to those values (e.g., verifying that a clean initialization applies the default theme CSS attributes or that corrupted storage values safely fall back to the default theme).
 - **Test Hygiene & Revisions:**
   - Never weaken assertions to force a green result, and never include `.skip`, `.todo`, `.only`, or unconditional failures.
   - If called back during `GREEN` or review stages, modify tests ONLY when a test defect against the contract is proven—never open runtime implementation code.

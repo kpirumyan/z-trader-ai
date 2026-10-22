@@ -70,3 +70,4 @@ Design the **system boundaries and external seam (Black Box)** while preserving 
 ### What NOT to Specify (Leave to Tester & Coder):
 - **No Internal Implementation Details:** Do NOT dictate private helper functions, internal file splitting inside a feature, local state variables, step-by-step algorithms, or implementation code blocks.
 - **No Test Implementation Details:** Do NOT write test code or prescribe specific unit/e2e test structure—the Tester owns test strategy and edge-case design against your `Given / When / Then` scenarios and public seam.
+- **No Tautological Scenarios:** Do NOT author `Given / When / Then` scenarios that merely assert static constant values or literal declarations in isolation (e.g. `Given constant X, When read, Then it equals Y`). Specify observable system and UI behavior, state transitions, or error/fallback handling where those values take effect.

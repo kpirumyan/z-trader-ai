@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { GeistSans } from "geist/font/sans";
 import { JetBrains_Mono } from "next/font/google";
 import { THEME_STORAGE_KEY } from "./constants/storage";
+import { DEFAULT_THEME } from "./constants/theme";
 import "./globals.css";
 
 const jetbrainsMono = JetBrains_Mono({
@@ -19,7 +20,7 @@ export const metadata: Metadata = {
 
 // A parser-blocking script selects the theme before the body can be painted.
 const initializeTheme = `(() => {
-  let theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  let theme = '${DEFAULT_THEME}';
   try {
     const saved = window.localStorage.getItem('${THEME_STORAGE_KEY}');
     if (saved === 'light' || saved === 'dark') theme = saved;
@@ -31,6 +32,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="en"
+      data-theme={DEFAULT_THEME}
       suppressHydrationWarning
       className={`${GeistSans.variable} ${jetbrainsMono.variable}`}
     >

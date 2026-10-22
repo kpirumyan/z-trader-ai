@@ -1,6 +1,0 @@
-interface:
-  display_name: "TDD без архитектора"
-  short_description: "Реализация с тестировщиком, кодером и ревьюером"
-  default_prompt: "Используй $tdd-workflow для реализации задачи без отдельного архитектора по общей основе TDD."
-policy:
-  allow_implicit_invocation: false

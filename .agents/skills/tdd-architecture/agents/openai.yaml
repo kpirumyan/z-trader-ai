@@ -1,6 +1,0 @@
-interface:
-  display_name: "TDD с архитектором"
-  short_description: "Архитектурное решение и полная TDD-цепочка"
-  default_prompt: "Используй $tdd-architecture для архитектурного решения и реализации задачи по общей основе TDD."
-policy:
-  allow_implicit_invocation: false

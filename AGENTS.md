@@ -2,6 +2,15 @@
 
 **Z-Trader** is a financial market analysis platform.
 
+<rule id="ui-design-guidelines" severity="MANDATORY">
+  <summary>When designing, specifying, or implementing UI components or layout, DESIGN.md is the single source of truth for color tokens, themes, typography, and density.</summary>
+  <list type="checklist">
+    <item>Architects must incorporate design tokens and theme requirements from DESIGN.md into the task contract.</item>
+    <item>Coders must strictly follow DESIGN.md tokens and dark/light theme invariants without hardcoding rogue styles.</item>
+    <item>Reviewers must verify that UI changes conform to DESIGN.md and task contracts.</item>
+  </list>
+</rule>
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 ## This is NOT the Next.js you know

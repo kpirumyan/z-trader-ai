@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { WORKSPACE_STORAGE_KEY } from "@/app/constants/storage";
+import { THEME_STORAGE_KEY, WORKSPACE_STORAGE_KEY } from "@/app/constants/storage";
 
 const emptyTitle = "Your workspace is empty";
 const emptyInstruction = "Use New to open a Chart, Level II, or T & S window.";
@@ -212,6 +212,12 @@ for (const colorScheme of ["light", "dark"] as const) {
     }) => {
       await page.setViewportSize(viewport);
       await page.emulateMedia({ colorScheme });
+
+      await page.addInitScript(({ key, theme }) => localStorage.setItem(key, theme), {
+        key: THEME_STORAGE_KEY,
+        theme: colorScheme,
+      });
+
       await page.goto("/");
       await expectEmpty(page);
       await expect(page.locator("html")).toHaveAttribute("data-theme", colorScheme);
@@ -261,10 +267,18 @@ for (const colorScheme of ["light", "dark"] as const) {
 
     await page.emulateMedia({ colorScheme });
 
-    await page.addInitScript(({ key, malformed }) => localStorage.setItem(key, malformed), {
-      key: WORKSPACE_STORAGE_KEY,
-      malformed,
-    });
+    await page.addInitScript(
+      ({ key, themeKey, malformed, theme }) => {
+        localStorage.setItem(key, malformed);
+        localStorage.setItem(themeKey, theme);
+      },
+      {
+        key: WORKSPACE_STORAGE_KEY,
+        themeKey: THEME_STORAGE_KEY,
+        malformed,
+        theme: colorScheme,
+      },
+    );
 
     await page.goto("/");
 

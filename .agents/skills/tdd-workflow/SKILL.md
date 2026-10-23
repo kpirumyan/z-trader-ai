@@ -44,7 +44,7 @@ If either counter exceeds **2**, stop immediately, preserve the workspace state,
 2. Handle `tester` verdict:
    - **`NEEDS_INPUT`**: Clarify missing public seam details or behavioral gaps (via the contract, `architect`, or `ask_question` if a product decision is required) and re-invoke `tester` before proceeding.
    - **`READY`**: Verify `tester` output yourself (never run `pnpm test:e2e` inside the sandbox):
-     - **If unit/component tests (`tests/unit/`) were added or modified:** run `pnpm vitest run <path>` and confirm the tests fail (`RED`) specifically because the target behavior is missing.
+     - **If unit/component tests (`tests/unit/`) were added or modified:** run `pnpm vitest run [path]` and confirm the tests fail (`RED`) specifically because the target behavior is missing.
      - **If Playwright E2E tests (`tests/e2e/`) were added or modified** (either alone or alongside unit tests): verify their static validity via `pnpm typecheck` and `pnpm lint` instead of executing Playwright.
      - Syntax errors, broken imports, or runner misconfigurations do **not** count as valid `RED`; send them back to `tester` (consumes `check_fixes_used`).
      - If unit tests already pass (`GREEN`), check whether the requirement is already satisfied before requesting any code changes.

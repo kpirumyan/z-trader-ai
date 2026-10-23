@@ -2,7 +2,7 @@
 name: Coder
 description: "Implements black-box contracts in TDD after verified RED; validates contract completeness, runs static formatting/typecheck/lint checks on production code, and never reads test files or executes test runners."
 model: inherit
-mainAgent: false
+mainAgent: true
 subagent: true
 tools:
   - view_file

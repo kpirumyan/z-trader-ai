@@ -4,30 +4,34 @@ import { ThemeToggle } from "@/app/components/theme-toggle";
 import { THEME_STORAGE_KEY } from "@/app/constants/storage";
 import { useTheme } from "@/app/hooks/use-theme";
 
-describe("useTheme and ThemeToggle", () => {
-  const originalLocalStorage = Object.getOwnPropertyDescriptor(window, "localStorage");
+const originalLocalStorage = Object.getOwnPropertyDescriptor(window, "localStorage");
 
-  beforeEach(() => {
-    if (originalLocalStorage) {
-      Object.defineProperty(window, "localStorage", originalLocalStorage);
-    }
+beforeEach(() => {
+  if (originalLocalStorage) {
+    Object.defineProperty(window, "localStorage", originalLocalStorage);
+  } else {
+    Reflect.deleteProperty(window, "localStorage");
+  }
 
-    window.localStorage.clear();
-    document.documentElement.dataset.theme = "dark";
-  });
+  window.localStorage.clear();
+  document.documentElement.dataset.theme = "dark";
+});
 
-  afterEach(() => {
-    cleanup();
-    vi.restoreAllMocks();
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
 
-    if (originalLocalStorage) {
-      Object.defineProperty(window, "localStorage", originalLocalStorage);
-    }
+  if (originalLocalStorage) {
+    Object.defineProperty(window, "localStorage", originalLocalStorage);
+  } else {
+    Reflect.deleteProperty(window, "localStorage");
+  }
 
-    window.localStorage.clear();
-    delete document.documentElement.dataset.theme;
-  });
+  window.localStorage.clear();
+  delete document.documentElement.dataset.theme;
+});
 
+describe("useTheme", () => {
   it("toggles document.documentElement.dataset.theme and saves the selection in localStorage", () => {
     const { result } = renderHook(() => useTheme());
 
@@ -73,31 +77,69 @@ describe("useTheme and ThemeToggle", () => {
     expect(document.documentElement.dataset.theme).toBe("dark");
   });
 
-  it("renders a single ThemeToggle button without title or tooltip and preserves focus across toggles", () => {
-    render(<ThemeToggle />);
+  it("falls back to default dark theme when document dataset theme is corrupted or missing", () => {
+    document.documentElement.dataset.theme = "corrupted";
 
-    const button = screen.getByRole("button", {
-      name: /Switch to (light|dark) theme/,
+    const { result } = renderHook(() => useTheme());
+
+    act(() => {
+      result.current.toggleTheme();
     });
 
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe("dark");
+  });
+});
+
+describe("ThemeToggle", () => {
+  it("renders expected structure with theme containers, sr-only labels, and aria-hidden SVGs", () => {
+    render(<ThemeToggle />);
+
+    const button = screen.getByRole("button");
+
+    expect(button.getAttribute("type")).toBe("button");
     expect(button.getAttribute("title")).toBeNull();
     expect(screen.queryByRole("tooltip")).toBeNull();
+
+    const lightContainer = button.querySelector(".theme-light-only");
+
+    expect(lightContainer).not.toBeNull();
+
+    const lightLabel = lightContainer?.querySelector(".sr-only");
+
+    expect(lightLabel?.textContent).toBe("Switch to dark theme");
+
+    const lightSvg = lightContainer?.querySelector("svg");
+
+    expect(lightSvg).not.toBeNull();
+    expect(lightSvg?.getAttribute("aria-hidden")).toBe("true");
+
+    const darkContainer = button.querySelector(".theme-dark-only");
+
+    expect(darkContainer).not.toBeNull();
+
+    const darkLabel = darkContainer?.querySelector(".sr-only");
+
+    expect(darkLabel?.textContent).toBe("Switch to light theme");
+
+    const darkSvg = darkContainer?.querySelector("svg");
+
+    expect(darkSvg).not.toBeNull();
+    expect(darkSvg?.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("preserves focus across toggles without duplicating useTheme storage assertions", () => {
+    render(<ThemeToggle />);
+
+    const button = screen.getByRole("button");
 
     button.focus();
     expect(document.activeElement).toBe(button);
 
     fireEvent.click(button);
-    expect(document.documentElement.dataset.theme).toBe("light");
-    expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe("light");
-    expect(screen.getByRole("button", { name: /Switch to (light|dark) theme/ })).toBe(button);
     expect(document.activeElement).toBe(button);
 
-    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
-      throw new DOMException("Storage full", "QuotaExceededError");
-    });
-
     fireEvent.click(button);
-    expect(document.documentElement.dataset.theme).toBe("dark");
     expect(document.activeElement).toBe(button);
   });
 });

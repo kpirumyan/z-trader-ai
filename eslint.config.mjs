@@ -5,6 +5,7 @@ import reactHooks from "eslint-plugin-react-hooks";
 import reactCompiler from "eslint-plugin-react-compiler";
 import stylistic from "@stylistic/eslint-plugin";
 import prettierConfig from "eslint-config-prettier";
+import boundaries from "eslint-plugin-boundaries";
 
 const englishCodePlugin = {
   rules: {
@@ -56,6 +57,29 @@ const eslintConfig = defineConfig([
     plugins: {
       "@stylistic": stylistic,
       "english-code": englishCodePlugin,
+      boundaries,
+    },
+    settings: {
+      "boundaries/include": ["src/**/*", "app/**/*"],
+      "boundaries/elements": [
+        {
+          type: "app",
+          pattern: "app/**",
+        },
+        {
+          type: "composition",
+          pattern: "src/composition/**",
+        },
+        {
+          type: "shared",
+          pattern: "src/shared/**",
+        },
+        {
+          type: "module",
+          pattern: "src/modules/*",
+          capture: ["moduleName"],
+        },
+      ],
     },
     rules: {
       "english-code/only-english": "error",
@@ -74,26 +98,98 @@ const eslintConfig = defineConfig([
         { blankLine: "any", prev: "directive", next: "directive" },
         { blankLine: "always", prev: ["case", "default"], next: "*" },
       ],
+      "boundaries/dependencies": [
+        "error",
+        {
+          default: "disallow",
+          policies: [
+            // app (legacy) can import composition, modules, shared, and itself during transition
+            {
+              from: { element: { type: "app" } },
+              allow: {
+                to: {
+                  element: { types: { anyOf: ["app", "composition", "module", "shared"] } },
+                },
+              },
+            },
+            // composition root can import modules and shared
+            {
+              from: { element: { type: "composition" } },
+              allow: {
+                to: {
+                  element: { types: { anyOf: ["composition", "module", "shared"] } },
+                },
+              },
+            },
+            // modules can import other modules and shared, but NEVER app or composition
+            {
+              from: { element: { type: "module" } },
+              allow: {
+                to: {
+                  element: { types: { anyOf: ["module", "shared"] } },
+                },
+              },
+            },
+            // shared cannot import modules, composition, or app
+            {
+              from: { element: { type: "shared" } },
+              allow: {
+                to: {
+                  element: { type: "shared" },
+                },
+              },
+            },
+          ],
+        },
+      ],
     },
   },
   {
-    files: ["app/types/**/*.{ts,tsx}"],
+    files: ["app/types/**/*.{ts,tsx}", "src/**/types.ts", "src/**/types/**/*.{ts,tsx}"],
     rules: {
       "no-restricted-syntax": [
         "error",
         {
           selector: "ExportNamedDeclaration > VariableDeclaration",
           message:
-            "Do not export runtime variables/constants from app/types/. Place constants in app/constants/.",
+            "Do not export runtime variables/constants from types files. Place constants in constants.ts.",
         },
         {
           selector: "ExportNamedDeclaration > FunctionDeclaration",
           message:
-            "Do not export runtime functions from app/types/. Place functions in appropriate utility or domain files.",
+            "Do not export runtime functions from types files. Place functions in appropriate utility or domain files.",
         },
         {
           selector: "ExportDefaultDeclaration",
-          message: "Do not use default export in app/types/. Export explicit types.",
+          message: "Do not use default export in types files. Export explicit types.",
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/modules/*/index.ts"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "FunctionDeclaration",
+          message:
+            "Do not declare functions in module index.ts. Re-export from implementation files.",
+        },
+        {
+          selector: "VariableDeclaration",
+          message:
+            "Do not declare variables in module index.ts. Re-export from implementation files.",
+        },
+        {
+          selector: "ClassDeclaration",
+          message:
+            "Do not declare classes in module index.ts. Re-export from implementation files.",
+        },
+        {
+          selector: "ExportDefaultDeclaration",
+          message:
+            "Do not use default export in module index.ts. Export named public contract symbols.",
         },
       ],
     },
@@ -108,6 +204,63 @@ const eslintConfig = defineConfig([
             {
               group: ["@/tests/*", "**/tests/*"],
               message: "Production code in app/ must not import from tests/.",
+            },
+            {
+              group: ["@/src/modules/*/*", "**/src/modules/*/*"],
+              message:
+                "Deep imports into modules are forbidden. Import only from public entry point '@/src/modules/<name>'.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@/app/**", "**/app/**", "../app/**", "../../app/**", "../../../app/**"],
+              message: "Quarantine violation: code in src/ must not import legacy code from app/.",
+            },
+            {
+              group: ["@/tests/*", "**/tests/*"],
+              message: "Production code in src/ must not import from tests/.",
+            },
+            {
+              group: ["@/src/modules/*/*", "**/src/modules/*/*"],
+              message:
+                "Deep imports into modules are forbidden. Import only from public entry point '@/src/modules/<name>'.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/modules/*/tests/**/*.{ts,tsx}", "tests/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: [
+                "@/src/modules/*/*",
+                "../model/**",
+                "../ui/**",
+                "../constants",
+                "../constants.ts",
+                "../schema",
+                "../schema.ts",
+                "../../model/**",
+                "../../ui/**",
+              ],
+              message:
+                "Tests must import only from public module contract ('@/src/modules/<name>' or '../index'). Internal implementation imports are forbidden.",
             },
           ],
         },

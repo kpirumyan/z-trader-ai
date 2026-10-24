@@ -1,6 +1,6 @@
 # Z-Trader
 
-**Z-Trader** is a financial market analysis platform.
+**Z-Trader** is a high-performance, multi-window financial trading and market analysis terminal (charts, order book, time & sales, indicators) running in Next.js.
 
 <rule id="ui-design-guidelines" severity="MANDATORY">
   <summary>When designing, specifying, or implementing UI components or layout, DESIGN.md is the single source of truth for color tokens, themes, typography, and density.</summary>

@@ -19,7 +19,9 @@ This skill executes **Session 1 (Design & RFC)** of the Z-Trader modular develop
 Scan `src/shared/` to inspect existing foundation contracts, UI primitives, storage adapters, theme tokens, and utilities. Identify reusable abstractions and verify whether any foundational seam needs to be leveraged.
 
 ### Step 2: Interactive Design Interview
-Conduct an adaptive, context-driven interview (in the style of `/grill-me`) using `ask_question`. Do not recite a static questionnaire; instead, actively probe the specific task, propose concrete technical choices, and resolve ambiguities across:
+Start the interview with an **Opening Context Anchor**: a concise (2-3 sentences) statement framing the module's role in the terminal (data flow subscriptions, widget/service type, and composition registry point in `src/composition/`).
+
+Then conduct an adaptive, context-driven interview (in the style of `/grill-me`) using `ask_question`. Do not recite a static questionnaire; instead, actively probe the specific task, propose concrete technical choices, and resolve ambiguities across:
 - Domain responsibilities, constraints, and explicit non-goals.
 - Public contract: exported symbols, TypeScript interfaces, and validation schemas.
 - Internal state management, store shape, actions, and data subscriptions.

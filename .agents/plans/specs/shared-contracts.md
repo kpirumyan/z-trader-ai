@@ -161,40 +161,20 @@ export { cn, type ClassValue } from "./cn";
 - **When:** Вызывается `instrumentSchema.parse(input)`.
 - **Then:** Возвращается объект с очищенными полями: `{ symbol: "NQ", name: "E-mini Nasdaq-100" }`.
 
-### Сценарий: Схема типов окон валидирует канонические идентификаторы
-- **Given:** Строки `"chart"`, `"orderBook"` и `"timeAndSales"`.
-- **When:** Для каждой строки вызывается `windowKindSchema.safeParse(input)`.
-- **Then:** Для всех трёх вызовов возвращается `success: true`.
-
-### Сценарий: Схема типов окон отклоняет неизвестные идентификаторы
-- **Given:** Недопустимый тип окна, например `"depthLadder"` или `"scanner"`.
-- **When:** Вызывается `windowKindSchema.safeParse(input)`.
-- **Then:** Валидация завершается ошибкой (`success: false`).
+### Сценарий: Схема типов окон валидирует канонические идентификаторы и отклоняет неизвестные
+- **Given:** Набор валидных идентификаторов из `WINDOW_KINDS` (`"chart"`, `"orderBook"`, `"timeAndSales"`) и невалидный идентификатор `"depthLadder"`.
+- **When:** Для каждого идентификатора вызывается `windowKindSchema.safeParse(input)`.
+- **Then:** Для канонических идентификаторов возвращается `success: true`, для невалидного — `success: false`.
 
 ### Сценарий: Константы таксономии окон поддерживают исчерпывающее соответствие
 - **Given:** `WINDOW_KINDS` и `WINDOW_KIND_LABELS`.
 - **When:** Сравниваются ключи `WINDOW_KIND_LABELS` со списком `WINDOW_KINDS`.
 - **Then:** Для каждого типа в `WINDOW_KINDS` существует точный заголовок в `WINDOW_KIND_LABELS`.
 
-### Сценарий: Утилита классов объединяет простые строки
-- **Given:** Строки классов `"foo"`, `"bar"` и `"baz"`.
-- **When:** Вызывается `cn("foo", "bar", "baz")`.
-- **Then:** Возвращается `"foo bar baz"`.
-
-### Сценарий: Утилита классов фильтрует falsy и условные значения
-- **Given:** Набор значений `["btn", false && "btn-active", null, undefined, 0, "", true && "btn-primary"]`.
+### Сценарий: Утилита классов объединяет условные и динамические стили
+- **Given:** Набор аргументов `["btn", false && "btn-active", null, undefined, "", true && "btn-primary"]`.
 - **When:** Вызывается `cn(...)`.
 - **Then:** Возвращается `"btn btn-primary"` без утечки `"false"`, `"null"` или `"undefined"`.
-
-### Сценарий: Утилита классов объединяет объекты и вложенные массивы
-- **Given:** Объект `{ active: true, disabled: false }` и вложенный массив `["extra", ["nested"]]`.
-- **When:** Вызывается `cn(...)`.
-- **Then:** Возвращается `"active extra nested"`.
-
-### Сценарий: Структурное соответствие контракту WidgetDefinition
-- **Given:** Мок React-компонента, принимающий `WidgetProps`.
-- **When:** Создается объект `WidgetDefinition` с полями `kind: "chart"`, `title: "Chart"` и компонентом.
-- **Then:** Объект полностью удовлетворяет интерфейсу `WidgetDefinition` без ошибок компиляции TypeScript.
 
 ---
 

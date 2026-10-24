@@ -97,6 +97,11 @@ export { DEFAULT_CONFIG } from "./constants";
 
 > [!NOTE]
 > Tests import strictly from the public seam (`@/<target_path>` or relative index). Specify scenarios in Given-When-Then format covering default states, actions, boundary cases, and regression reproduction for bugfixes.
+>
+> **Anti-Tautology Invariants**:
+> - **No pure type assertions**: Never specify runtime test scenarios for pure TypeScript types or interfaces lacking runtime logic (verified statically by `tsc`).
+> - **No 3rd-party library re-testing**: For thin wrapper proxies (e.g. `cn` wrapping `clsx`), restrict to a single integration smoke test; never replicate the library's feature test suite.
+> - **Focus on real domain behavior**: Prioritize custom schema transformations (e.g. `.trim()`, `.refine()`), boundary failures, state mutations, and cross-constant exhaustive mapping.
 
 ### Scenario: [Brief Descriptive Title]
 - **Given:** [Precondition, initial state, or mock setup]

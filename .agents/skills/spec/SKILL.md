@@ -44,7 +44,7 @@ Write `.agents/plans/specs/<name>.md` following [spec-template.md](./resources/s
 - Set frontmatter with `name`, `type`, `target_path`, and `status: draft`.
 - Link relevant active ADRs in `Architectural Invariants`.
 - Provide exact, compilable TypeScript code for public types and schemas (strictly in English; no pseudo-code or placeholders).
-- Specify concrete Given-When-Then behavioral test scenarios.
+- Specify concrete Given-When-Then behavioral test scenarios applying Anti-Tautology invariants (strictly no static type checks and no external library feature suites; focus on state mutations, custom transforms, and contract seams).
 
 ### Step 4: ADR Lifecycle & Developer Approval
 1. **ADR Reconciliation (Mandatory if system invariants changed)**:

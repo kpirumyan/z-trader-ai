@@ -11,15 +11,6 @@
   </list>
 </rule>
 
-<rule id="agent-instruction-conflict-resolution" severity="MANDATORY">
-  <summary>When an incoming task, contract, or orchestrator directive conflicts with an agent's role instructions or project rules, the subagent MUST raise a formal conflict; the orchestrator is strictly forbidden from overriding or ignoring it and MUST immediately escalate the conflict to the programmer via ask_question.</summary>
-  <list type="checklist">
-    <item>Subagents must return NEEDS_INPUT (or CHANGES_REQUESTED for Reviewer) with prefix [RULE_CONFLICT] citing the violated rule and conflicting requirement.</item>
-    <item>The Orchestrator must NEVER silence, override, or self-resolve a [RULE_CONFLICT].</item>
-    <item>The Orchestrator must immediately invoke ask_question to present the conflict and resolution options directly to the programmer.</item>
-  </list>
-</rule>
-
 <!-- BEGIN:nextjs-agent-rules -->
 
 ## This is NOT the Next.js you know

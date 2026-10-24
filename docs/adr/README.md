@@ -13,3 +13,4 @@ This directory contains only active, current architectural decisions for Z-Trade
 | --------------------------------------------------------- | --------------------------------------------- | -------- | ---------- | --------------------- |
 | [ADR-0001](./0001-modular-architecture.md)                | Modular Architecture & Vertical Domain Slices | Accepted | 2026-10-24 | Architecture & Layout |
 | [ADR-0002](./0002-boundary-enforcement-and-quarantine.md) | Automated Architectural Boundary Enforcement  | Accepted | 2026-10-24 | Tooling & Governance  |
+| [ADR-0003](./0003-css-architecture.md)                    | CSS Modules, Design Tokens & Styling Standard | Accepted | 2026-10-24 | UI & Styling          |

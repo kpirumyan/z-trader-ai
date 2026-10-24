@@ -151,6 +151,7 @@ flowchart TB
 | Категория | Инструмент | Назначение |
 |---|---|---|
 | **Состояние** | `zustand` | Локальные сторы модулей |
+| **Стилизация** | `CSS Modules` + `clsx` | Локальная изоляция стилей компонентов (`*.module.css`), дизайн-токены в `src/shared/theme/tokens.css`, фасад `cn` в `src/shared/lib/cn.ts` ([ADR-0003](../../docs/adr/0003-css-architecture.md)) |
 | **Схемы и валидация** | `zod` (v4) | Валидация storage, внешних рыночных API и контрактов интеграции |
 | **Графики** | `lightweight-charts` (v5) | Высокопроизводительный Canvas-рендеринг серий и свечей в модуле `chart` |
 | **Контроль границ** | `eslint-plugin-boundaries` | Мгновенная проверка правил импортов на уровне файлов и модулей в ESLint |
@@ -164,39 +165,46 @@ flowchart TB
 ## 8. Документация и политика решений (ADR)
 
 1. **Паспорт модуля (`src/modules/<name>/README.md`):** фиксирует границы ответственности, публичный API, разрешённые зависимости и поведенческие инварианты.
-2. **Журнал решений (`docs/adr/`):** содержит только действующие архитектурные решения ([ADR-0001](../../docs/adr/0001-modular-architecture.md), [ADR-0002](../../docs/adr/0002-boundary-enforcement-and-quarantine.md)). При изменении подхода устаревший ADR удаляется, а мотивы фиксируются в секции альтернатив нового решения.
+2. **Журнал решений (`docs/adr/`):** содержит только действующие архитектурные решения ([ADR-0001](../../docs/adr/0001-modular-architecture.md), [ADR-0002](../../docs/adr/0002-boundary-enforcement-and-quarantine.md), [ADR-0003](../../docs/adr/0003-css-architecture.md)). При изменении подхода устаревший ADR удаляется, а мотивы фиксируются в секции альтернатив нового решения.
 3. **Обзор топологии ([docs/project-overview.md](../../docs/project-overview.md)):** карта доменов и высокоуровневые потоки данных терминала.
 
 ---
 
-## 9. Дорожная карта переезда (Strangler Pattern)
+## 9. Дорожная карта: Сразу начисто на целевом стеке (Clean-Slate Rollout)
+
+Мы отказались от промежуточной фазы «переноса как есть с сохранением легаси-кода». Каждый модуль создаётся **один раз сразу в целевом виде** на полном стеке (`Zustand`, `Zod`, `CSS Modules`, `clsx`, строгие контракты и тесты чёрного ящика). Старый код из `app/` используется исключительно как спецификация бизнес-требований, а не как шаблон для копирования.
 
 Каждый шаг реализуется изолированно через двухсессионный пайплайн (`/spec` → `/build`). После каждого шага гейт `pnpm check` (включая unit и e2e тесты) остаётся полностью зелёным.
 
-### Фаза 1: Структурный перенос доменов (на текущем стеке)
+- **Шаг 1 — Общий фундамент (`src/shared/`):**
+  - **`contracts/`**: базовые интерфейсы расширяемости (`WidgetDefinition`, `WidgetProps`, `Instrument`).
+  - **`theme/`**: дизайн-токены в `src/shared/theme/tokens.css` ([DESIGN.md](../../DESIGN.md)), хук `useTheme`, компонент `ThemeToggle` с изолированным `theme-toggle.module.css`.
+  - **`storage/`**: отказоустойчивая обёртка `safeStorage`, компонент `StorageRecoveryBanner` с `storage-recovery-banner.module.css`.
+  - **`lib/`**: фасад `cn` на базе `clsx` (`src/shared/lib/cn.ts`).
+  - Удаление перенесённых стилей из `app/globals.css`.
+  - Полное покрытие unit-тестами в `src/shared/<segment>/tests/`.
 
-- **Шаг 1.1 — Перенос фундамента `shared`:**
-  - Вынести тему (`theme`), базовые примитивы работы с хранилищем (`storage`), общие UI-компоненты (`ui`), утилиты (`lib`) и базовые контракты плагинов (`contracts/WidgetDefinition`) в `src/shared/`.
-  - Покрыть unit-тестами в `src/shared/<segment>/tests/`.
-- **Шаг 1.2 — Модуль `instruments`:**
-  - Перенести каталог инструментов и диалог поиска в `src/modules/instruments/` с публичным `index.ts`, паспортом `README.md` и модульными тестами в `src/modules/instruments/tests/`.
-- **Шаг 1.3 — Модуль `market-data` (демо-источник):**
-  - Вынести генерацию и раздачу демо-данных свечей, стакана и ленты сделок за интерфейс провайдера данных в `src/modules/market-data/`.
-- **Шаг 1.4 — Виджеты `chart`, `order-book`, `time-and-sales`:**
-  - Перенести каждый виджет в отдельный модуль `src/modules/<widget>/`, экспортирующий реализацию `WidgetDefinition`.
-- **Шаг 1.5 — Модуль `workspace` и корень сборки `src/composition/`:**
-  - Перенести `TerminalShell`, `TerminalWindow`, `WorkspaceCanvas`, `TopBar` и хуки управления окнами в `src/modules/workspace/`.
-  - Заменить ветвление по типам окон в `TerminalWindow` на рендеринг через реестр `src/composition/widgets.ts`.
-- **Шаг 1.6 — Зачистка легаси-директорий:**
-  - Удалить устаревшие папки `app/types`, `app/constants`, `app/hooks`, `app/components`, `app/instruments`, `app/storage`. В `app/` остаются только роуты и стили (`layout.tsx`, `page.tsx`, `globals.css`). Перевести `knip` в строгий режим.
+- **Шаг 2 — Каталог инструментов (`src/modules/instruments/`):**
+  - Валидация каталога инструментов через схему Zod (`schema.ts`).
+  - Диалог поиска инструментов с изолированным `instrument-search-dialog.module.css`.
+  - Публичный шов `index.ts`, паспорт `README.md`, внешние тесты `tests/`.
 
-### Фаза 2: Технологическое усиление модулей (по отдельным итерациям)
+- **Шаг 3 — Потоковые рыночные данные (`src/modules/market-data/`) и индикаторы (`src/modules/indicators/`):**
+  - Потоковый сервис подписок на рыночные тики/свечи/стакан вне React (`model/market-stream.ts`) с Zod-валидацией входных котировок.
+  - Модуль чистых математических функций расчёта технических индикаторов (`src/modules/indicators/`).
 
-- **Шаг 2.1 — Внедрение `zod` v4 на границах:**
-  - Перевести валидацию состояния `workspace` при чтении из storage и контрактов `market-data` на схемы Zod.
-- **Шаг 2.2 — Внедрение `zustand` в `workspace`:**
-  - Заменить локальное состояние окон на Zustand-стор внутри `src/modules/workspace/model/` без изменения публичного API модуля.
-- **Шаг 2.3 — Потоковое ядро `market-data` и модуль `indicators`:**
-  - Реализовать менеджер потоковых подписок вне React и модуль чистых математических функций расчёта индикаторов (`src/modules/indicators/`).
-- **Шаг 2.4 — Замена SVG-графика на `lightweight-charts` v5:**
-  - Переписать внутренности модуля `src/modules/chart/` на Canvas-движок Lightweight Charts v5 с подключением индикаторов из `indicators`.
+- **Шаг 4 — Доменные виджеты (`chart`, `order-book`, `time-and-sales`):**
+  - Виджеты стакана заявок и ленты сделок с локальными `*.module.css` и подключением к потоковым данным.
+  - Виджет графика на Canvas-движке `lightweight-charts` с отрисовкой индикаторов.
+  - Каждый виджет реализует контракт `WidgetDefinition` для независимого встраивания в оконный менеджер.
+
+- **Шаг 5 — Оконный менеджер (`src/modules/workspace/`) и корень сборки (`src/composition/`):**
+  - Управление состоянием окон сразу на **Zustand** (`model/workspace-store.ts`) без переноса устаревших React-хуков.
+  - Zod-валидация сериализации геометрии окон и раскладки при сохранении в `safeStorage`.
+  - Компоненты `TerminalShell`, `TerminalWindow`, `WorkspaceCanvas`, `TopBar` с локальными `*.module.css`.
+  - Реестр сборки `src/composition/widgets.ts` связывает виджеты через фабрику контрактов без жёстких зависимостей.
+
+- **Шаг 6 — Зачистка легаси-директорий и финальная изоляция:**
+  - Полное удаление устаревших директорий в `app/`: `app/components`, `app/constants`, `app/hooks`, `app/instruments`, `app/storage`, `app/types`.
+  - В `app/` остаются исключительно: `layout.tsx`, `page.tsx`, `globals.css` (сокращённый до базового reset, шрифтов и импорта `tokens.css`).
+  - Перевод `knip` в строгий режим (`--max-issues 0`), финальный аудит зависимостей в `dependency-cruiser`.

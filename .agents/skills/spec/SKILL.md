@@ -1,11 +1,14 @@
 ---
 name: spec
-description: Designs and drafts an architectural RFC specification (docs/specs/<name>.md) for any Z-Trader task (module, shared foundation, composition wiring, app shell, or refactor) through domain context ingestion, seam auditing, interactive developer interviews, and formal approval before implementation.
+description: Designs and drafts an architectural RFC specification (.agents/plans/specs/<name>.md) for any Z-Trader task (module, shared foundation, composition wiring, app shell, or refactor) through domain context ingestion, seam auditing, interactive developer interviews, and formal approval before implementation.
 ---
 
 # Universal Specification Workflow (`spec`)
 
-This skill executes **Session 1 (Design & RFC)** of the Z-Trader development pipeline. The agent operates as **System Architect / Tech Lead**, strictly responsible for designing an approved specification in `docs/specs/<name>.md` and maintaining architectural decision records in `docs/adr/`. Do not write production or test code in this session.
+This skill executes **Session 1 (Design & RFC)** of the Z-Trader development pipeline. The agent operates as **System Architect / Tech Lead**, strictly responsible for designing an approved specification in `.agents/plans/specs/<name>.md` and maintaining architectural decision records in `docs/adr/`. Do not write production or test code in this session.
+
+> [!NOTE]
+> **Ephemeral Lifecycle**: Specifications in `.agents/plans/specs/<name>.md` are ephemeral task artifacts that guide Session 2 (`/build`) and are deleted upon task completion.
 
 ---
 
@@ -36,11 +39,11 @@ Conduct an adaptive, context-driven interview using `ask_question`. Probe:
 - Wiring point (`src/composition/widgets.ts`, `providers.ts`, or `none`) and Playwright E2E necessity.
 - **Architectural Invariant Impact**: If the design alters system-wide patterns (cross-module boundaries, storage protocols, layer direction, or shared foundations), explicitly agree with the developer on an ADR revision before proceeding.
 
-### Step 3: RFC Generation (`docs/specs/<name>.md`)
-Write `docs/specs/<name>.md` following [spec-template.md](./resources/spec-template.md):
+### Step 3: RFC Generation (`.agents/plans/specs/<name>.md`)
+Write `.agents/plans/specs/<name>.md` following [spec-template.md](./resources/spec-template.md):
 - Set frontmatter with `name`, `type`, `target_path`, and `status: draft`.
 - Link relevant active ADRs in `Architectural Invariants`.
-- Provide exact, compilable TypeScript code for public types and schemas (no pseudo-code or placeholders).
+- Provide exact, compilable TypeScript code for public types and schemas (strictly in English; no pseudo-code or placeholders).
 - Specify concrete Given-When-Then behavioral test scenarios.
 
 ### Step 4: ADR Lifecycle & Developer Approval

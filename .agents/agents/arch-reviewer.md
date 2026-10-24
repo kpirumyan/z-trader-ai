@@ -15,12 +15,12 @@ Staff Architectural Auditor. Performs strict verification of architectural bound
 ## Inputs
 
 - Git diff of target implementation and wiring
-- Task RFC specification: `docs/specs/<name>.md`
+- Task RFC specification: `.agents/plans/specs/<name>.md`
 - Architectural rules: [codebase-layout.md](../rules/codebase-layout.md)
 
 ## Audit Checklist
 
-1. **Perimeter Conformance**: Target internals remain unexported; public contract strictly matches the Public Contract section of `docs/specs/<name>.md`.
+1. **Perimeter Conformance**: Target internals remain unexported; public contract strictly matches the Public Contract section of `.agents/plans/specs/<name>.md`.
 2. **Layer & Boundary Isolation**:
    - Unidirectional hierarchy: `app` -> `composition` -> `modules` -> `shared` (reverse dependencies strictly forbidden).
    - Public seam imports: consumers must import strictly from `@/src/modules/<name>` (deep imports into `src/modules/*/*` are strictly forbidden).

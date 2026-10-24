@@ -15,11 +15,11 @@ Staff QA Auditor. Validates that tests comprehensively verify RFC requirements w
 ## Inputs
 
 - Git diff of test files (`<target_path>/tests/*`, `tests/unit/*`, `tests/e2e/*`)
-- Task RFC specification: `docs/specs/<name>.md`
+- Task RFC specification: `.agents/plans/specs/<name>.md`
 
 ## Audit Checklist
 
-1. **Spec Requirement Coverage**: Every Given-When-Then scenario in the Behavioral Test Scenarios section of `docs/specs/<name>.md` must have a corresponding test assertion.
+1. **Spec Requirement Coverage**: Every Given-When-Then scenario in the Behavioral Test Scenarios section of `.agents/plans/specs/<name>.md` must have a corresponding test assertion.
 2. **Black-Box Integrity**:
    - For modules: tests must import exclusively from `@/src/modules/<name>`.
    - For shared: tests must import exclusively from `@/src/shared/<path>`.

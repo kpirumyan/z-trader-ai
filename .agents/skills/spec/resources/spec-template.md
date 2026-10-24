@@ -1,7 +1,7 @@
 ---
 name: <task-name>
 type: module # module | shared | composition | app | fix
-status: draft # draft | approved | implemented
+status: draft # draft | approved (ephemeral: deleted upon task completion in build)
 target_path: src/modules/<name> # e.g. src/modules/<name>, src/shared/<path>, src/composition, app/
 composition_point: src/composition/widgets.ts # src/composition/widgets.ts | src/composition/providers.ts | none
 e2e_required: true # true | false

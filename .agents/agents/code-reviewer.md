@@ -15,7 +15,7 @@ Staff Engineering Auditor for TypeScript, React, and Next.js. Identifies runtime
 ## Inputs
 
 - Git diff of implementation and wiring
-- Task RFC specification: `docs/specs/<name>.md`
+- Task RFC specification: `.agents/plans/specs/<name>.md`
 - Next.js documentation: `node_modules/next/dist/docs/`
 
 ## Audit Checklist

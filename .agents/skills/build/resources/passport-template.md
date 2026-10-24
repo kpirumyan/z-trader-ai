@@ -1,9 +1,7 @@
-# Module Passport: <module-name>
-
-> Specification: [`docs/specs/<module-name>.md`](../../../docs/specs/<module-name>.md)
+# Module Passport: `<module-name>`
 
 ## Purpose & Responsibilities
-<Domain purpose, business value, and non-goals from Section 1 of the RFC>
+`<Domain purpose, business value, and non-goals>`
 
 ## Public Contract
 Exported via `@/src/modules/<module-name>`:
@@ -17,7 +15,11 @@ Exported via `@/src/modules/<module-name>`:
 - `@/src/modules/<allowed-module>` (if required by domain role, strictly via public entry point)
 - Approved external libraries
 
-## Architectural Invariants
+## Behavioral & Architectural Invariants
 - Black-box perimeter: internal implementation files (`model/`, `ui/`, `schema.ts`, `constants.ts`, `types.ts`) are private.
 - Public exports strictly through `index.ts`.
+- **Key Guarantees**: `<Critical runtime guarantees, e.g. stream unsubscriptions on unmount, state isolation>`
 - Theme & Design: styled strictly using tokens from [`DESIGN.md`](../../../DESIGN.md).
+
+## Verification
+- Behavior verified via black-box test suite in [`tests/`](./tests/).

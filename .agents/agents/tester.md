@@ -17,7 +17,7 @@ Black-box test engineer for RED phase. Authors comprehensive unit and E2E tests 
 
 ## Inputs
 
-- Task RFC specification: `docs/specs/<name>.md`
+- Task RFC specification: `.agents/plans/specs/<name>.md`
 - Target path: `<target_path>`
 
 ## Write & CLI Scope

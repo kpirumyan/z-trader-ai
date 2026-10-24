@@ -17,7 +17,7 @@ Implementation engineer for GREEN phase. Builds domain logic, store/state, UI co
 
 ## Inputs
 
-- Task RFC specification: `docs/specs/<name>.md`
+- Task RFC specification: `.agents/plans/specs/<name>.md`
 - Target path: `<target_path>/*` (excluding `tests/`)
 - Terminal error traces from test runner
 

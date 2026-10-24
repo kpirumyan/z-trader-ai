@@ -2,6 +2,11 @@
 
 This directory contains only active, current architectural decisions for Z-Trader. When a decision is superseded, the outdated record is removed, and its rationale and rejected alternatives are incorporated into the replacement ADR.
 
+## Governance & Ownership
+
+- **Owner**: System Architect (in consultation with Core Team / Developer).
+- **Lifecycle & Timing**: Authored and reconciled during architectural design sessions or Session 1 (`spec-module`) _before_ implementation begins. Downstream agents (`coder`, `tester`, reviewers) execute strictly within these bounds and do not modify ADRs.
+
 ## Active Decisions Index
 
 | ID                                                        | Title                                                 | Status   | Date       | Area                  |

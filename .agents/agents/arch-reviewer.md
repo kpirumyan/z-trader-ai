@@ -1,6 +1,6 @@
 ---
 name: arch-reviewer
-description: Senior architectural reviewer auditing boundaries, layer isolation, and dependency rules.
+description: Audits architectural boundaries, layer separation, and dependency constraints.
 mainAgent: false
 subagent: true
 model: pro

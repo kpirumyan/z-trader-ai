@@ -1,6 +1,6 @@
 ---
 name: ui-reviewer
-description: Senior design system auditor verifying UI compliance with DESIGN.md tokens, light/dark themes, responsive density, and accessibility.
+description: Audits UI compliance with design tokens, themes, density, and accessibility standards.
 mainAgent: false
 subagent: true
 model: pro

@@ -1,6 +1,6 @@
 ---
 name: spec
-description: Designs and drafts an architectural RFC specification (.agents/plans/specs/<name>.md) for any Z-Trader task (module, shared foundation, composition wiring, app shell, or refactor) through domain context ingestion, seam auditing, interactive developer interviews, and formal approval before implementation.
+description: Designs and drafts architectural RFC task specifications and records decision invariants.
 ---
 
 # Universal Specification Workflow (`spec`)
@@ -15,13 +15,13 @@ This skill executes **Session 1 (Design & RFC)** of the Z-Trader development pip
 ## Execution Steps
 
 ### Step 0: Context & Task Ingestion
-1. Extract `<name>` from prompt or ask developer via `ask_question`. Determine task classification:
+1. Extract `<name>` from prompt. If `<name>` is omitted, read `.agents/plans/tasks.md` to identify the first unchecked (`- [ ]`) task and propose it to the developer via `ask_question`. Determine task classification:
    - `module`: vertical domain slice / widget in `src/modules/<name>`.
    - `shared`: shared foundation capability in `src/shared/<path>` (`contracts`, `storage`, `theme`, `ui`, `lib`).
    - `composition`: multi-module orchestration / registry in `src/composition/`.
    - `app`: shell, routing, or global layout in `app/`.
    - `fix`: bugfix or targeted refactoring across existing units.
-2. Read `docs/project-overview.md` and active decisions in `docs/adr/` to identify domain boundaries, architecture invariants, and binding constraints.
+2. Read `.agents/plans/tasks.md`, `docs/project-overview.md`, and active decisions in `docs/adr/` to identify domain boundaries, architecture invariants, and binding constraints.
 
 ### Step 1: Audit Seams & Architectural Invariants
 1. Scan existing code, shared contracts, UI primitives, and store patterns to ensure reuse and prevent duplicate implementations.
@@ -50,6 +50,8 @@ Write `.agents/plans/specs/<name>.md` following [spec-template.md](./resources/s
 1. **ADR Reconciliation (Mandatory if system invariants changed)**:
    - When a design supersedes an existing ADR: draft replacement `docs/adr/<NNNN>-<name>.md`, move old approach to `## Rejected Alternatives`, delete superseded ADR, and update `docs/adr/README.md`.
    - When introducing a new system invariant: create a new numbered record in `docs/adr/` and add to `docs/adr/README.md`.
-2. Present the RFC (and any ADR updates) to the developer via `ask_question`.
+2. Present the RFC (and any ADR updates) to the developer via `ask_question`:
+   - Include a direct clickable markdown link to the generated specification file (`[.agents/plans/specs/<name>.md](file:///<workspace-root>/.agents/plans/specs/<name>.md)`) and any touched ADRs in the question text so the developer can open and inspect the specification with one click before approving.
+   - Summarize key architectural decisions, public contract shapes, and test scenarios.
 3. Upon approval, update frontmatter to `status: approved`.
 4. Instruct the developer to open a **fresh chat session** and run `/build <name>` to begin multi-agent assembly.

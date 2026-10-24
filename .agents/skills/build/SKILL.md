@@ -1,6 +1,6 @@
 ---
 name: build
-description: Orchestrates Session 2 multi-agent assembly of any Z-Trader task (module, shared foundation, composition wiring, app shell, or refactor): directs black-box test authoring (tester), isolated implementation (coder), parallel senior reviews (arch, code, test, ui), final gate validation, passport generation, ephemeral spec cleanup, and delivery summary.
+description: Orchestrates multi-agent assembly, testing, review gates, and verification for an approved task specification.
 ---
 
 # Universal Assembly Workflow (`build`)
@@ -59,9 +59,11 @@ The Orchestrator coordinates the pipeline and never implements production code o
 2. If `e2e_required: true`: run `pnpm playwright test tests/e2e/<name>.spec.ts`.
 3. If any gate check fails, dispatch error output to coder/tester for resolution (subject to the rework limit).
 
-### Step 5: Passport & Documentation Registration
+### Step 5: Passport, Status Tracking & Spec Cleanup
 1. If the task target is a module (`type: module`), generate/update `src/modules/<name>/README.md` following [passport-template.md](./resources/passport-template.md).
-2. Update unit entries in `docs/project-overview.md` if applicable.
+2. Update task completion status:
+   - In `.agents/plans/tasks.md`: locate the task entry matching `<name>` and mark its checkbox as completed (`- [x]`).
+   - If the task target is a module (`type: module`), update its status in `docs/project-overview.md` from `Planned` to `Completed`.
 3. Delete the completed ephemeral task specification file: remove `.agents/plans/specs/<name>.md`.
 
 ### Step 6: Delivery Summary
@@ -69,4 +71,6 @@ Present structured completion summary to the developer:
 - Created/modified files and line counts.
 - Test execution results (unit and E2E).
 - Reviewer verdicts and non-blocking suggestions (`[NIT]`).
-- Confirmation of ephemeral specification cleanup (`.agents/plans/specs/<name>.md` deleted).
+- Confirmation of task status update in `.agents/plans/tasks.md` and ephemeral specification cleanup (`.agents/plans/specs/<name>.md` deleted).
+- **Next Step Recommendation**: Read `.agents/plans/tasks.md`, find the immediate next pending (`- [ ]`) task, and provide an explicit directive:
+  `Open a fresh chat session and run: /spec <next-task-name>`

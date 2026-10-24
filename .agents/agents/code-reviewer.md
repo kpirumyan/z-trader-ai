@@ -1,6 +1,6 @@
 ---
 name: code-reviewer
-description: Senior code auditor reviewing TypeScript, React, and Next.js implementation for correctness, performance, and memory safety.
+description: Audits TypeScript and React code for correctness, performance, and memory safety.
 mainAgent: false
 subagent: true
 model: pro

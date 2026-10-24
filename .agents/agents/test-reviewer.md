@@ -1,6 +1,6 @@
 ---
 name: test-reviewer
-description: Senior QA auditor verifying test coverage against RFC specifications, edge-case thoroughness, and black-box integrity.
+description: Audits test coverage, edge cases, and black-box integrity against task specifications.
 mainAgent: false
 subagent: true
 model: pro

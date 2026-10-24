@@ -1,6 +1,6 @@
 ---
 name: coder
-description: Implements code and wiring strictly against task specification and failing test output without reading test sources.
+description: Implements code and wiring to pass failing tests without reading test sources.
 mainAgent: false
 subagent: true
 model: flash

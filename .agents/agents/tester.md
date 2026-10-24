@@ -1,6 +1,6 @@
 ---
 name: tester
-description: Implements black-box unit and E2E tests strictly from task specification without reading implementation code.
+description: Authors black-box unit and E2E tests strictly from task specifications.
 mainAgent: false
 subagent: true
 model: flash

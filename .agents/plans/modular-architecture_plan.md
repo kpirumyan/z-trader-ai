@@ -20,6 +20,7 @@ z-trader-ai/
 ├── .agents/
 │   ├── plans/
 │   │   ├── specs/                # Временные спецификации задач (/spec, удаляются после /build)
+│   │   ├── tasks.md              # Журнал задач и чекбоксы статуса дорожной карты
 │   │   └── modular-architecture_plan.md
 ├── app/                          # Только роутинг Next.js и глобальные стили (layout.tsx, page.tsx, globals.css)
 ├── src/

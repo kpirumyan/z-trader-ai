@@ -1,6 +1,6 @@
 ---
 name: build
-description: Orchestrates Session 2 multi-agent assembly of any Z-Trader task (module, shared foundation, composition wiring, app shell, or refactor): directs black-box test authoring (tester), isolated implementation (coder), parallel senior reviews (arch, code, test, ui), final gate validation, passport generation, ephemeral spec cleanup, and interactive completion.
+description: Orchestrates Session 2 multi-agent assembly of any Z-Trader task (module, shared foundation, composition wiring, app shell, or refactor): directs black-box test authoring (tester), isolated implementation (coder), parallel senior reviews (arch, code, test, ui), final gate validation, passport generation, ephemeral spec cleanup, and delivery summary.
 ---
 
 # Universal Assembly Workflow (`build`)
@@ -64,13 +64,9 @@ The Orchestrator coordinates the pipeline and never implements production code o
 2. Update unit entries in `docs/project-overview.md` if applicable.
 3. Delete the completed ephemeral task specification file: remove `.agents/plans/specs/<name>.md`.
 
-### Step 6: Interactive Delivery & Git Action
-1. Present structured completion summary to the developer:
-   - Created/modified files and line counts.
-   - Test execution results (unit and E2E).
-   - Reviewer verdicts and non-blocking suggestions (`[NIT]`).
-   - Confirmation of ephemeral specification cleanup (`.agents/plans/specs/<name>.md` deleted).
-2. Query developer via `ask_question`:
-   - `(Recommended) Create atomic git commit (feat(<target-scope>/<name>): implement per rfc)`
-   - `Keep uncommitted changes in workspace for manual inspection`
-3. If commit is selected, execute `git add .` and `git commit -m "feat(<target-scope>/<name>): implement per rfc"`.
+### Step 6: Delivery Summary
+Present structured completion summary to the developer:
+- Created/modified files and line counts.
+- Test execution results (unit and E2E).
+- Reviewer verdicts and non-blocking suggestions (`[NIT]`).
+- Confirmation of ephemeral specification cleanup (`.agents/plans/specs/<name>.md` deleted).

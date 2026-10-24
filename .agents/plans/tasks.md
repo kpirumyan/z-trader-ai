@@ -9,7 +9,7 @@
 
 - [x] `shared-contracts` — Базовые интерфейсы расширяемости (`WidgetDefinition`, `WidgetProps`, `Instrument`) в `src/shared/contracts/`
 - [x] `shared-lib-cn` — Фасад объединения классов `cn` на базе `clsx` в `src/shared/lib/cn.ts`
-- [ ] `shared-theme` — Дизайн-токены в `src/shared/theme/tokens.css`, хук `useTheme`, компонент `ThemeToggle` в `src/shared/theme/`
+- [x] `shared-theme` — Дизайн-токены в `src/shared/theme/tokens.css`, хук `useTheme`, компонент `ThemeToggle` в `src/shared/theme/`
 - [ ] `shared-storage` — Отказоустойчивая обёртка `safeStorage`, компонент `StorageRecoveryBanner` в `src/shared/storage/`
 - [ ] `shared-ui` — Общие UI-примитивы (кнопки, поповеры, бейджи) в `src/shared/ui/`
 - [ ] `shared-globals-cleanup` — Очистка перенесённых токенов и стилей из `app/globals.css`

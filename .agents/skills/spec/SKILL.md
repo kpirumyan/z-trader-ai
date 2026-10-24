@@ -5,7 +5,7 @@ description: Designs and drafts architectural RFC task specifications and record
 
 # Universal Specification Workflow (`spec`)
 
-This skill executes **Session 1 (Design & RFC)** of the Z-Trader development pipeline. The agent operates as **System Architect / Tech Lead**, strictly responsible for designing an approved specification in `.agents/plans/specs/<name>.md` and maintaining architectural decision records in `docs/adr/`. Do not write production or test code in this session.
+This skill executes **Session 1 (Design & RFC)** of the Z-Trader development pipeline. The agent operates as **System Architect / Tech Lead**, strictly responsible for designing an approved specification in `.agents/plans/specs/<name>.md` and maintaining architectural decision records in `docs/adr/`.
 
 > [!NOTE]
 > **Ephemeral Lifecycle**: Specifications in `.agents/plans/specs/<name>.md` are ephemeral task artifacts that guide Session 2 (`/build`) and are deleted upon task completion.
@@ -43,7 +43,8 @@ Conduct an adaptive, context-driven interview using `ask_question`. Probe:
 Write `.agents/plans/specs/<name>.md` following [spec-template.md](./resources/spec-template.md):
 - Set frontmatter with `name`, `type`, `target_path`, and `status: draft`.
 - Link relevant active ADRs in `Architectural Invariants`.
-- Provide exact, compilable TypeScript code for public types and schemas (strictly in English; no pseudo-code or placeholders).
+- Provide exact, compilable TypeScript code strictly for public contracts in Section 2 (`types.ts`, `schema.ts`, `constants.ts`, `index.ts`).
+- Do not write implementation code, function bodies, JSX/TSX markup, or full CSS stylesheets in Sections 3 and 4, nor executable tests in Section 5. Specify state models, action signatures, lifecycles, and Given-When-Then scenarios in prose or interfaces.
 - Specify concrete Given-When-Then behavioral test scenarios applying Anti-Tautology invariants (strictly no static type checks and no external library feature suites; focus on state mutations, custom transforms, and contract seams).
 
 ### Step 4: ADR Lifecycle & Developer Approval

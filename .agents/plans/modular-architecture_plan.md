@@ -179,9 +179,9 @@ flowchart TB
 ## 9. Обновление правил проекта (`.agents/rules/` и `.agents/agents/`)
 
 Перед началом переноса кода обновляются проектные правила и пути в профилях агентов:
-- [codebase-layout.md](file:///c:/DATA/Development/js/z-trader-ai/.agents/rules/codebase-layout.md) — заменяет старую раскладку `app/types | constants | hooks | components` на модульную структуру `src/modules/<name>/{index.ts, README.md, tests/, types.ts, constants.ts, schema.ts, model/, ui/}`, `src/shared/` и `src/composition/`.
-- [naming-conventions.md](file:///c:/DATA/Development/js/z-trader-ai/.agents/rules/naming-conventions.md) — адаптирует правила именований под модульные пути (`@/src/modules/<name>` и `@/src/shared/<segment>`).
-- Профили [tester.md](file:///c:/DATA/Development/js/z-trader-ai/.agents/agents/tester.md) и [coder.md](file:///c:/DATA/Development/js/z-trader-ai/.agents/agents/coder.md) — обновляются пути разрешённых папок (`src/modules/*/tests/**` и `tests/e2e/**` для `Tester`; `src/**` кроме `**/tests/**` для `Coder`).
+- [codebase-layout.md](../rules/codebase-layout.md) — заменяет старую раскладку `app/types | constants | hooks | components` на модульную структуру `src/modules/<name>/{index.ts, README.md, tests/, types.ts, constants.ts, schema.ts, model/, ui/}`, `src/shared/` и `src/composition/`.
+- [naming-conventions.md](../rules/naming-conventions.md) — адаптирует правила именований под модульные пути (`@/src/modules/<name>` и `@/src/shared/<segment>`).
+- Профили [tester.md](../agents/tester.md) и [coder.md](../agents/coder.md) — обновляются пути разрешённых папок (`src/modules/*/tests/**` и `tests/e2e/**` для `Tester`; `src/**` кроме `**/tests/**` для `Coder`).
 
 ---
 

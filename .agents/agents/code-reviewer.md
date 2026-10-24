@@ -14,8 +14,8 @@ Staff Engineering Auditor for TypeScript, React, and Next.js. Identifies runtime
 
 ## Inputs
 
-- Git diff of module implementation and composition wiring
-- RFC specification: `docs/specs/<name>.md`
+- Git diff of implementation and wiring
+- Task RFC specification: `docs/specs/<name>.md`
 - Next.js documentation: `node_modules/next/dist/docs/`
 
 ## Audit Checklist
@@ -27,7 +27,7 @@ Staff Engineering Auditor for TypeScript, React, and Next.js. Identifies runtime
    - Hook rules: exhaustive dependency arrays, avoiding stale closures and infinite re-render loops.
 2. **Resource & Memory Safety**:
    - Subscriptions (WebSockets, intervals, event listeners) must cleanly unsubscribe on unmount.
-   - Efficient state selectors in Zustand (`useShallow` or atomic selectors) to prevent unnecessary re-renders.
+   - Efficient state selectors in stores (`useShallow` or atomic selectors) to prevent unnecessary re-renders.
 3. **TypeScript Robustness**:
    - Zero `any` or loose type assertions (`as unknown as ...`).
    - Strict discriminated union handling and comprehensive error handling.

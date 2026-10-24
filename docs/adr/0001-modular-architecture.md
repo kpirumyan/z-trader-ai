@@ -56,7 +56,7 @@ If a module's internal implementation (`model/`, `ui/`) degrades or becomes obso
 ### Negative
 
 - Requires strict automated tooling to prevent deep imports and enforce unidirectional layers.
-- Requires migration via the Strangler Fig pattern from legacy `app/` folders.
+- Requires replacing obsolete code in `app/` with modular units under `src/`.
 
 ## Rejected Alternatives
 

@@ -1,53 +1,53 @@
-# Z-Trader AI — дизайн-направление
+# Z-Trader AI — Design Guidelines
 
-Этот документ задаёт визуальные правила терминала. Источник фирменных цветов — файлы логотипа в `public/`. Интерфейс первой версии англоязычный; текст примеров для кнопок, меню, состояний и подсказок также должен быть на английском.
+This document defines the visual rules for the terminal. The source of brand colors is the logo files in `public/`. The interface is English-first; text examples for buttons, menus, states, and tooltips must also be in English.
 
-## Основа бренда
+## Brand Identity
 
-- Форма: четыре свечи и восходящая золотая стрелка. Настроение — точность, движение и спокойная уверенность; без декоративного «крипто» свечения вокруг всего интерфейса.
-- Светлая тема: использовать `public/logo.png` или `public/brand.png`. Тёмные части знака и надписи остаются почти чёрными.
-- Тёмная тема: использовать `public/logo-dark.png` или `public/brand-dark.png`. **На тёмном фоне все почти чёрные части логотипа и фирменной надписи должны быть белыми.** Золотая стрелка и золотая часть надписи сохраняют цвет. Не накладывать светлую версию логотипа на тёмную поверхность.
-- Для самостоятельного знака использовать `logo*.png`, для горизонтальной фирменной надписи — `brand*.png`. Сохранять пропорции и прозрачность PNG; не перекрашивать весь знак одним CSS-фильтром.
+- Shape: Four candlesticks and an ascending gold arrow. Mood — precision, momentum, and calm confidence, without decorative "crypto" glows around the interface.
+- Light theme: Use `public/logo.png` or `public/brand.png`. The dark parts of the symbol and wordmark remain near-black.
+- Dark theme: Use `public/logo-dark.png` or `public/brand-dark.png`. **On dark backgrounds, all near-black parts of the logo and wordmark must be white.** The gold arrow and gold portion of the wordmark preserve their color. Never place the light version of the logo onto a dark surface.
+- Use `logo*.png` for the standalone mark, and `brand*.png` for the horizontal wordmark. Preserve the PNG proportions and transparency; do not recolor the entire mark with a single CSS filter.
 
-## Цветовая система
+## Color System
 
-Логотип содержит почти чёрный, белый и тёплый золотой. Ниже — рабочие токены интерфейса на их основе. Золото в исходных PNG имеет небольшие градиентные и сглаженные вариации, поэтому значения токенов являются нормализованными цветами для UI, а не заявлением о единственном цвете каждого пикселя.
+The logo consists of near-black, white, and warm gold. Below are the interface tokens based on them. Gold in the source PNGs has subtle gradients and anti-aliasing variations; token values represent normalized UI colors rather than claims about every individual pixel.
 
-| Роль             | Светлая тема | Тёмная тема | Применение                                             |
-| ---------------- | ------------ | ----------- | ------------------------------------------------------ |
-| `canvas`         | `#FFFFFF`    | `#0E0E0E`   | Фон рабочего пространства                              |
-| `surface`        | `#F7F7F7`    | `#1A1A1A`   | Окна графиков и панели                                 |
-| `surface-raised` | `#EFEFEF`    | `#242424`   | Активные панели, меню, всплывающие элементы            |
-| `text-primary`   | `#0E0E0E`    | `#FFFFFF`   | Основной текст и значки                                |
-| `text-secondary` | `#555555`    | `#BDBDBD`   | Второстепенные подписи                                 |
-| `border`         | `#D8D8D8`    | `#393939`   | Тонкие разделители и рамки                             |
-| `grid`           | `#E9E9E9`    | `#2B2B2B`   | Сетка графика                                          |
-| `brand-gold`     | `#F5A600`    | `#FFB700`   | Фирменный акцент, активный инструмент, ключевой маркер |
-| `on-gold`        | `#0E0E0E`    | `#0E0E0E`   | Текст поверх золотой заливки                           |
+| Role             | Light Theme | Dark Theme | Application                                       |
+| ---------------- | ----------- | ---------- | ------------------------------------------------- |
+| `canvas`         | `#FFFFFF`   | `#0E0E0E`  | Workspace background                              |
+| `surface`        | `#F7F7F7`   | `#1A1A1A`  | Chart windows and panels                          |
+| `surface-raised` | `#EFEFEF`   | `#242424`  | Active panels, menus, popovers                    |
+| `text-primary`   | `#0E0E0E`   | `#FFFFFF`  | Primary text and icons                            |
+| `text-secondary` | `#555555`   | `#BDBDBD`  | Secondary labels                                  |
+| `border`         | `#D8D8D8`   | `#393939`  | Subtle dividers and borders                       |
+| `grid`           | `#E9E9E9`   | `#2B2B2B`  | Chart grid lines                                  |
+| `brand-gold`     | `#F5A600`   | `#FFB700`  | Brand accent, active instrument, key focus marker |
+| `on-gold`        | `#0E0E0E`   | `#0E0E0E`  | Text placed over gold fills                       |
 
-Золото должно быть акцентом, а не фоном крупных областей. Чёрный в тёмной теме служит только фоном и цветом текста на золотой заливке; обычный текст, иконки и тёмные элементы логотипа становятся белыми. На графиках не кодировать направление свечи только цветом: сохранять различие заливки и контура и доступные подписи значений.
+Gold must serve as an accent, not as large background fills. Black in the dark theme serves solely as background and as text color over gold fills; regular text, icons, and dark logo elements become white. In charts, do not encode candlestick direction by color alone: preserve fill vs. outline distinctions and accessible value labels.
 
-## Типографика и плотность
+## Typography & Density
 
-- Основной интерфейс — Geist или системный sans-serif; числовые значения, цены, время и оси графика — JetBrains Mono или системный моноширинный шрифт.
-- Рабочий размер текста 13–14 px, второстепенные подписи 11–12 px, названия окон 14–16 px. Цены и время выравнивать так, чтобы цифры не прыгали при обновлении.
-- Компактность терминала сохранять без тесноты: интерактивные элементы должны иметь ясно видимые границы, состояния наведения и фокуса.
+- Primary interface: Geist or system sans-serif; numerical values, prices, time, and chart axes: JetBrains Mono or system monospace.
+- Working text size: 13–14px; secondary labels: 11–12px; window titles: 14–16px. Align prices and time so numerals do not jitter on updates.
+- Preserve terminal compactness without crowding: interactive elements must have clearly visible borders, hover states, and focus indicators.
 
-## Компоновка терминала
+## Terminal Layout
 
-- Рабочая область ориентирована прежде всего на настольный экран. Главное место занимают независимые окна свечных графиков; панели инструментов и список инструментов остаются доступными без перекрытия графиков.
-- У каждого окна ясно различимы заголовок, инструмент, таймфрейм и активное состояние. Активное окно выделять тонкой золотой линией или маркером, а не большой цветной заливкой.
-- Оси, сетка и индикаторы визуально тише цены. Поверхности разделять тонкими границами и небольшим перепадом яркости; тяжёлые тени не нужны.
-- Состояния загрузки, отсутствия данных и ошибки размещать внутри соответствующего окна; текст и действие восстановления должны оставаться читаемыми в обеих темах.
+- The workspace prioritizes desktop displays. Independent candlestick chart windows occupy primary focus; toolbars and instrument search remain accessible without occluding charts.
+- Each window clearly displays title, instrument, timeframe, and active state. Highlight active windows with a subtle gold line or marker, not a heavy colored fill.
+- Axes, grid, and indicators must be visually quieter than price action. Separate surfaces with fine borders and subtle contrast shifts; heavy drop shadows are forbidden.
+- Loading, empty data, and error states must render within the corresponding window; recovery actions and messages must remain legible in both themes.
 
-## Компоненты и взаимодействия
+## Components & Interactions
 
-- Кнопки и меню: нейтральная поверхность, белый текст в тёмной теме и почти чёрный в светлой. Золото показывает выбор, активный инструмент и основной акцент.
-- Поля поиска и настройки: чёткая рамка, заметный курсор, видимый фокус. Не полагаться только на цвет при обозначении выбранного состояния.
-- Для графических инструментов использовать различимые формы курсора и предпросмотр действия. Отмена и повтор должны быть предсказуемыми.
-- Движение краткое и функциональное: переходы меню и выбора 100–150 мс; обновление рыночных значений не должно анимировать весь экран.
-- Проверять читаемость текста, значков, сетки и выделения на реальном фоне графика в обеих темах. Дизайн-файл не заменяет проверку готового интерфейса.
+- Buttons and menus: Neutral surface, white text in dark theme, near-black in light theme. Gold indicates selection, active instrument, and primary emphasis.
+- Search inputs and settings: Distinct borders, noticeable cursor, visible focus ring. Never rely solely on color to indicate selection.
+- Chart drawing tools: Distinct cursor shapes and preview indicators. Undo and redo must be predictable.
+- Motion: Brief and functional (100–150ms transitions for menus and selections); streaming market updates must never animate the entire viewport.
+- Verify readability of text, icons, grid lines, and selection markers against real chart backgrounds in both themes. A design document does not replace verification on the running UI.
 
-## Границы применения
+## Scope of Application
 
-Это визуальная спецификация для следующих изменений UI, а не утверждение, что текущие стили уже ей соответствуют. Источники логотипа: `public/logo.png`, `public/logo-dark.png`, `public/brand.png`, `public/brand-dark.png`.
+This is a visual specification for terminal UI development and future refactoring. Logo sources: `public/logo.png`, `public/logo-dark.png`, `public/brand.png`, `public/brand-dark.png`.

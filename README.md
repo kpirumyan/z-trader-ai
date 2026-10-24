@@ -1,32 +1,40 @@
-# z-trader-ai
+# Z-Trader AI
 
-Минимальный проект Next.js с TypeScript и App Router.
-В `app/` находится только корневой layout. Страницы пока не созданы,
-поэтому `/` возвращает стандартную ошибку 404.
+High-performance, multi-window financial trading and market analysis terminal (charts, order book, time & sales, indicators) built with Next.js and TypeScript.
 
-## Запуск
+## Quick Start
 
 ```sh
 pnpm install
 pnpm dev
 ```
 
-Адрес сервера разработки: http://localhost:3000.
+Development server runs at: `http://localhost:3000` (or `http://127.0.0.1:3000`).
 
-## Проверка и сборка
+## Verification & Build
 
 ```sh
-pnpm typecheck
+# Fast checks: formatting, types, lint, dependency-cruiser, knip, unit tests
+pnpm check:fast
+
+# Full suite: fast checks + Playwright E2E tests
+pnpm check
+
+# Unit tests only
+pnpm test:unit
+
+# Production build and run
 pnpm build
 pnpm start
 ```
 
-## Проверка сообщений коммитов
+## Architecture & Conventions
 
-Husky проверяет текст сообщения перед созданием коммита. Hook включается при установке зависимостей:
+- **Domain Topology & Overview**: [docs/project-overview.md](docs/project-overview.md)
+- **Architectural Decision Records**: [docs/adr/README.md](docs/adr/README.md)
+- **UI Design System & Tokens**: [DESIGN.md](DESIGN.md)
+- **Modular Codebase Rules**: [.agents/rules/codebase-layout.md](.agents/rules/codebase-layout.md)
 
-```sh
-pnpm install
-```
+## Commit Policy
 
-Проверка ловит кириллицу и не распознаёт все возможные языки.
+Husky enforces that all commit messages are written strictly in English without Cyrillic characters.

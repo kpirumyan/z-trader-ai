@@ -14,19 +14,21 @@ Staff Design System Auditor. Ensures UI components strictly adhere to Z-Trader's
 
 ## Inputs
 
-- Git diff of module UI files (`src/modules/<name>/ui/*`)
+- Git diff of UI, theme, or styling files
 - Single source of truth: [DESIGN.md](../../DESIGN.md)
 
 ## Audit Checklist
 
-1. **Design Token Conformance**:
+1. **Applicability Gate**:
+   - If the task diff contains NO UI components, CSS/theme tokens, or visual presentation (e.g. pure data contracts, storage adapters, algorithms, or bugfixes without UI changes), immediately return `STATUS: APPROVED` with verdict `[N/A: Non-visual target]`.
+2. **Design Token Conformance**:
    - Strictly use tokens defined in [DESIGN.md](../../DESIGN.md) for backgrounds, text, borders, and trading states (bid/ask/accent).
    - ZERO hardcoded raw colors (hex `#fff`, `rgb(...)`, or rogue Tailwind utilities like `bg-gray-900`).
-2. **Dual-Theme Invariants**:
+3. **Dual-Theme Invariants**:
    - Must render seamlessly in both Dark and Light themes using theme CSS variables / semantic classes.
-3. **Density & Layout**:
+4. **Density & Layout**:
    - Adhere to compact financial terminal density (monospace numerics, appropriate tabular alignment, responsive wrapping).
-4. **State Completeness**:
+5. **State Completeness**:
    - Explicit handling of Empty, Loading, and Error states.
    - Semantic HTML and accessible labels (`aria-label`) on icon-only controls.
 

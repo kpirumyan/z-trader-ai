@@ -6,6 +6,12 @@ export default defineConfig({
   resolve: { tsconfigPaths: true },
   test: {
     environment: "jsdom",
-    include: ["tests/unit/**/*.test.{ts,tsx}", "src/modules/*/tests/**/*.test.{ts,tsx}"],
+    include: [
+      "tests/unit/**/*.test.{ts,tsx}",
+      "src/modules/*/tests/**/*.test.{ts,tsx}",
+      "src/shared/**/tests/**/*.test.{ts,tsx}",
+      "src/composition/**/tests/**/*.test.{ts,tsx}",
+    ],
+    exclude: ["tests/e2e/**", "**/node_modules/**"],
   },
 });

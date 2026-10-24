@@ -11,9 +11,9 @@ module.exports = {
       },
     },
     {
-      name: "quarantine-src-to-app",
+      name: "src-no-app",
       severity: "error",
-      comment: "Quarantine violation: code in src/ must not depend on legacy code in app/.",
+      comment: "Layer violation: code in src/ must not depend on app shell/routing.",
       from: {
         path: "^src",
       },

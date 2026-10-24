@@ -25,7 +25,7 @@ const englishCodePlugin = {
             const comments = sourceCode.getAllComments();
 
             for (const comment of comments) {
-              if (/[\u0400-\u04FF]/.test(comment.value)) {
+              if (/\p{Script=Cyrillic}/u.test(comment.value)) {
                 context.report({
                   loc: comment.loc,
                   message:
@@ -35,7 +35,7 @@ const englishCodePlugin = {
             }
           },
           Identifier(node) {
-            if (/[\u0400-\u04FF]/.test(node.name)) {
+            if (/\p{Script=Cyrillic}/u.test(node.name)) {
               context.report({
                 node,
                 message: `Identifier '${node.name}' must be strictly in English. Cyrillic characters are forbidden.`,
@@ -224,7 +224,8 @@ const eslintConfig = defineConfig([
           patterns: [
             {
               group: ["@/app/**", "**/app/**", "../app/**", "../../app/**", "../../../app/**"],
-              message: "Quarantine violation: code in src/ must not import legacy code from app/.",
+              message:
+                "Layer violation: code in src/ must not import from app/ (app/ is Next.js shell and routing only).",
             },
             {
               group: ["@/tests/*", "**/tests/*"],
@@ -241,7 +242,12 @@ const eslintConfig = defineConfig([
     },
   },
   {
-    files: ["src/modules/*/tests/**/*.{ts,tsx}", "tests/**/*.{ts,tsx}"],
+    files: [
+      "src/modules/*/tests/**/*.{ts,tsx}",
+      "src/shared/**/tests/**/*.{ts,tsx}",
+      "src/composition/**/tests/**/*.{ts,tsx}",
+      "tests/**/*.{ts,tsx}",
+    ],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -250,14 +256,22 @@ const eslintConfig = defineConfig([
             {
               group: [
                 "@/src/modules/*/*",
+                // 1 level up (e.g. tests/*.test.ts)
                 "../model/**",
+                "../model",
                 "../ui/**",
-                "../constants",
-                "../constants.ts",
-                "../schema",
-                "../schema.ts",
+                "../ui",
+                "../types*",
+                "../constants*",
+                "../schema*",
+                // 2 levels up (e.g. tests/unit/*.test.ts)
                 "../../model/**",
+                "../../model",
                 "../../ui/**",
+                "../../ui",
+                "../../types*",
+                "../../constants*",
+                "../../schema*",
               ],
               message:
                 "Tests must import only from public module contract ('@/src/modules/<name>' or '../index'). Internal implementation imports are forbidden.",

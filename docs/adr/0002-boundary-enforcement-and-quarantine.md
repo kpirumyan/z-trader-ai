@@ -1,4 +1,4 @@
-# ADR-0002: Automated Boundary Enforcement & Strangler Quarantine
+# ADR-0002: Automated Architectural Boundary Enforcement
 
 - **Status:** Accepted
 - **Date:** 2026-10-24
@@ -8,7 +8,7 @@
 
 A core hazard when developing modular systems with autonomous AI agents is architectural drift: agents can easily introduce deep imports (`@/src/modules/foo/model/bar`), circular dependencies, or cross-widget coupling if boundaries are only described in prompts rather than mechanically enforced.
 
-Furthermore, migrating from legacy horizontal folders (`app/types`, `app/components`, etc.) to `src/modules/` without downtime or breaking existing features requires a phased Strangler Fig pattern. During migration, new modular code must never import legacy code, while legacy shell code may temporarily consume new modules until fully replaced.
+The target architecture defines strict separation between Next.js application shell/routing (`app/`), composition root (`src/composition/`), domain modules (`src/modules/`), and shared foundation (`src/shared/`). Mechanical tooling is necessary to prevent layer violations and maintain codebase integrity.
 
 ## Decision
 
@@ -18,7 +18,7 @@ We establish automated compile-time and lint-time boundary enforcement using thr
    - Enforces element classification: `app`, `composition`, `module`, and `shared`.
    - Prevents `shared` from importing `modules`, `composition`, or `app`.
    - Prevents `modules` from importing `composition` or `app`.
-   - Replaced deep internal imports with public module entry point enforcement.
+   - Replaces deep internal imports with public module entry point enforcement.
 
 2. **`dependency-cruiser`:**
    - Detects circular dependencies (`no-circular`).
@@ -29,16 +29,16 @@ We establish automated compile-time and lint-time boundary enforcement using thr
 3. **`knip`:**
    - Detects dead code, unused exports, and unreferenced packages to maintain a clean codebase during and after AI refactoring passes.
 
-4. **Unilateral Quarantine Rule:**
-   - Files in `src/**` are strictly forbidden from importing anything from `app/**` via ESLint (`no-restricted-imports`) and `dependency-cruiser`.
-   - Legacy files in `app/**` may import from `src/**` until all legacy folders are drained and deleted in Step 1.6.
+4. **App Shell Layer Isolation:**
+   - Code in `src/**` is strictly forbidden from importing anything from `app/**` via ESLint (`no-restricted-imports`) and `dependency-cruiser`.
+   - `app/` is strictly for Next.js routing and global styling (`layout.tsx`, `page.tsx`, `globals.css`). Any legacy files temporarily remaining in `app/` are obsolete and to be deleted as new units are implemented under `src/`.
 
 ## Consequences
 
 ### Positive
 
 - Violations are intercepted immediately during code editing (`ESLint`) and pre-commit checks (`pnpm check:fast`).
-- Clean, one-way migration gradient ensures new modules remain completely free of legacy technical debt.
+- Clean, unidirectional dependency graph ensures modules and shared code remain completely free of routing or legacy coupling.
 - No accidental widget coupling or cross-domain leaks.
 
 ### Negative
@@ -49,4 +49,4 @@ We establish automated compile-time and lint-time boundary enforcement using thr
 ## Rejected Alternatives
 
 - **Relying solely on agent prompts:** Human and AI developers eventually make accidental deep imports without automated tooling.
-- **Big-bang migration:** Moving all files at once risks regressions and breaks continuous test verification.
+- **Treating legacy code as a permanent layer with permanent quarantine rules:** Legacy implementation is strictly obsolete and slated for deletion, not a permanent architectural layer.

@@ -18,11 +18,10 @@ description: Modular codebase layout standard enforcing separation between domai
       - `ui/`: presentation React components.
       - `tests/`: black-box behavioral unit tests importing strictly from the public seam (`../index` or `@/src/modules/[name]`), never internal files.
     </item>
-    <item>`src/shared/`: domain-agnostic foundation (`contracts/`, `theme/`, `storage/`, `ui/`, `lib/`). Must never import from `modules/` or `composition/`.</item>
-    <item>`src/composition/`: composition root (`widgets.ts`, `indicators.ts`, `providers.ts`) wiring modules together.</item>
-    <item>`app/`: Next.js routing and global styling only (`layout.tsx`, `page.tsx`, `globals.css`). No business logic or domain types.</item>
-    <item>`tests/e2e/`: browser-level integration and user journey tests. Production code must never import from `tests/`.</item>
+    <item>`src/shared/`: domain-agnostic foundation (`contracts/`, `theme/`, `storage/`, `ui/`, `lib/`). Must never import from `modules/` or `composition/`. Internal tests reside in `src/shared/[segment]/tests/`.</item>
+    <item>`src/composition/`: composition root (`widgets.ts`, `indicators.ts`, `providers.ts`) wiring modules together. Internal tests reside in `src/composition/tests/`.</item>
+    <item>`app/`: Next.js routing and global styling only (`layout.tsx`, `page.tsx`, `globals.css`). No business logic or domain types; code in `src/**` never imports from `app/**`.</item>
+    <item>`tests/`: `tests/e2e/` contains browser-level integration and user journey tests; `tests/unit/` holds legacy unit tests slated for migration into respective module or shared test folders. Production code must never import from `tests/`.</item>
     <item>Widget isolation: terminal widgets (`chart`, `order-book`, `time-and-sales`) must never depend on each other and never depend on `workspace`. `workspace` never imports concrete widgets directly.</item>
-    <item>Quarantine: code in `src/**` is strictly forbidden from importing anything from `app/**`.</item>
   </list>
 </rule>

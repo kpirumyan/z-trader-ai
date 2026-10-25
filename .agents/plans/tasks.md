@@ -18,9 +18,7 @@
 
 ## Шаг 2 — Каталог инструментов (`src/modules/instruments/`)
 
-- [ ] `instruments-schema` — Zod-схемы валидации финансовых инструментов (`schema.ts`)
-- [ ] `instruments-ui` — Компонент `InstrumentSearchDialog` с изолированным CSS-модулем
-- [ ] `instruments-module` — Публичный шов `index.ts`, паспорт `README.md`, тесты чёрного ящика в `src/modules/instruments/tests/`
+- [ ] `instruments` — Доменный модуль каталога инструментов: схемы Zod, сервис `demoInstrumentCatalog`, компонент `InstrumentSearchDialog` с CSS-модулем, публичный шов `index.ts`, паспорт `README.md` и тесты в `src/modules/instruments/tests/`
 
 ---
 

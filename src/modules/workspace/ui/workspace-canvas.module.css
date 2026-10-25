@@ -1,0 +1,70 @@
+.canvas {
+  --watermark-width: min(440px, calc(100cqw - 48px), calc(max(0px, 100dvh - 256px) * 1110 / 860));
+  container-type: inline-size;
+  position: relative;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+  background: var(--canvas);
+}
+
+.watermark {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: var(--watermark-width);
+  aspect-ratio: 1110 / 860;
+  opacity: 0.12;
+  pointer-events: none;
+  user-select: none;
+}
+
+.watermark img {
+  position: absolute;
+  width: calc(100% * 1254 / 1110);
+  height: auto;
+  left: calc(-100% * 70 / 1110);
+  top: calc(-100% * 200 / 860);
+}
+
+.emptyInstruction {
+  position: absolute;
+  top: calc(50% + var(--watermark-width) * 860 / 1110 / 2 + 24px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(440px, calc(100% - 48px));
+  height: 80px;
+  color: var(--text-secondary);
+  text-align: center;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 22px;
+}
+
+.emptyTitle {
+  margin: 0 0 8px;
+  height: 24px;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 24px;
+  color: var(--text-primary);
+}
+
+.emptyText {
+  margin: 0;
+  height: 44px;
+  color: var(--text-secondary);
+}
+
+:global(.theme-light-only) {
+  display: none;
+}
+
+:global(:root[data-theme="light"]) :global(.theme-light-only) {
+  display: block;
+}
+
+:global(:root[data-theme="light"]) :global(.theme-dark-only) {
+  display: none;
+}

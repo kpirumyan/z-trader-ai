@@ -1,0 +1,104 @@
+.topBar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 32px;
+  min-height: 32px;
+  flex: 0 0 32px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+.brandSymbol {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  width: 32px;
+  aspect-ratio: 980 / 730;
+  flex: none;
+}
+
+.brandSymbol img {
+  position: absolute;
+  width: calc(100% * 1254 / 980);
+  height: auto;
+  left: calc(-100% * 160 / 980);
+  top: calc(-100% * 280 / 730);
+}
+
+.brandWordmark {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  width: 100px;
+  aspect-ratio: 1280 / 280;
+  flex: none;
+}
+
+.brandWordmark img {
+  position: absolute;
+  width: calc(100% * 1448 / 1280);
+  height: auto;
+  left: calc(-100% * 90 / 1280);
+  top: calc(-100% * 400 / 280);
+}
+
+.newAnchor {
+  position: relative;
+  flex: 0 0 42px;
+}
+
+.newButton {
+  height: 26px;
+  width: 42px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-primary);
+  line-height: 24px;
+  text-align: center;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.newButton:hover {
+  background: var(--surface-raised);
+  border-color: var(--border);
+}
+
+.newButton:focus-visible {
+  outline: 2px solid var(--brand-gold);
+  outline-offset: 1px;
+}
+
+.themeToggleWrapper {
+  margin-left: auto;
+  width: 28px;
+  height: 26px;
+  flex: 0 0 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+:global(.theme-light-only) {
+  display: none;
+}
+
+:global(:root[data-theme="light"]) :global(.theme-light-only) {
+  display: block;
+}
+
+:global(:root[data-theme="light"]) :global(.theme-dark-only) {
+  display: none;
+}

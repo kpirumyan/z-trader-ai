@@ -39,10 +39,10 @@
 
 ## Шаг 5 — Оконный менеджер и корень сборки
 
-- [ ] `workspace-store` — Zustand-стор оконного менеджера (`src/modules/workspace/model/workspace-store.ts`)
-- [ ] `workspace-storage` — Валидация Zod и персистентность раскладки окон в `safeStorage`
-- [ ] `workspace-shell` — Оболочка терминала (`TerminalShell`, `TerminalWindow`, `WorkspaceCanvas`, `TopBar`, `StatusBar`) с CSS-модулями и телеметрией в статус-баре
-- [ ] `composition-root` — Реестр сборки виджетов (`src/composition/widgets.ts`) и интеграция терминала
+- [x] `workspace-store` — Zustand-стор оконного менеджера (`src/modules/workspace/model/workspace-store.ts`)
+- [x] `workspace-storage` — Валидация Zod и персистентность раскладки окон в `safeStorage`
+- [x] `workspace-shell` — Оболочка терминала (`TerminalShell`, `TerminalWindow`, `WorkspaceCanvas`, `TopBar`, `StatusBar`) с CSS-модулями и телеметрией в статус-баре
+- [x] `composition-root` — Реестр сборки виджетов (`src/composition/widgets.ts`) и интеграция терминала
 
 ---
 

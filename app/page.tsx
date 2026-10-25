@@ -1,5 +1,5 @@
-import { TerminalShell } from "./components/terminal-shell";
+import { TerminalApp } from "@/src/composition/terminal";
 
 export default function Page() {
-  return <TerminalShell />;
+  return <TerminalApp />;
 }

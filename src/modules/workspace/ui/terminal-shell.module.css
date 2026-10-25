@@ -1,0 +1,10 @@
+.terminalShell {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  width: 100%;
+  overflow: hidden;
+  position: relative;
+  background: var(--canvas);
+  color: var(--text-primary);
+}

@@ -18,7 +18,7 @@
 
 ## Шаг 2 — Каталог инструментов (`src/modules/instruments/`)
 
-- [ ] `instruments` — Доменный модуль каталога инструментов: схемы Zod, сервис `demoInstrumentCatalog`, компонент `InstrumentSearchDialog` с CSS-модулем, публичный шов `index.ts`, паспорт `README.md` и тесты в `src/modules/instruments/tests/`
+- [x] `instruments` — Доменный модуль каталога инструментов: схемы Zod, сервис `demoInstrumentCatalog`, компонент `InstrumentSearchDialog` с CSS-модулем, публичный шов `index.ts`, паспорт `README.md` и тесты в `src/modules/instruments/tests/`
 
 ---
 

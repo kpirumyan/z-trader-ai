@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, renderHook, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { safeStorage } from "@/src/shared/storage";
 import {
   DEFAULT_THEME,
   THEME_STORAGE_KEY,
@@ -20,6 +21,7 @@ beforeEach(() => {
   }
 
   window.localStorage.clear();
+  safeStorage.clear();
   document.documentElement.dataset.theme = DEFAULT_THEME;
 });
 
@@ -34,6 +36,7 @@ afterEach(() => {
   }
 
   window.localStorage.clear();
+  safeStorage.clear();
   delete document.documentElement.dataset.theme;
 });
 
@@ -73,8 +76,8 @@ describe("theme constants and schema", () => {
 });
 
 describe("useTheme", () => {
-  // Scenario 1: useTheme toggling and persistence in localStorage
-  it("toggles document.documentElement.dataset.theme and persists selection to localStorage", () => {
+  // Scenario 1: useTheme toggling and persistence in localStorage and safeStorage
+  it("toggles document.documentElement.dataset.theme and persists selection to localStorage and safeStorage", () => {
     document.documentElement.dataset.theme = "dark";
 
     const { result } = renderHook(() => useTheme());
@@ -85,6 +88,7 @@ describe("useTheme", () => {
 
     expect(document.documentElement.dataset.theme).toBe("light");
     expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe("light");
+    expect(safeStorage.getItem(THEME_STORAGE_KEY)).toBe("light");
 
     act(() => {
       result.current.toggleTheme();
@@ -92,6 +96,7 @@ describe("useTheme", () => {
 
     expect(document.documentElement.dataset.theme).toBe("dark");
     expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe("dark");
+    expect(safeStorage.getItem(THEME_STORAGE_KEY)).toBe("dark");
   });
 
   // Scenario 2: fallback to dark theme when dataset theme is corrupted or missing
@@ -106,6 +111,7 @@ describe("useTheme", () => {
 
     expect(document.documentElement.dataset.theme).toBe("dark");
     expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe("dark");
+    expect(safeStorage.getItem(THEME_STORAGE_KEY)).toBe("dark");
   });
 
   it("falls back to default dark theme when dataset theme is missing", () => {
@@ -119,6 +125,7 @@ describe("useTheme", () => {
 
     expect(document.documentElement.dataset.theme).toBe("dark");
     expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe("dark");
+    expect(safeStorage.getItem(THEME_STORAGE_KEY)).toBe("dark");
   });
 
   // Scenario 3: useTheme resilience to localStorage quota and security errors
@@ -136,6 +143,7 @@ describe("useTheme", () => {
     }).not.toThrow();
 
     expect(document.documentElement.dataset.theme).toBe("light");
+    expect(safeStorage.getItem(THEME_STORAGE_KEY)).toBe("light");
   });
 
   it("switches theme in DOM without throwing when window.localStorage getter throws SecurityError", () => {

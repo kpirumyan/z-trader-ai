@@ -11,8 +11,8 @@
 - [x] `shared-lib-cn` — Фасад объединения классов `cn` на базе `clsx` в `src/shared/lib/cn.ts`
 - [x] `shared-theme` — Дизайн-токены в `src/shared/theme/tokens.css`, хук `useTheme`, компонент `ThemeToggle` в `src/shared/theme/`
 - [x] `shared-storage` — Отказоустойчивая обёртка `safeStorage` с дуальным API (string + JSON/Zod) и автоматическим in-memory fallback в `src/shared/storage/`
-- [ ] `shared-ui` — Общие UI-примитивы (кнопки, поповеры, бейджи) в `src/shared/ui/`
-- [ ] `shared-globals-cleanup` — Очистка перенесённых токенов и стилей из `app/globals.css`
+- [x] `shared-ui` — Пропущено: в легаси-коде отсутствуют общие UI-примитивы (компоненты инкапсулируются в доменных модулях)
+- [x] `shared-globals-cleanup` — Перенос дизайн-токенов в `tokens.css` и импорт в `app/globals.css` (остаточная зачистка классов компонентов перенесена в Шаг 6)
 
 ---
 

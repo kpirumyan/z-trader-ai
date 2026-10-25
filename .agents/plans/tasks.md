@@ -10,7 +10,7 @@
 - [x] `shared-contracts` — Базовые интерфейсы расширяемости (`WidgetDefinition`, `WidgetProps`, `Instrument`) в `src/shared/contracts/`
 - [x] `shared-lib-cn` — Фасад объединения классов `cn` на базе `clsx` в `src/shared/lib/cn.ts`
 - [x] `shared-theme` — Дизайн-токены в `src/shared/theme/tokens.css`, хук `useTheme`, компонент `ThemeToggle` в `src/shared/theme/`
-- [ ] `shared-storage` — Отказоустойчивая обёртка `safeStorage`, компонент `StorageRecoveryBanner` в `src/shared/storage/`
+- [ ] `shared-storage` — Отказоустойчивая обёртка `safeStorage`, реактивный статус хранилища, компонент `StorageStatusIcon` с поповером диагностики в `src/shared/storage/`
 - [ ] `shared-ui` — Общие UI-примитивы (кнопки, поповеры, бейджи) в `src/shared/ui/`
 - [ ] `shared-globals-cleanup` — Очистка перенесённых токенов и стилей из `app/globals.css`
 
@@ -43,13 +43,13 @@
 
 - [ ] `workspace-store` — Zustand-стор оконного менеджера (`src/modules/workspace/model/workspace-store.ts`)
 - [ ] `workspace-storage` — Валидация Zod и персистентность раскладки окон в `safeStorage`
-- [ ] `workspace-shell` — Оболочка терминала (`TerminalShell`, `TerminalWindow`, `WorkspaceCanvas`, `TopBar`) с CSS-модулями
+- [ ] `workspace-shell` — Оболочка терминала (`TerminalShell`, `TerminalWindow`, `WorkspaceCanvas`, `TopBar`, `StatusBar`) с CSS-модулями и интеграцией `StorageStatusIcon` в статус-бар
 - [ ] `composition-root` — Реестр сборки виджетов (`src/composition/widgets.ts`) и интеграция терминала
 
 ---
 
 ## Шаг 6 — Зачистка легаси-директорий и финальная изоляция
 
-- [ ] `cleanup-legacy` — Удаление устаревших директорий в `app/`: `components`, `constants`, `hooks`, `instruments`, `storage`, `types`
+- [ ] `cleanup-legacy` — Удаление устаревших директорий и компонентов в `app/`: `storage-recovery-banner`, `components`, `constants`, `hooks`, `instruments`, `storage`, `types`
 - [ ] `cleanup-shell` — Сокращение `app/` до базовых `layout.tsx`, `page.tsx`, `globals.css`
 - [ ] `strict-gates` — Перевод `knip` в строгий режим (`--max-issues 0`), финальный аудит `dependency-cruiser` и прогон всех тестов

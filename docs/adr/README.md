@@ -9,8 +9,9 @@ This directory contains only active, current architectural decisions for Z-Trade
 
 ## Active Decisions Index
 
-| ID                                                        | Title                                         | Status   | Date       | Area                  |
-| --------------------------------------------------------- | --------------------------------------------- | -------- | ---------- | --------------------- |
-| [ADR-0001](./0001-modular-architecture.md)                | Modular Architecture & Vertical Domain Slices | Accepted | 2026-10-24 | Architecture & Layout |
-| [ADR-0002](./0002-boundary-enforcement-and-quarantine.md) | Automated Architectural Boundary Enforcement  | Accepted | 2026-10-24 | Tooling & Governance  |
-| [ADR-0003](./0003-css-architecture.md)                    | CSS Modules, Design Tokens & Styling Standard | Accepted | 2026-10-24 | UI & Styling          |
+| ID                                                        | Title                                           | Status   | Date       | Area                  |
+| --------------------------------------------------------- | ----------------------------------------------- | -------- | ---------- | --------------------- |
+| [ADR-0001](./0001-modular-architecture.md)                | Modular Architecture & Vertical Domain Slices   | Accepted | 2026-10-24 | Architecture & Layout |
+| [ADR-0002](./0002-boundary-enforcement-and-quarantine.md) | Automated Architectural Boundary Enforcement    | Accepted | 2026-10-24 | Tooling & Governance  |
+| [ADR-0003](./0003-css-architecture.md)                    | CSS Modules, Design Tokens & Styling Standard   | Accepted | 2026-10-24 | UI & Styling          |
+| [ADR-0004](./0004-storage-health-and-status-bar.md)       | Storage Health Monitoring & Terminal Status Bar | Accepted | 2026-10-25 | Storage & UI Layout   |

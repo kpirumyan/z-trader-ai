@@ -38,4 +38,6 @@ Implementation engineer for GREEN phase. Builds domain logic, store/state, UI co
 - **Test Source Isolation**: NEVER inspect, import, or modify test files. Rely solely on runner error traces.
 - **Rules Conformance**: Implement strictly per [codebase-layout.md](../rules/codebase-layout.md) and [DESIGN.md](../../DESIGN.md).
 - **Layer Direction**: If target is `src/shared/*`, NEVER import from `src/modules/*` or `src/composition/*`.
-- **Subagent Voice**: If specification requirements conflict or contain unresolvable flaws, halt and return status `NEEDS_INPUT`.
+- **Subagent Voice**: Halt and return status `NEEDS_INPUT` immediately if:
+  - Specification requirements conflict or contain unresolvable flaws.
+  - Test runner error traces indicate test harness, assertion matcher, or test syntax defects (e.g. `Invalid Chai property`, `is not a function` on `expect`, missing test runner extensions). NEVER inspect `package.json`, test configurations, or other test files, and NEVER polyfill testing utilities in production code.

@@ -9,7 +9,7 @@
 | `market-data`    | Service / Core      | Streaming feeds manager: out-of-React adapters for candles (OHLCV), Level 2 depth, and trade ticks            | Completed |
 | `indicators`     | Algorithm Engine    | Pure mathematical calculation engine transforming historical candle data into plotted time series             | Planned   |
 | `chart`          | Widget              | Real-time candlestick & indicator visualization window (Lightweight Charts v5)                                | Planned   |
-| `order-book`     | Widget              | Level 2 DOM depth ladder visualization window                                                                 | Planned   |
+| `order-book`     | Widget              | Level 2 DOM depth ladder visualization window                                                                 | Completed |
 | `time-and-sales` | Widget              | Real-time tape of executed trade ticks window                                                                 | Planned   |
 
 ---

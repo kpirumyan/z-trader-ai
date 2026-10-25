@@ -1,0 +1,66 @@
+.row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  align-items: center;
+  padding: 2px 8px;
+  height: 22px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 100ms ease;
+  box-sizing: border-box;
+}
+
+.row:hover {
+  background-color: var(--surface-raised);
+}
+
+.depthBar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  pointer-events: none;
+  opacity: 0.15;
+  transition: width 150ms ease-out;
+}
+
+.depthBarAsk {
+  background-color: var(--market-sell);
+}
+
+.depthBarBid {
+  background-color: var(--market-buy);
+}
+
+.colPrice {
+  position: relative;
+  z-index: 1;
+  text-align: left;
+  font-weight: 500;
+}
+
+.priceAsk {
+  color: var(--market-sell);
+}
+
+.priceBid {
+  color: var(--market-buy);
+}
+
+.colSize {
+  position: relative;
+  z-index: 1;
+  text-align: right;
+  color: var(--text-primary);
+}
+
+.colTotal {
+  position: relative;
+  z-index: 1;
+  text-align: right;
+  color: var(--text-secondary);
+}

@@ -11,6 +11,10 @@
   </list>
 </rule>
 
+<rule id="discussion-first" severity="MANDATORY">
+  Never edit files or make decisions for the developer when they ask questions, seek clarification, or discuss options. Answer in conversational text first, explain trade-offs, and wait for explicit approval before modifying any workspace files, specifications, or rules.
+</rule>
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 ## This is NOT the Next.js you know

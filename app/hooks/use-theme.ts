@@ -1,6 +1,7 @@
 "use client";
 
 import { THEME_STORAGE_KEY } from "../constants/storage";
+
 import type { Theme } from "../types/theme";
 
 function switchTheme(): void {

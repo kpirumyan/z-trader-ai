@@ -1,5 +1,7 @@
 import { expect, test, type Locator, type Page, type Route } from "@playwright/test";
+
 import { THEME_STORAGE_KEY } from "@/app/constants/storage";
+
 import type { Theme } from "@/app/types/theme";
 
 type Box = { x: number; y: number; width: number; height: number };

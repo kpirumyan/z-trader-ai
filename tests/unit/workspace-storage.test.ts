@@ -1,6 +1,7 @@
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { createElement, Suspense, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
 import { WORKSPACE_STORAGE_KEY } from "@/app/constants/storage";
 import { useWorkspace } from "@/app/hooks/use-workspace";
 import {
@@ -8,6 +9,7 @@ import {
   readWorkspace,
   saveWorkspace,
 } from "@/app/storage/workspace-storage";
+
 import type { WorkspaceStorageEnvelope } from "@/app/types/workspace";
 
 function suspenseWrapper({ children }: { children: ReactNode }) {

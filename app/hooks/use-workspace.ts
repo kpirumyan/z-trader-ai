@@ -2,7 +2,9 @@
 
 import { use, useState } from "react";
 import { browser } from "react-dom";
+
 import { createEmptyWorkspace, readWorkspace, saveWorkspace } from "../storage/workspace-storage";
+
 import type { WorkspaceState } from "../types/workspace";
 
 function initializeWorkspace(): WorkspaceState {

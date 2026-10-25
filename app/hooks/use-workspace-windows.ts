@@ -1,9 +1,11 @@
 import { useRef, useState } from "react";
+
 import {
   WINDOW_CASCADE_MAX_SLOTS,
   WINDOW_CASCADE_OFFSET,
   WINDOW_CASCADE_STEP,
 } from "../constants/terminal-window";
+
 import type { Instrument } from "../types/instrument";
 import type { TerminalWindow, WindowKind } from "../types/terminal-window";
 

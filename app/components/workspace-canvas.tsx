@@ -1,7 +1,9 @@
 import Image from "next/image";
-import type { ReactNode } from "react";
-import { useWorkspace } from "../hooks/use-workspace";
+
 import { StorageRecoveryBanner } from "./storage-recovery-banner";
+import { useWorkspace } from "../hooks/use-workspace";
+
+import type { ReactNode } from "react";
 
 export function WorkspaceState({
   hasWindows = false,

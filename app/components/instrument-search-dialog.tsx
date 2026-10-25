@@ -1,5 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
+
 import { windowKindLabels } from "../constants/terminal-window";
+
 import type { Instrument, InstrumentCatalogProvider } from "../types/instrument";
 import type { WindowKind } from "../types/terminal-window";
 

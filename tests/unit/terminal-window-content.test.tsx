@@ -1,5 +1,6 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
+
 import { Chart } from "@/app/components/chart";
 import { OrderBook } from "@/app/components/order-book";
 import { TimeAndSales } from "@/app/components/time-and-sales";

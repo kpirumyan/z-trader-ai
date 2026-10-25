@@ -1,4 +1,5 @@
 import { CURRENT_WORKSPACE_VERSION, WORKSPACE_STORAGE_KEY } from "../constants/storage";
+
 import type {
   WorkspaceReadResult,
   WorkspaceRecord,

@@ -1,15 +1,17 @@
 "use client";
 
 import { Suspense, useEffect, useRef, useState } from "react";
-import { useWorkspaceWindows } from "../hooks/use-workspace-windows";
-import { demoInstrumentCatalog } from "../instruments/instrument-catalog";
-import type { Instrument } from "../types/instrument";
-import type { SearchTarget } from "../types/terminal-window";
+
 import { InstrumentSearchDialog } from "./instrument-search-dialog";
 import { NewMenuPopover } from "./new-menu-popover";
 import { TerminalWindow } from "./terminal-window";
 import { TopBar } from "./top-bar";
 import { WorkspaceCanvas, WorkspaceState } from "./workspace-canvas";
+import { useWorkspaceWindows } from "../hooks/use-workspace-windows";
+import { demoInstrumentCatalog } from "../instruments/instrument-catalog";
+
+import type { Instrument } from "../types/instrument";
+import type { SearchTarget } from "../types/terminal-window";
 
 export function TerminalShell() {
   const [isNewOpen, setIsNewOpen] = useState(false);

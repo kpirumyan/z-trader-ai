@@ -1,9 +1,11 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { Suspense } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { STORAGE_RETRY_DELAY_MS, WORKSPACE_STORAGE_KEY } from "@/app/constants/storage";
+
 import { StorageRecoveryBanner } from "@/app/components/storage-recovery-banner";
+import { STORAGE_RETRY_DELAY_MS, WORKSPACE_STORAGE_KEY } from "@/app/constants/storage";
 import { useWorkspace } from "@/app/hooks/use-workspace";
+
 import type { WorkspaceStorageEnvelope } from "@/app/types/workspace";
 
 function WorkspaceHarness() {

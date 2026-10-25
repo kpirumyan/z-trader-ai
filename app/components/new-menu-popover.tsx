@@ -1,5 +1,7 @@
 import { useEffect, useRef } from "react";
+
 import { windowKindLabels } from "../constants/terminal-window";
+
 import type { WindowKind } from "../types/terminal-window";
 
 type NewMenuPopoverProps = { onClose: () => void; onSelect: (kind: WindowKind) => void };

@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+
 import { WORKSPACE_STORAGE_KEY } from "@/app/constants/storage";
 
 const emptyTitle = "Your workspace is empty";

@@ -1,7 +1,9 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+
 import { InstrumentSearchDialog } from "@/app/components/instrument-search-dialog";
 import { demoInstrumentCatalog } from "@/app/instruments/instrument-catalog";
+
 import type { Instrument, InstrumentCatalogProvider } from "@/app/types/instrument";
 
 const es: Instrument = { symbol: "ES", name: "E-mini S&P 500" };

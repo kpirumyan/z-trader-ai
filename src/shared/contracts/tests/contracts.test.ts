@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import {
   WINDOW_KINDS,
   WINDOW_KIND_LABELS,

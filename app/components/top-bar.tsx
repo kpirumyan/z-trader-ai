@@ -1,6 +1,8 @@
 import Image from "next/image";
-import type { ReactNode, Ref } from "react";
+
 import { ThemeToggle } from "./theme-toggle";
+
+import type { ReactNode, Ref } from "react";
 
 type TopBarProps = {
   newButtonRef: Ref<HTMLButtonElement>;

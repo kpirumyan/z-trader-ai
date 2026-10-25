@@ -1,11 +1,12 @@
+import stylistic from "@stylistic/eslint-plugin";
 import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
-import reactHooks from "eslint-plugin-react-hooks";
-import reactCompiler from "eslint-plugin-react-compiler";
-import stylistic from "@stylistic/eslint-plugin";
 import prettierConfig from "eslint-config-prettier";
 import boundaries from "eslint-plugin-boundaries";
+import importPlugin from "eslint-plugin-import";
+import reactCompiler from "eslint-plugin-react-compiler";
+import reactHooks from "eslint-plugin-react-hooks";
 
 const englishCodePlugin = {
   rules: {
@@ -58,8 +59,10 @@ const eslintConfig = defineConfig([
       "@stylistic": stylistic,
       "english-code": englishCodePlugin,
       boundaries,
+      import: importPlugin,
     },
     settings: {
+      "import/internal-regex": "^@/",
       "boundaries/include": ["src/**/*", "app/**/*"],
       "boundaries/elements": [
         {
@@ -84,6 +87,26 @@ const eslintConfig = defineConfig([
     rules: {
       "english-code/only-english": "error",
       ...reactHooks.configs.flat["recommended-latest"].rules,
+      "import/order": [
+        "error",
+        {
+          groups: [
+            "builtin",
+            "external",
+            "internal",
+            ["parent", "sibling"],
+            "index",
+            "object",
+            "type",
+          ],
+          "newlines-between": "always",
+          alphabetize: {
+            order: "asc",
+            caseInsensitive: true,
+          },
+        },
+      ],
+      "import/newline-after-import": ["error", { count: 1 }],
       "@stylistic/padding-line-between-statements": [
         "error",
         { blankLine: "always", prev: "*", next: "return" },
@@ -97,6 +120,8 @@ const eslintConfig = defineConfig([
         { blankLine: "always", prev: "directive", next: "*" },
         { blankLine: "any", prev: "directive", next: "directive" },
         { blankLine: "always", prev: ["case", "default"], next: "*" },
+        { blankLine: "always", prev: "import", next: "*" },
+        { blankLine: "any", prev: "import", next: "import" },
       ],
       "boundaries/dependencies": [
         "error",

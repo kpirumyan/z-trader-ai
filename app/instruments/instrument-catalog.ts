@@ -1,4 +1,5 @@
 import { DEMO_INSTRUMENTS } from "../constants/instrument";
+
 import type { Instrument, InstrumentCatalogProvider } from "../types/instrument";
 
 export type { Instrument, InstrumentCatalogProvider };

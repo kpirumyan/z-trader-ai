@@ -1,9 +1,11 @@
-import type { Metadata } from "next";
-import type { ReactNode } from "react";
 import { GeistSans } from "geist/font/sans";
 import { JetBrains_Mono } from "next/font/google";
+
 import { THEME_STORAGE_KEY } from "./constants/storage";
 import { DEFAULT_THEME } from "./constants/theme";
+
+import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import "./globals.css";
 
 const jetbrainsMono = JetBrains_Mono({

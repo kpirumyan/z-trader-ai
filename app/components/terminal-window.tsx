@@ -1,9 +1,11 @@
 import { useEffect, useRef } from "react";
-import { windowKindLabels } from "../constants/terminal-window";
-import type { TerminalWindow as WindowModel } from "../types/terminal-window";
+
 import { Chart } from "./chart";
 import { OrderBook } from "./order-book";
 import { TimeAndSales } from "./time-and-sales";
+import { windowKindLabels } from "../constants/terminal-window";
+
+import type { TerminalWindow as WindowModel } from "../types/terminal-window";
 
 export function TerminalWindow({
   window,

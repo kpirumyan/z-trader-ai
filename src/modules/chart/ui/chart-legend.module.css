@@ -1,0 +1,46 @@
+.legend {
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.2;
+  pointer-events: none;
+  user-select: none;
+  background-color: color-mix(in srgb, var(--surface) 80%, transparent);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.symbol {
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-right: 4px;
+}
+
+.item {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.label {
+  color: var(--text-secondary);
+}
+
+.value {
+  color: var(--text-primary);
+}
+
+.up {
+  color: var(--market-buy);
+}
+
+.down {
+  color: var(--market-sell);
+}

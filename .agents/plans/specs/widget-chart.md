@@ -205,6 +205,8 @@ export {
   DEFAULT_INITIAL_CANDLE_COUNT,
 } from "./constants";
 
+export { useChartStore } from "./model/chart-store";
+
 export { ChartWidget, chartWidgetDefinition } from "./ui/chart-widget";
 ```
 

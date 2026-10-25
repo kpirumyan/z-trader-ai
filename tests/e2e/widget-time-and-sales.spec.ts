@@ -1,9 +1,9 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
-const defaultSymbol = "BTC/USD";
+const defaultSymbol = "GC";
 
 async function selectInstrument(dialog: Locator, symbol: string) {
-  await dialog.getByRole("searchbox", { name: "Search instruments" }).fill(symbol);
+  await dialog.getByRole("combobox", { name: "Search instruments" }).fill(symbol);
   await dialog.getByRole("button", { name: new RegExp(`\\b${symbol}\\b`) }).click();
 }
 
@@ -81,7 +81,7 @@ test.describe("Widget: Time & Sales E2E Integration", () => {
     page,
   }) => {
     const region = await openTimeAndSalesWindow(page, defaultSymbol);
-    const filterBtn = region.getByRole("button", { name: /filter/i });
+    const filterBtn = region.getByRole("button", { name: "Filter", exact: true });
 
     await expect(filterBtn).toBeVisible();
     await filterBtn.click();
@@ -108,7 +108,12 @@ test.describe("Widget: Time & Sales E2E Integration", () => {
         if (rowCount <= 1) return true; // header only is valid if no large trades yet
 
         for (let i = 1; i < rowCount; i += 1) {
-          const sizeCell = rows.nth(i).getByRole("cell").nth(2);
+          const cells = rows.nth(i).getByRole("cell");
+          const cellCount = await cells.count();
+
+          if (cellCount < 4) continue; // Empty message row
+
+          const sizeCell = cells.nth(2);
           const sizeVal = parseFloat((await sizeCell.innerText()).replace(/,/g, ""));
 
           if (!Number.isNaN(sizeVal) && sizeVal < 50) return false;
@@ -119,9 +124,11 @@ test.describe("Widget: Time & Sales E2E Integration", () => {
       .toBe(true);
 
     // Reset filter
-    await filterBtn.click();
+    if (await popover.first().isHidden()) {
+      await filterBtn.click();
+    }
 
-    const allPreset = popover.getByRole("button", { name: /^all$/i });
+    const allPreset = popover.first().getByRole("button", { name: /^all$/i });
 
     await expect(allPreset).toBeVisible();
     await allPreset.click();

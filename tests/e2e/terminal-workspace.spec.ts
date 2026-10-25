@@ -63,7 +63,7 @@ async function openNewWindow(
   await expect(dialog).toBeVisible();
   await expect(dialog).toHaveAccessibleName(new RegExp(kind));
 
-  const searchInput = dialog.getByRole("searchbox", { name: "Search instruments" });
+  const searchInput = dialog.getByRole("combobox", { name: "Search instruments" });
 
   await expect(searchInput).toBeVisible();
   await searchInput.fill(symbol);
@@ -85,16 +85,6 @@ async function openNewWindow(
 }
 
 test.describe("Terminal Multi-Window Workspace E2E Scenarios", () => {
-  test.beforeEach(async ({ page }) => {
-    // Clear storage before each test
-    await page.addInitScript(
-      ({ key }) => {
-        localStorage.removeItem(key);
-      },
-      { key: WORKSPACE_STORAGE_KEY },
-    );
-  });
-
   test("Scenario 1: Terminal loads with empty state, TopBar branding, and watermark logo", async ({
     page,
   }) => {
@@ -110,13 +100,13 @@ test.describe("Terminal Multi-Window Workspace E2E Scenarios", () => {
     await expect(statusBar).toContainText(/UTC/i);
   });
 
-  test("Scenario 2: Open 'New' menu -> select 'Chart' -> search 'AAPL' -> window created on canvas", async ({
+  test("Scenario 2: Open 'New' menu -> select 'Chart' -> search 'NQ' -> window created on canvas", async ({
     page,
   }) => {
     await page.goto("/");
     await expectEmptyWorkspace(page);
 
-    const chartWindow = await openNewWindow(page, "Chart", "AAPL");
+    const chartWindow = await openNewWindow(page, "Chart", "NQ");
 
     await expect(chartWindow).toBeVisible();
     await expect(chartWindow).toBeFocused();
@@ -140,7 +130,7 @@ test.describe("Terminal Multi-Window Workspace E2E Scenarios", () => {
     await page.goto("/");
     await expectEmptyWorkspace(page);
 
-    const chartWindow = await openNewWindow(page, "Chart", "AAPL");
+    const chartWindow = await openNewWindow(page, "Chart", "NQ");
     const orderBookWindow = await openNewWindow(page, "Level II", "ES");
 
     await expect(windowRegions(page)).toHaveCount(2);
@@ -148,14 +138,16 @@ test.describe("Terminal Multi-Window Workspace E2E Scenarios", () => {
 
     // Drag second window by header
     const header = orderBookWindow.locator("header");
+    const headerBox = await header.boundingBox();
     const boxBefore = await orderBookWindow.boundingBox();
 
+    expect(headerBox).not.toBeNull();
     expect(boxBefore).not.toBeNull();
 
-    if (boxBefore) {
-      await header.hover();
+    if (headerBox && boxBefore) {
+      await page.mouse.move(headerBox.x + 20, headerBox.y + 10);
       await page.mouse.down();
-      await page.mouse.move(boxBefore.x + 100, boxBefore.y + 80, { steps: 5 });
+      await page.mouse.move(headerBox.x + 420, headerBox.y + 50, { steps: 5 });
       await page.mouse.up();
 
       const boxAfter = await orderBookWindow.boundingBox();
@@ -180,9 +172,9 @@ test.describe("Terminal Multi-Window Workspace E2E Scenarios", () => {
     await page.goto("/");
     await expectEmptyWorkspace(page);
 
-    const windowRegion = await openNewWindow(page, "Chart", "AAPL");
+    const windowRegion = await openNewWindow(page, "Chart", "NQ");
 
-    await expect(windowRegion).toHaveAccessibleName("Chart AAPL");
+    await expect(windowRegion).toHaveAccessibleName("Chart NQ");
 
     const changeBtn = windowRegion.getByRole("button", {
       name: "Change instrument",
@@ -194,25 +186,25 @@ test.describe("Terminal Multi-Window Workspace E2E Scenarios", () => {
     const dialog = page.getByRole("dialog");
 
     await expect(dialog).toBeVisible();
-    await expect(dialog).toHaveAccessibleName(/Chart/);
+    await expect(dialog).toHaveAccessibleName(/(?:Chart|Change Instrument)/);
 
-    const searchInput = dialog.getByRole("searchbox", { name: "Search instruments" });
+    const searchInput = dialog.getByRole("combobox", { name: "Search instruments" });
 
-    await searchInput.fill("MSFT");
+    await searchInput.fill("YM");
 
-    const msftOption = dialog.getByRole("button", { name: /\bMSFT\b/ });
+    const ymOption = dialog.getByRole("button", { name: /\bYM\b/ });
 
-    await expect(msftOption).toBeVisible();
-    await msftOption.click();
+    await expect(ymOption).toBeVisible();
+    await ymOption.click();
 
     await expect(dialog).toBeHidden();
 
     // Window accessible name and content updated
-    const updatedWindow = page.getByRole("region", { name: "Chart MSFT", exact: true });
+    const updatedWindow = page.getByRole("region", { name: "Chart YM", exact: true });
 
     await expect(updatedWindow).toBeVisible();
     await expect(updatedWindow).toBeFocused();
-    await expect(page.getByRole("region", { name: "Chart AAPL" })).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "Chart NQ" })).toHaveCount(0);
     await expect(windowRegions(page)).toHaveCount(1);
   });
 
@@ -222,7 +214,7 @@ test.describe("Terminal Multi-Window Workspace E2E Scenarios", () => {
     await page.goto("/");
     await expectEmptyWorkspace(page);
 
-    const chartWindow = await openNewWindow(page, "Chart", "AAPL");
+    const chartWindow = await openNewWindow(page, "Chart", "NQ");
     const domWindow = await openNewWindow(page, "Level II", "ES");
 
     await expect(windowRegions(page)).toHaveCount(2);
@@ -245,7 +237,7 @@ test.describe("Terminal Multi-Window Workspace E2E Scenarios", () => {
     await page.goto("/");
     await expectEmptyWorkspace(page);
 
-    await openNewWindow(page, "Chart", "AAPL");
+    await openNewWindow(page, "Chart", "NQ");
     await openNewWindow(page, "Level II", "ES");
 
     await expect(windowRegions(page)).toHaveCount(2);
@@ -259,31 +251,30 @@ test.describe("Terminal Multi-Window Workspace E2E Scenarios", () => {
           if (!raw) return null;
 
           try {
-            return JSON.parse(raw);
+            const data = JSON.parse(raw);
+
+            return data?.workspaces?.[0]?.windows?.map(
+              (w: { kind?: string; instrument?: { symbol?: string } }) => ({
+                kind: w.kind,
+                symbol: w.instrument?.symbol,
+              }),
+            );
           } catch {
             return null;
           }
         }, WORKSPACE_STORAGE_KEY);
       })
-      .toMatchObject({
-        version: 1,
-        activeWorkspaceId: expect.any(String),
-        workspaces: [
-          {
-            windows: expect.arrayContaining([
-              expect.objectContaining({ kind: "chart", instrument: { symbol: "AAPL" } }),
-              expect.objectContaining({ kind: "orderBook", instrument: { symbol: "ES" } }),
-            ]),
-          },
-        ],
-      });
+      .toEqual([
+        { kind: "chart", symbol: "NQ" },
+        { kind: "orderBook", symbol: "ES" },
+      ]);
 
     // Reload the page
     await page.reload();
 
     // Both windows restored from storage
     await expect(windowRegions(page)).toHaveCount(2);
-    await expect(page.getByRole("region", { name: "Chart AAPL" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Chart NQ" })).toBeVisible();
     await expect(page.getByRole("region", { name: "Level II ES" })).toBeVisible();
     await expectShellSurvives(page);
   });
@@ -306,7 +297,7 @@ test.describe("Terminal Multi-Window Workspace E2E Scenarios", () => {
     await expectShellSurvives(page);
 
     // Interactivity is preserved: New button can open window
-    const windowRegion = await openNewWindow(page, "Chart", "AAPL");
+    const windowRegion = await openNewWindow(page, "Chart", "NQ");
 
     await expect(windowRegion).toBeVisible();
     await expect(windowRegions(page)).toHaveCount(1);

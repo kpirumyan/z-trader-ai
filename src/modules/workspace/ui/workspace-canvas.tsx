@@ -16,7 +16,7 @@ export function WorkspaceCanvas({ children, isEmpty = false }: WorkspaceCanvasPr
           src="/logo-full.png"
           alt=""
           width={1254}
-          height={1086}
+          height={1254}
           loading="eager"
           fetchPriority="high"
           unoptimized
@@ -26,7 +26,7 @@ export function WorkspaceCanvas({ children, isEmpty = false }: WorkspaceCanvasPr
           src="/logo-full-dark.png"
           alt=""
           width={1254}
-          height={1086}
+          height={1254}
           loading="eager"
           fetchPriority="high"
           unoptimized

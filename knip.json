@@ -1,10 +1,13 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "entry": ["src/composition/widgets.ts"],
-  "ignore": ["app/components/**", "app/hooks/**"],
+  "entry": ["src/composition/widgets.ts", "src/modules/*/index.ts", "src/shared/*/index.ts"],
   "ignoreDependencies": ["agent-browser"],
   "rules": {
-    "types": "off",
-    "exports": "off"
+    "files": "error",
+    "dependencies": "error",
+    "unlisted": "error",
+    "unresolved": "error",
+    "exports": "off",
+    "types": "off"
   }
 }

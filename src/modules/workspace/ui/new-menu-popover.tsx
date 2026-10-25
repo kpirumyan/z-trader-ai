@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { DEFAULT_WINDOW_KIND_LABELS } from "../constants";
 import styles from "./new-menu-popover.module.css";
 
 import type { NewMenuPopoverProps } from "../types";
@@ -98,7 +99,7 @@ export function NewMenuPopover({ widgets, onClose, onSelect }: NewMenuPopoverPro
             onClose();
           }}
         >
-          {widget.title}
+          {DEFAULT_WINDOW_KIND_LABELS[widget.kind] ?? widget.title}
         </button>
       ))}
     </div>

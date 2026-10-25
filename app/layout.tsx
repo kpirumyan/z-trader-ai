@@ -1,8 +1,7 @@
 import { GeistSans } from "geist/font/sans";
 import { JetBrains_Mono } from "next/font/google";
 
-import { THEME_STORAGE_KEY } from "./constants/storage";
-import { DEFAULT_THEME } from "./constants/theme";
+import { DEFAULT_THEME, THEME_STORAGE_KEY } from "@/src/shared/theme";
 
 import type { Metadata } from "next";
 import type { ReactNode } from "react";

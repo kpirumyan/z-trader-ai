@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   DEFAULT_WINDOW_HEIGHT,
@@ -20,6 +20,7 @@ export function TerminalWindow({
   onMove,
   onChangeInstrument,
 }: TerminalWindowProps) {
+  const sectionRef = useRef<HTMLElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef<{
     startX: number;
@@ -28,7 +29,13 @@ export function TerminalWindow({
     windowY: number;
   } | null>(null);
 
-  const title = widgetDefinition?.title ?? DEFAULT_WINDOW_KIND_LABELS[window.kind] ?? window.kind;
+  useEffect(() => {
+    if (isFocused) {
+      sectionRef.current?.focus();
+    }
+  }, [isFocused, window.instrument.symbol]);
+
+  const title = DEFAULT_WINDOW_KIND_LABELS[window.kind] ?? widgetDefinition?.title ?? window.kind;
 
   const width = window.size?.width ?? DEFAULT_WINDOW_WIDTH;
   const height = window.size?.height ?? DEFAULT_WINDOW_HEIGHT;
@@ -84,6 +91,7 @@ export function TerminalWindow({
 
   return (
     <section
+      ref={sectionRef}
       className={styles.window}
       role="region"
       tabIndex={-1}

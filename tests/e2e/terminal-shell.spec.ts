@@ -1,8 +1,6 @@
 import { expect, test, type Locator, type Page, type Route } from "@playwright/test";
 
-import { THEME_STORAGE_KEY } from "@/app/constants/storage";
-
-import type { Theme } from "@/app/types/theme";
+import { THEME_STORAGE_KEY, type Theme } from "@/src/shared/theme";
 
 type Box = { x: number; y: number; width: number; height: number };
 
@@ -418,7 +416,7 @@ test.describe("Pre-hydration theme painting & storage fallback", () => {
             canvas: sample.expected === "dark" ? "rgb(14, 14, 14)" : "rgb(255, 255, 255)",
           });
 
-        await expect(page.locator("main.workspace-canvas")).toHaveCSS(
+        await expect(page.getByRole("main")).toHaveCSS(
           "background-color",
           sample.expected === "dark" ? "rgb(14, 14, 14)" : "rgb(255, 255, 255)",
         );

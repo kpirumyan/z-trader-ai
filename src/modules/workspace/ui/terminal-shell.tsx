@@ -85,7 +85,7 @@ export function TerminalShell({ widgets = [], className }: TerminalShellProps) {
         )}
       </TopBar>
 
-      <WorkspaceCanvas isEmpty={windows.length === 0}>
+      <WorkspaceCanvas isEmpty={isInitialized && windows.length === 0}>
         {windows.map((win) => {
           const widgetDef = widgets.find((w) => w.kind === win.kind);
 

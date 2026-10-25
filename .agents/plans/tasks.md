@@ -48,6 +48,6 @@
 
 ## Шаг 6 — Зачистка легаси-директорий и финальная изоляция
 
-- [ ] `cleanup-legacy` — Удаление устаревших директорий и компонентов в `app/`: `storage-recovery-banner`, `components`, `constants`, `hooks`, `instruments`, `storage`, `types`
+- [x] `cleanup-legacy` — Удаление устаревших директорий и компонентов в `app/`: `storage-recovery-banner`, `components`, `constants`, `hooks`, `instruments`, `storage`, `types`
 - [ ] `cleanup-shell` — Сокращение `app/` до базовых `layout.tsx`, `page.tsx`, `globals.css`
 - [ ] `strict-gates` — Перевод `knip` в строгий режим (`--max-issues 0`), финальный аудит `dependency-cruiser` и прогон всех тестов

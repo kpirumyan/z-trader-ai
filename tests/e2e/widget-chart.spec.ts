@@ -1,12 +1,12 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
-const defaultSymbol = "AAPL";
+const defaultSymbol = "ES";
 
 const windowFor = (page: Page, symbol: string) =>
   page.getByRole("main").getByRole("region", { name: `Chart ${symbol}`, exact: true });
 
 async function selectInstrument(dialog: Locator, symbol: string) {
-  await dialog.getByRole("searchbox", { name: "Search instruments" }).fill(symbol);
+  await dialog.getByRole("combobox", { name: "Search instruments" }).fill(symbol);
   await dialog.getByRole("button", { name: new RegExp(`\\b${symbol}\\b`) }).click();
 }
 
@@ -126,8 +126,10 @@ test.describe("Widget: Chart E2E Integration", () => {
 
     expect(initialBox).not.toBeNull();
 
-    // Resize viewport to larger dimensions
-    await page.setViewportSize({ width: 1600, height: 1000 });
+    // Resize window region geometry
+    await region.evaluate((element) => {
+      element.style.width = "500px";
+    });
 
     await expect
       .poll(

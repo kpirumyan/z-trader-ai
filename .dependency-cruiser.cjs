@@ -55,6 +55,18 @@ module.exports = {
       },
     },
     {
+      name: "app-no-modules",
+      severity: "error",
+      comment:
+        "Layer violation: app shell must not depend directly on domain modules. Route via src/composition.",
+      from: {
+        path: "^app",
+      },
+      to: {
+        path: "^src/modules",
+      },
+    },
+    {
       name: "widget-isolation",
       severity: "error",
       comment:

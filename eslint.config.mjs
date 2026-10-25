@@ -128,12 +128,12 @@ const eslintConfig = defineConfig([
         {
           default: "disallow",
           policies: [
-            // app (legacy) can import composition, modules, shared, and itself during transition
+            // app can import ONLY composition and shared
             {
               from: { element: { type: "app" } },
               allow: {
                 to: {
-                  element: { types: { anyOf: ["app", "composition", "module", "shared"] } },
+                  element: { types: { anyOf: ["composition", "shared"] } },
                 },
               },
             },
@@ -170,7 +170,7 @@ const eslintConfig = defineConfig([
     },
   },
   {
-    files: ["app/types/**/*.{ts,tsx}", "src/**/types.ts", "src/**/types/**/*.{ts,tsx}"],
+    files: ["src/**/types.ts", "src/**/types/**/*.{ts,tsx}"],
     rules: {
       "no-restricted-syntax": [
         "error",

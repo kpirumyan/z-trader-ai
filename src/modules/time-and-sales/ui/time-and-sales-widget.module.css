@@ -1,0 +1,83 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.focused {
+  border-color: var(--brand-gold);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.loadingState,
+.emptyState,
+.errorState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 16px;
+  text-align: center;
+}
+
+.loadingText,
+.emptyText {
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  margin: 0;
+}
+
+.loadingSpinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border);
+  border-top-color: var(--brand-gold);
+  border-radius: 50%;
+  animation: spin 800ms linear infinite;
+  margin-bottom: 8px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.errorMessage {
+  color: var(--market-sell);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  margin: 0 0 12px 0;
+}
+
+.retryButton {
+  background-color: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  padding: 4px 12px;
+  cursor: pointer;
+  transition:
+    background-color 100ms,
+    border-color 100ms;
+}
+
+.retryButton:hover {
+  border-color: var(--brand-gold);
+}

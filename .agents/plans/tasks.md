@@ -32,7 +32,7 @@
 ## Шаг 4 — Доменные виджеты (`src/modules/`)
 
 - [x] `widget-order-book` — Виджет биржевого стакана заявок (DOM) с CSS-модулем и интеграцией с потоком данных (`src/modules/order-book/`)
-- [ ] `widget-time-and-sales` — Виджет ленты сделок с CSS-модулем (`src/modules/time-and-sales/`)
+- [x] `widget-time-and-sales` — Виджет ленты сделок с CSS-модулем (`src/modules/time-and-sales/`)
 - [ ] `widget-chart` — Виджет графика на Canvas-движке `lightweight-charts` с индикаторами (`src/modules/chart/`)
 
 ---

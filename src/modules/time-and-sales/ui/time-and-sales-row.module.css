@@ -1,0 +1,86 @@
+.row {
+  height: 24px;
+  border-bottom: 1px solid var(--border);
+  transition: background-color 100ms ease;
+  user-select: none;
+}
+
+.row:hover {
+  background-color: var(--surface-raised);
+}
+
+.buyRow.largeRow {
+  background-color: color-mix(in srgb, var(--market-buy) 12%, transparent);
+}
+
+.sellRow.largeRow {
+  background-color: color-mix(in srgb, var(--market-sell) 12%, transparent);
+}
+
+.cell {
+  padding: 2px 8px;
+  vertical-align: middle;
+  font-size: 12px;
+  box-sizing: border-box;
+}
+
+.time {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.price {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.size {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.side {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+  text-transform: uppercase;
+}
+
+.buy {
+  color: var(--market-buy);
+}
+
+.sell {
+  color: var(--market-sell);
+}
+
+.largeSize {
+  font-weight: 700;
+}
+
+.largeSizeBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-ui);
+  font-size: 9px;
+  font-weight: 700;
+  margin-left: 4px;
+  padding: 0 3px;
+  border-radius: 2px;
+  background-color: color-mix(in srgb, var(--brand-gold) 20%, transparent);
+  color: var(--brand-gold);
+  border: 1px solid color-mix(in srgb, var(--brand-gold) 40%, transparent);
+  vertical-align: middle;
+}

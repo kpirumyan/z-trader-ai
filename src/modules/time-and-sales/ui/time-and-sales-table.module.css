@@ -1,0 +1,69 @@
+.tableContainer {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  width: 100%;
+  position: relative;
+  background-color: var(--surface);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-ui);
+  font-size: 12px;
+}
+
+.thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background-color: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.headerRow th {
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 6px 8px;
+  text-align: right;
+  user-select: none;
+}
+
+.timeHeader {
+  text-align: left !important;
+  width: 25%;
+}
+
+.priceHeader {
+  width: 25%;
+}
+
+.sizeHeader {
+  width: 25%;
+}
+
+.sideHeader {
+  text-align: center !important;
+  width: 25%;
+}
+
+.tbody {
+  width: 100%;
+}
+
+.emptyRow {
+  height: 120px;
+}
+
+.emptyCell {
+  text-align: center;
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  padding: 32px 16px;
+}

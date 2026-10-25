@@ -24,7 +24,7 @@
 
 ## Шаг 3 — Потоковые рыночные данные и индикаторы
 
-- [ ] `market-data-stream` — Потоковый сервис подписок вне React (`src/modules/market-data/model/market-stream.ts`) с Zod-валидацией котировок
+- [x] `market-data-stream` — Потоковый сервис подписок вне React (`src/modules/market-data/model/market-stream.ts`) с Zod-валидацией котировок
 - [ ] `indicators-engine` — Модуль чистых математических функций расчёта технических индикаторов в `src/modules/indicators/`
 
 ---

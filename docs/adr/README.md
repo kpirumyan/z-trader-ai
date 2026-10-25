@@ -9,9 +9,11 @@ This directory contains only active, current architectural decisions for Z-Trade
 
 ## Active Decisions Index
 
-| ID                                                              | Title                                          | Status   | Date       | Area                  |
-| --------------------------------------------------------------- | ---------------------------------------------- | -------- | ---------- | --------------------- |
-| [ADR-0001](./0001-modular-architecture.md)                      | Modular Architecture & Vertical Domain Slices  | Accepted | 2026-10-24 | Architecture & Layout |
-| [ADR-0002](./0002-boundary-enforcement-and-quarantine.md)       | Automated Architectural Boundary Enforcement   | Accepted | 2026-10-24 | Tooling & Governance  |
-| [ADR-0003](./0003-css-architecture.md)                          | CSS Modules, Design Tokens & Styling Standard  | Accepted | 2026-10-24 | UI & Styling          |
-| [ADR-0004](./0004-resilient-storage-and-terminal-status-bar.md) | Resilient Silent Storage & Terminal Status Bar | Accepted | 2026-10-25 | Storage & UI Layout   |
+| ID                                                                   | Title                                                                       | Status   | Date       | Area                    |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------- | -------- | ---------- | ----------------------- |
+| [ADR-0001](./0001-modular-architecture.md)                           | Modular Architecture & Vertical Domain Slices                               | Accepted | 2026-10-24 | Architecture & Layout   |
+| [ADR-0002](./0002-boundary-enforcement-and-quarantine.md)            | Automated Architectural Boundary Enforcement                                | Accepted | 2026-10-24 | Tooling & Governance    |
+| [ADR-0003](./0003-css-architecture.md)                               | CSS Modules, Design Tokens & Styling Standard                               | Accepted | 2026-10-24 | UI & Styling            |
+| [ADR-0004](./0004-resilient-storage-and-terminal-status-bar.md)      | Resilient Silent Storage & Terminal Status Bar                              | Accepted | 2026-10-25 | Storage & UI Layout     |
+| [ADR-0005](./0005-market-data-streaming-and-transport-separation.md) | Out-of-React Market Data Streaming & Transport Separation                   | Accepted | 2026-10-25 | Market Data & Streaming |
+| [ADR-0006](./0006-canvas-charting-and-lightweight-charts.md)         | High-Performance Canvas Charting via Lightweight Charts & Theme Integration | Accepted | 2026-10-25 | Charting & Performance  |

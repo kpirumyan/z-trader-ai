@@ -40,7 +40,7 @@ z-trader-ai/
 │   └── shared/                   # Код без доменной бизнес-логики
 │       ├── contracts/            # Базовые контракты плагинов (WidgetDefinition, IndicatorDefinition)
 │       ├── theme/                # Темизация (dark/light tokens)
-│       ├── storage/              # Низкоуровневый safeStorage и компонент StorageStatusIcon
+│       ├── storage/              # Отказоустойчивый safeStorage с дуальным API и in-memory fallback
 │       ├── ui/                   # Примитивы интерфейса (кнопки, поповеры, бейджи)
 │       └── lib/                  # Утилиты общего назначения
 ├── tests/
@@ -169,7 +169,7 @@ flowchart TB
 ## 8. Документация и политика решений (ADR)
 
 1. **Паспорт модуля (`src/modules/<name>/README.md`):** фиксирует границы ответственности, публичный API, разрешённые зависимости и поведенческие инварианты.
-2. **Журнал решений (`docs/adr/`):** содержит только действующие архитектурные решения ([ADR-0001](../../docs/adr/0001-modular-architecture.md), [ADR-0002](../../docs/adr/0002-boundary-enforcement-and-quarantine.md), [ADR-0003](../../docs/adr/0003-css-architecture.md), [ADR-0004](../../docs/adr/0004-storage-health-and-status-bar.md)). При изменении подхода устаревший ADR удаляется, а мотивы фиксируются в секции альтернатив нового решения.
+2. **Журнал решений (`docs/adr/`):** содержит только действующие архитектурные решения ([ADR-0001](../../docs/adr/0001-modular-architecture.md), [ADR-0002](../../docs/adr/0002-boundary-enforcement-and-quarantine.md), [ADR-0003](../../docs/adr/0003-css-architecture.md), [ADR-0004](../../docs/adr/0004-resilient-storage-and-terminal-status-bar.md)). При изменении подхода устаревший ADR удаляется, а мотивы фиксируются в секции альтернатив нового решения.
 3. **Обзор топологии ([docs/project-overview.md](../../docs/project-overview.md)):** карта доменов и высокоуровневые потоки данных терминала.
 
 ---
@@ -183,7 +183,7 @@ flowchart TB
 - **Шаг 1 — Общий фундамент (`src/shared/`):**
   - **`contracts/`**: базовые интерфейсы расширяемости (`WidgetDefinition`, `WidgetProps`, `Instrument`).
   - **`theme/`**: дизайн-токены в `src/shared/theme/tokens.css` ([DESIGN.md](../../DESIGN.md)), хук `useTheme`, компонент `ThemeToggle` с изолированным `theme-toggle.module.css`.
-  - **`storage/`**: отказоустойчивая обёртка `safeStorage` (с fallback на in-memory хранилище), реактивный статус состояния хранилища, компактный компонент `StorageStatusIcon` с доступным поповером информации/действий ([ADR-0004](../../docs/adr/0004-storage-health-and-status-bar.md)) и изолированным `storage-status-icon.module.css` (вместо устаревшего `StorageRecoveryBanner`).
+  - **`storage/`**: отказоустойчивая обёртка `safeStorage` с дуальным API (string + JSON/Zod) и прозрачным fallback на in-memory хранилище ([ADR-0004](../../docs/adr/0004-resilient-storage-and-terminal-status-bar.md)); полный отказ от UI-индикаторов и баннеров ошибок.
   - **`lib/`**: фасад `cn` на базе `clsx` (`src/shared/lib/cn.ts`).
   - Удаление перенесённых стилей из `app/globals.css`.
   - Полное покрытие unit-тестами в `src/shared/<segment>/tests/`.
@@ -205,8 +205,7 @@ flowchart TB
 - **Шаг 5 — Оконный менеджер (`src/modules/workspace/`) и корень сборки (`src/composition/`):**
   - Управление состоянием окон сразу на **Zustand** (`model/workspace-store.ts`) без переноса устаревших React-хуков.
   - Zod-валидация сериализации геометрии окон и раскладки при сохранении в `safeStorage`.
-  - Компоненты `TerminalShell`, `TerminalWindow`, `WorkspaceCanvas`, `TopBar`, `StatusBar` с локальными `*.module.css`.
-  - Интеграция `StorageStatusIcon` в `StatusBar` терминала для ненавязчивого мониторинга состояния хранилища ([ADR-0004](../../docs/adr/0004-storage-health-and-status-bar.md)).
+  - Компоненты `TerminalShell`, `TerminalWindow`, `WorkspaceCanvas`, `TopBar`, `StatusBar` с локальными `*.module.css` (нижняя панель `StatusBar` резервируется под операционную телеметрию терминала, [ADR-0004](../../docs/adr/0004-resilient-storage-and-terminal-status-bar.md)).
   - Реестр сборки `src/composition/widgets.ts` связывает виджеты через фабрику контрактов без жёстких зависимостей.
 
 - **Шаг 6 — Зачистка легаси-директорий и финальная изоляция:**

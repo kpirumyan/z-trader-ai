@@ -40,7 +40,7 @@ export interface ExampleData {
 ```
 
 ### 2.2 Validation Schema (`<target_path>/schema.ts`)
-*(Optional if task does not validate external runtime data)*
+*(Optional. If unit does not define runtime schemas, mark as `N/A: Non-applicable`. Never invent artificial schemas just to fill this section)*
 ```typescript
 import { z } from "zod";
 
@@ -51,6 +51,7 @@ export const exampleDataSchema = z.object({
 ```
 
 ### 2.3 Constants (`<target_path>/constants.ts`)
+*(Optional. If unit has no static configurations or immutable defaults, mark as `N/A: Non-applicable`. Never create dummy config objects)*
 ```typescript
 export const DEFAULT_CONFIG = {
   refreshIntervalMs: 1000,

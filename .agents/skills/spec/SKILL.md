@@ -43,7 +43,7 @@ Conduct an adaptive, context-driven interview using `ask_question`. Probe:
 Write `.agents/plans/specs/<name>.md` following [spec-template.md](./resources/spec-template.md):
 - Set frontmatter with `name`, `type`, `target_path`, and `status: draft`.
 - Link relevant active ADRs in `Architectural Invariants`.
-- Provide exact, compilable TypeScript code strictly for public contracts in Section 2 (`types.ts`, `schema.ts`, `constants.ts`, `index.ts`).
+- Provide exact, compilable TypeScript code strictly for public contracts in Section 2 (`types.ts`, `index.ts`, and optionally `schema.ts`, `constants.ts`). For shared utilities or units without domain schemas or immutable configs, mark `schema.ts` and `constants.ts` as `N/A: Non-applicable`; never invent artificial schemas (e.g. key string validators) or dummy configs just to satisfy template slots.
 - Do not write implementation code, function bodies, JSX/TSX markup, or full CSS stylesheets in Sections 3 and 4, nor executable tests in Section 5. Specify state models, action signatures, lifecycles, and Given-When-Then scenarios in prose or interfaces.
 - Specify concrete Given-When-Then behavioral test scenarios applying Anti-Tautology invariants (strictly no static type checks and no external library feature suites; focus on state mutations, custom transforms, and contract seams).
 

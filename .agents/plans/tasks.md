@@ -10,7 +10,7 @@
 - [x] `shared-contracts` — Базовые интерфейсы расширяемости (`WidgetDefinition`, `WidgetProps`, `Instrument`) в `src/shared/contracts/`
 - [x] `shared-lib-cn` — Фасад объединения классов `cn` на базе `clsx` в `src/shared/lib/cn.ts`
 - [x] `shared-theme` — Дизайн-токены в `src/shared/theme/tokens.css`, хук `useTheme`, компонент `ThemeToggle` в `src/shared/theme/`
-- [ ] `shared-storage` — Отказоустойчивая обёртка `safeStorage`, реактивный статус хранилища, компонент `StorageStatusIcon` с поповером диагностики в `src/shared/storage/`
+- [ ] `shared-storage` — Отказоустойчивая обёртка `safeStorage` с дуальным API (string + JSON/Zod) и автоматическим in-memory fallback в `src/shared/storage/`
 - [ ] `shared-ui` — Общие UI-примитивы (кнопки, поповеры, бейджи) в `src/shared/ui/`
 - [ ] `shared-globals-cleanup` — Очистка перенесённых токенов и стилей из `app/globals.css`
 
@@ -43,7 +43,7 @@
 
 - [ ] `workspace-store` — Zustand-стор оконного менеджера (`src/modules/workspace/model/workspace-store.ts`)
 - [ ] `workspace-storage` — Валидация Zod и персистентность раскладки окон в `safeStorage`
-- [ ] `workspace-shell` — Оболочка терминала (`TerminalShell`, `TerminalWindow`, `WorkspaceCanvas`, `TopBar`, `StatusBar`) с CSS-модулями и интеграцией `StorageStatusIcon` в статус-бар
+- [ ] `workspace-shell` — Оболочка терминала (`TerminalShell`, `TerminalWindow`, `WorkspaceCanvas`, `TopBar`, `StatusBar`) с CSS-модулями и телеметрией в статус-баре
 - [ ] `composition-root` — Реестр сборки виджетов (`src/composition/widgets.ts`) и интеграция терминала
 
 ---

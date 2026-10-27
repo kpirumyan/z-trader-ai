@@ -33,11 +33,11 @@ export interface ChartWindowState {
   readonly error: string | null;
 }
 
-export interface ChartStoreState {
+interface ChartStoreState {
   readonly windows: Readonly<Record<string, ChartWindowState>>;
 }
 
-export interface ChartStoreActions {
+interface ChartStoreActions {
   readonly initWindow: (
     windowId: string,
     symbol: string,

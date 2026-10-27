@@ -3,14 +3,14 @@ import { OrderBookRowComponent } from "./order-book-row";
 
 import type { OrderBookRow } from "../types";
 
-export interface SpreadRowProps {
+interface SpreadRowProps {
   readonly bestBid: number | null;
   readonly bestAsk: number | null;
   readonly spread: number | null;
   readonly spreadPct: number | null;
 }
 
-export function SpreadRow({ bestBid, bestAsk, spread, spreadPct }: SpreadRowProps) {
+function SpreadRow({ bestBid, bestAsk, spread, spreadPct }: SpreadRowProps) {
   const formattedSpread = spread !== null ? Number(spread.toFixed(4)) : "-";
   const formattedSpreadPct = spreadPct !== null ? `${Number(spreadPct.toFixed(2))}%` : null;
 

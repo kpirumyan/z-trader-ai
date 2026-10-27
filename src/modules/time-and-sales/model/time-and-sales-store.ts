@@ -17,7 +17,7 @@ import type {
 } from "../types";
 import type { Trade } from "@/src/shared/contracts";
 
-export function formatTradeTime(timeMs: number): string {
+function formatTradeTime(timeMs: number): string {
   const normalizedMs = timeMs < 1e11 ? timeMs * 1000 : timeMs;
   const date = new Date(normalizedMs);
 
@@ -32,7 +32,7 @@ export function formatTradeTime(timeMs: number): string {
   return `${hh}:${mm}:${ss}`;
 }
 
-export function formatTradePrice(price: number): string {
+function formatTradePrice(price: number): string {
   if (typeof price !== "number" || isNaN(price)) {
     return "0.00";
   }
@@ -40,7 +40,7 @@ export function formatTradePrice(price: number): string {
   return price.toFixed(2);
 }
 
-export function toTimeAndSalesRow(trade: Trade): TimeAndSalesRow {
+function toTimeAndSalesRow(trade: Trade): TimeAndSalesRow {
   return {
     ...trade,
     formattedTime: formatTradeTime(trade.time),
@@ -49,7 +49,7 @@ export function toTimeAndSalesRow(trade: Trade): TimeAndSalesRow {
   };
 }
 
-export function computeVisibleRows(
+function computeVisibleRows(
   trades: readonly Trade[],
   filter: TradeSizeFilter,
 ): readonly TimeAndSalesRow[] {

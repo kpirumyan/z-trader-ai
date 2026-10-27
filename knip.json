@@ -7,7 +7,7 @@
     "dependencies": "error",
     "unlisted": "error",
     "unresolved": "error",
-    "exports": "off",
-    "types": "off"
+    "exports": "error",
+    "types": "error"
   }
 }

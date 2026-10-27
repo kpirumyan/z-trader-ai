@@ -24,10 +24,11 @@ We establish automated compile-time and lint-time boundary enforcement using thr
    - Detects circular dependencies (`no-circular`).
    - Enforces widget isolation: `chart`, `order-book`, and `time-and-sales` cannot depend on one another or on `workspace`.
    - Enforces workspace independence: `workspace` cannot depend directly on concrete widgets (receives widget registries via contracts).
+   - Enforces service isolation: `market-data` core streaming service cannot depend on UI widgets or `workspace`.
    - Validates unidirectional layer flow (`app` -> `composition` -> `modules` -> `shared`).
 
 3. **`knip`:**
-   - Detects dead code, unused exports, and unreferenced packages to maintain a clean codebase during and after AI refactoring passes.
+   - Detects dead code, unused exports, unused types, and unreferenced packages with zero tolerance (`--max-issues 0`), maintaining clean public contract seams during and after multi-agent development.
 
 4. **App Shell Layer Isolation:**
    - Code in `src/**` is strictly forbidden from importing anything from `app/**` via ESLint (`no-restricted-imports`) and `dependency-cruiser`.

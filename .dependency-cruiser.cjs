@@ -91,6 +91,18 @@ module.exports = {
       },
     },
     {
+      name: "market-data-service-isolation",
+      severity: "error",
+      comment:
+        "Service isolation: market-data stream service must not depend on UI widgets or workspace manager.",
+      from: {
+        path: "^src/modules/market-data",
+      },
+      to: {
+        path: "^src/modules/(chart|order-book|time-and-sales|workspace)",
+      },
+    },
+    {
       name: "production-not-to-test",
       severity: "error",
       comment: "Production code must not import from test files or test suites.",

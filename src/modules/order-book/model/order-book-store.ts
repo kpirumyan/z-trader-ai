@@ -22,7 +22,7 @@ export interface ProcessedOrderBook {
   readonly maxCumulativeSize: number;
 }
 
-export function processOrderBookSnapshot(
+function processOrderBookSnapshot(
   snapshot: OrderBookSnapshot,
   depthLimit: OrderBookDepthLimit,
 ): ProcessedOrderBook {

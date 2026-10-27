@@ -4,7 +4,7 @@ import { DEFAULT_INITIAL_CANDLE_COUNT } from "../constants";
 
 import type { Candle, Timeframe } from "@/src/shared/contracts";
 
-export const TIMEFRAME_SECONDS: Record<Timeframe, number> = {
+const TIMEFRAME_SECONDS: Record<Timeframe, number> = {
   "1m": 60,
   "5m": 300,
   "15m": 900,

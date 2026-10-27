@@ -33,7 +33,7 @@
 
 - [x] `widget-order-book` — Виджет биржевого стакана заявок (DOM) с CSS-модулем и интеграцией с потоком данных (`src/modules/order-book/`)
 - [x] `widget-time-and-sales` — Виджет ленты сделок с CSS-модулем (`src/modules/time-and-sales/`)
-- [ ] `widget-chart` — Виджет графика на Canvas-движке `lightweight-charts` с индикаторами (`src/modules/chart/`)
+- [х] `widget-chart` — Виджет графика на Canvas-движке `lightweight-charts` с индикаторами (`src/modules/chart/`)
 
 ---
 
@@ -50,4 +50,4 @@
 
 - [x] `cleanup-legacy` — Удаление устаревших директорий и компонентов в `app/`: `storage-recovery-banner`, `components`, `constants`, `hooks`, `instruments`, `storage`, `types`
 - [x] `cleanup-shell` — Сокращение `app/` до базовых `layout.tsx`, `page.tsx`, `globals.css`
-- [ ] `strict-gates` — Перевод `knip` в строгий режим (`--max-issues 0`), финальный аудит `dependency-cruiser` и прогон всех тестов
+- [x] `strict-gates` — Перевод `knip` в строгий режим (`--max-issues 0`), финальный аудит `dependency-cruiser` и прогон всех тестов

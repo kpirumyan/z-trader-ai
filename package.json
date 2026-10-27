@@ -15,7 +15,7 @@
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix --max-warnings 0",
     "depcruise": "depcruise app src --config .dependency-cruiser.cjs",
-    "knip": "knip",
+    "knip": "knip --max-issues 0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check:fast": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm depcruise && pnpm knip && pnpm test:unit",

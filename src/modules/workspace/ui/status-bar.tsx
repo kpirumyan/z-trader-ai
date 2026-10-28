@@ -20,7 +20,12 @@ const STATUS_LABELS: Record<NonNullable<StatusBarProps["status"]>, string> = {
   disconnected: "Disconnected",
 };
 
-export function StatusBar({ status = "connected", latencyMs = 18, serverTime }: StatusBarProps) {
+export function StatusBar({
+  status = "connected",
+  latencyMs = 18,
+  serverTime,
+  onClearFocus,
+}: StatusBarProps) {
   const [currentTime, setCurrentTime] = useState<string>(() =>
     serverTime ? serverTime : formatUtcTime(new Date()),
   );
@@ -40,8 +45,14 @@ export function StatusBar({ status = "connected", latencyMs = 18, serverTime }: 
   const displayTime = serverTime ?? currentTime;
   const statusLabel = STATUS_LABELS[status];
 
+  const handlePointerDown = (e: React.PointerEvent<HTMLElement>) => {
+    if (e.target === e.currentTarget) {
+      onClearFocus?.();
+    }
+  };
+
   return (
-    <footer className={styles.statusBar} role="contentinfo">
+    <footer className={styles.statusBar} role="contentinfo" onPointerDown={handlePointerDown}>
       <div className={styles.statusGroup}>
         <span className={styles.item}>
           <span className={styles.statusDot} data-status={status} aria-hidden="true" />

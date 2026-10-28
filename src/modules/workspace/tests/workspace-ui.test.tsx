@@ -180,6 +180,166 @@ describe("Workspace UI Components (Unit)", () => {
     });
   });
 
+  describe("Scenario 2 UI (focus-management): Deactivate window when clicking empty canvas or chrome background", () => {
+    it("deactivates active window when clicking empty canvas area", () => {
+      const store = useWorkspaceStore.getState();
+
+      store.addWindow("chart", appleInstrument);
+
+      const win2Id = store.addWindow("orderBook", spFuturesInstrument);
+
+      render(<TerminalShell widgets={mockWidgets} />);
+
+      const region1 = screen.getByRole("region", { name: "Chart AAPL" });
+      const region2 = screen.getByRole("region", { name: "Level II ES" });
+
+      expect(useWorkspaceStore.getState().activeWindowId).toBe(win2Id);
+      expect(region2.getAttribute("data-focused")).toBe("true");
+      expect(region1.getAttribute("data-focused")).toBe("false");
+
+      // Click on empty canvas background (main landmark)
+      const mainCanvas = screen.getByRole("main", { name: "Workspace" });
+
+      fireEvent.pointerDown(mainCanvas);
+
+      // Active window is deactivated in store
+      expect(useWorkspaceStore.getState().activeWindowId).toBeNull();
+      // Both windows display data-focused="false"
+      expect(region1.getAttribute("data-focused")).toBe("false");
+      expect(region2.getAttribute("data-focused")).toBe("false");
+    });
+
+    it("deactivates active window when clicking empty TopBar header area", () => {
+      const store = useWorkspaceStore.getState();
+
+      store.addWindow("chart", appleInstrument);
+
+      render(<TerminalShell widgets={mockWidgets} />);
+
+      expect(useWorkspaceStore.getState().activeWindowId).not.toBeNull();
+
+      const newButton = screen.getByRole("button", { name: "New" });
+      const banner = newButton.closest("header")!;
+
+      fireEvent.pointerDown(banner);
+
+      expect(useWorkspaceStore.getState().activeWindowId).toBeNull();
+    });
+
+    it("deactivates active window when clicking empty StatusBar footer area", () => {
+      const store = useWorkspaceStore.getState();
+
+      store.addWindow("chart", appleInstrument);
+
+      render(<TerminalShell widgets={mockWidgets} />);
+
+      expect(useWorkspaceStore.getState().activeWindowId).not.toBeNull();
+
+      const statusBar = screen.getByRole("contentinfo");
+
+      fireEvent.pointerDown(statusBar);
+
+      expect(useWorkspaceStore.getState().activeWindowId).toBeNull();
+    });
+  });
+
+  describe("Scenario 3 UI (focus-management): Focus activation via keyboard navigation (onFocusCapture)", () => {
+    it("activates window and elevates zIndex when keyboard focus moves into a window", () => {
+      const store = useWorkspaceStore.getState();
+      const win1Id = store.addWindow("chart", appleInstrument);
+      const win2Id = store.addWindow("orderBook", spFuturesInstrument);
+
+      // Set win1 as active window first
+      store.focusWindow(win1Id);
+      expect(useWorkspaceStore.getState().activeWindowId).toBe(win1Id);
+
+      render(<TerminalShell widgets={mockWidgets} />);
+
+      const region2 = screen.getByRole("region", { name: "Level II ES" });
+      const closeBtn2 = within(region2).getByRole("button", { name: "Close window" });
+
+      // Emulate keyboard Tab navigation into win-2
+      fireEvent.focus(closeBtn2);
+
+      // Store updates activeWindowId to win2
+      expect(useWorkspaceStore.getState().activeWindowId).toBe(win2Id);
+
+      const win1State = useWorkspaceStore.getState().windows.find((w) => w.id === win1Id);
+      const win2State = useWorkspaceStore.getState().windows.find((w) => w.id === win2Id);
+
+      expect(win2State?.zIndex).toBeGreaterThan(win1State?.zIndex ?? 0);
+    });
+  });
+
+  describe("Scenario 4 UI (focus-management): Focus stealing prevention on interactive click", () => {
+    it("preserves DOM focus on clicked interactive control without stealing focus to window container", () => {
+      const store = useWorkspaceStore.getState();
+      const win1Id = store.addWindow("chart", appleInstrument);
+
+      store.addWindow("orderBook", spFuturesInstrument);
+
+      render(<TerminalShell widgets={mockWidgets} />);
+
+      const region1 = screen.getByRole("region", { name: "Chart AAPL" });
+      const changeBtn = within(region1).getByRole("button", { name: "Change instrument" });
+
+      // Focus and click the Change instrument button
+      changeBtn.focus();
+      fireEvent.click(changeBtn);
+
+      // Window becomes active
+      expect(useWorkspaceStore.getState().activeWindowId).toBe(win1Id);
+      // DOM focus is NOT stolen by section container
+      expect(document.activeElement).toBe(changeBtn);
+      expect(document.activeElement).not.toBe(region1);
+    });
+  });
+
+  describe("Scenario 5 UI (focus-management): Single border focus indicator without double borders", () => {
+    it("renders data-focused='true' strictly on outer TerminalWindow when focused and data-focused='false' when unfocused", () => {
+      const sampleWindow: WorkspaceWindow = {
+        id: "win-border-1",
+        kind: "chart",
+        instrument: appleInstrument,
+        position: { x: 50, y: 60 },
+        size: { width: 400, height: 300 },
+        zIndex: 5,
+      };
+
+      const { rerender } = render(
+        <TerminalWindow
+          window={sampleWindow}
+          widgetDefinition={mockChartWidget}
+          isFocused={true}
+          onClose={vi.fn()}
+          onFocus={vi.fn()}
+          onMove={vi.fn()}
+          onChangeInstrument={vi.fn()}
+        />,
+      );
+
+      const focusedRegion = screen.getByRole("region", { name: "Chart AAPL" });
+
+      expect(focusedRegion.getAttribute("data-focused")).toBe("true");
+
+      rerender(
+        <TerminalWindow
+          window={sampleWindow}
+          widgetDefinition={mockChartWidget}
+          isFocused={false}
+          onClose={vi.fn()}
+          onFocus={vi.fn()}
+          onMove={vi.fn()}
+          onChangeInstrument={vi.fn()}
+        />,
+      );
+
+      const unfocusedRegion = screen.getByRole("region", { name: "Chart AAPL" });
+
+      expect(unfocusedRegion.getAttribute("data-focused")).toBe("false");
+    });
+  });
+
   describe("Scenario 5 UI: Close Window Interaction", () => {
     it("closes a window when clicking Close window button and removes it from the canvas", () => {
       const store = useWorkspaceStore.getState();
@@ -345,6 +505,37 @@ describe("Workspace UI Components (Unit)", () => {
       fireEvent.pointerDown(region);
       expect(handleFocus).toHaveBeenCalledWith("win-test-1");
     });
+
+    it("invokes onFocus callback when an interactive child inside window receives focus via onFocusCapture", () => {
+      const sampleWindow: WorkspaceWindow = {
+        id: "win-test-focus-capture",
+        kind: "chart",
+        instrument: appleInstrument,
+        position: { x: 50, y: 60 },
+        size: { width: 400, height: 300 },
+        zIndex: 5,
+      };
+
+      const handleFocus = vi.fn();
+
+      render(
+        <TerminalWindow
+          window={sampleWindow}
+          widgetDefinition={mockChartWidget}
+          isFocused={false}
+          onClose={vi.fn()}
+          onFocus={handleFocus}
+          onMove={vi.fn()}
+          onChangeInstrument={vi.fn()}
+        />,
+      );
+
+      const region = screen.getByRole("region", { name: "Chart AAPL" });
+      const changeBtn = within(region).getByRole("button", { name: "Change instrument" });
+
+      fireEvent.focus(changeBtn);
+      expect(handleFocus).toHaveBeenCalledWith("win-test-focus-capture");
+    });
   });
 
   describe("TopBar Unit Component", () => {
@@ -367,6 +558,26 @@ describe("Workspace UI Components (Unit)", () => {
       expect(handleToggle).toHaveBeenCalledTimes(1);
 
       expect(screen.getByTestId("top-bar-child")).toBeDefined();
+    });
+
+    it("invokes onClearFocus when clicking empty banner background", () => {
+      const handleClearFocus = vi.fn();
+      const buttonRef = createRef<HTMLButtonElement>();
+
+      render(
+        <TopBar
+          isNewOpen={false}
+          newButtonRef={buttonRef}
+          onToggleNew={vi.fn()}
+          onClearFocus={handleClearFocus}
+        />,
+      );
+
+      const header = screen.getByRole("banner");
+
+      fireEvent.pointerDown(header);
+
+      expect(handleClearFocus).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -395,6 +606,38 @@ describe("Workspace UI Components (Unit)", () => {
       expect(screen.getByTestId("canvas-child")).toBeDefined();
       expect(screen.queryByText(EMPTY_WORKSPACE_TITLE)).toBeNull();
     });
+
+    it("invokes onClearFocus when canvas background receives pointerDown", () => {
+      const handleClearFocus = vi.fn();
+
+      render(
+        <WorkspaceCanvas isEmpty={false} onClearFocus={handleClearFocus}>
+          <div data-testid="canvas-child">Canvas Content</div>
+        </WorkspaceCanvas>,
+      );
+
+      const canvas = screen.getByRole("main", { name: "Workspace" });
+
+      fireEvent.pointerDown(canvas);
+
+      expect(handleClearFocus).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not invoke onClearFocus when pointerDown originates from child content", () => {
+      const handleClearFocus = vi.fn();
+
+      render(
+        <WorkspaceCanvas isEmpty={false} onClearFocus={handleClearFocus}>
+          <button data-testid="canvas-child-button">Action</button>
+        </WorkspaceCanvas>,
+      );
+
+      const button = screen.getByTestId("canvas-child-button");
+
+      fireEvent.pointerDown(button);
+
+      expect(handleClearFocus).not.toHaveBeenCalled();
+    });
   });
 
   describe("StatusBar Unit Component (ADR-0004)", () => {
@@ -411,6 +654,18 @@ describe("Workspace UI Components (Unit)", () => {
       // Zero storage diagnostic banners or popover controls (ADR-0004)
       expect(within(footer).queryByRole("button")).toBeNull();
       expect(within(footer).queryByText(/storage|corrupt|recovery|banner/i)).toBeNull();
+    });
+
+    it("invokes onClearFocus when clicking empty status bar background", () => {
+      const handleClearFocus = vi.fn();
+
+      render(<StatusBar status="connected" onClearFocus={handleClearFocus} />);
+
+      const footer = screen.getByRole("contentinfo");
+
+      fireEvent.pointerDown(footer);
+
+      expect(handleClearFocus).toHaveBeenCalledTimes(1);
     });
   });
 });

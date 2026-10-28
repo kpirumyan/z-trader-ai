@@ -23,6 +23,7 @@ export function TerminalShell({ widgets = [], className }: TerminalShellProps) {
   const addWindow = useWorkspaceStore((state) => state.addWindow);
   const closeWindow = useWorkspaceStore((state) => state.closeWindow);
   const focusWindow = useWorkspaceStore((state) => state.focusWindow);
+  const blurWindow = useWorkspaceStore((state) => state.blurWindow);
   const moveWindow = useWorkspaceStore((state) => state.moveWindow);
   const changeInstrument = useWorkspaceStore((state) => state.changeInstrument);
   const loadWorkspace = useWorkspaceStore((state) => state.loadWorkspace);
@@ -50,7 +51,9 @@ export function TerminalShell({ widgets = [], className }: TerminalShellProps) {
     const targetWin = windows.find((w) => w.id === windowId);
 
     if (targetWin) {
-      setSearchTarget({ kind: targetWin.kind, windowId: targetWin.id });
+      setTimeout(() => {
+        setSearchTarget({ kind: targetWin.kind, windowId: targetWin.id });
+      }, 0);
     }
   };
 
@@ -72,6 +75,7 @@ export function TerminalShell({ widgets = [], className }: TerminalShellProps) {
         isNewOpen={isNewOpen}
         newButtonRef={newButtonRef}
         onToggleNew={() => setIsNewOpen((prev) => !prev)}
+        onClearFocus={blurWindow}
       >
         {isNewOpen && (
           <NewMenuPopover
@@ -85,7 +89,7 @@ export function TerminalShell({ widgets = [], className }: TerminalShellProps) {
         )}
       </TopBar>
 
-      <WorkspaceCanvas isEmpty={isInitialized && windows.length === 0}>
+      <WorkspaceCanvas isEmpty={isInitialized && windows.length === 0} onClearFocus={blurWindow}>
         {windows.map((win) => {
           const widgetDef = widgets.find((w) => w.kind === win.kind);
 
@@ -104,7 +108,7 @@ export function TerminalShell({ widgets = [], className }: TerminalShellProps) {
         })}
       </WorkspaceCanvas>
 
-      <StatusBar />
+      <StatusBar onClearFocus={blurWindow} />
 
       {searchTarget && (
         <InstrumentSearchDialog

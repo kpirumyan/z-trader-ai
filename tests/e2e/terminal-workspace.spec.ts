@@ -279,6 +279,38 @@ test.describe("Terminal Multi-Window Workspace E2E Scenarios", () => {
     await expectShellSurvives(page);
   });
 
+  test("Scenario 7 (focus-management): clicking empty canvas deactivates window focus, clicking window reactivates", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await expectEmptyWorkspace(page);
+
+    const chartWindow = await openNewWindow(page, "Chart", "NQ");
+    const orderBookWindow = await openNewWindow(page, "Level II", "ES");
+
+    await expect(windowRegions(page)).toHaveCount(2);
+
+    // Newly opened Level II window is focused with gold border indicator
+    await expect(orderBookWindow).toBeFocused();
+    await expect(orderBookWindow).toHaveAttribute("data-focused", "true");
+    await expect(chartWindow).toHaveAttribute("data-focused", "false");
+
+    // Click empty canvas area (outside the opened windows)
+    const canvas = page.getByRole("main");
+
+    await canvas.click({ position: { x: 800, y: 300 } });
+
+    // Both windows lose active focus indicator (NinjaTrader canvas blur behavior)
+    await expect(orderBookWindow).toHaveAttribute("data-focused", "false");
+    await expect(chartWindow).toHaveAttribute("data-focused", "false");
+
+    // Click on the first window header area to reactivate it
+    await chartWindow.click({ position: { x: 50, y: 10 } });
+    await expect(chartWindow).toBeFocused();
+    await expect(chartWindow).toHaveAttribute("data-focused", "true");
+    await expect(orderBookWindow).toHaveAttribute("data-focused", "false");
+  });
+
   test("Silent Storage Recovery: corrupted payload resets cleanly without UI error banners (ADR-0004)", async ({
     page,
   }) => {

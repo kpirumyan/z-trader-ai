@@ -125,6 +125,18 @@ export const useWorkspaceStore = create<WorkspaceStore>()((set, get) => ({
     });
   },
 
+  blurWindow: () => {
+    set((state) => {
+      if (state.activeWindowId === null) {
+        return state;
+      }
+
+      return {
+        activeWindowId: null,
+      };
+    });
+  },
+
   moveWindow: (id: string, position: WindowPosition) => {
     set((state) => {
       const clampedX = Math.max(0, Math.round(position.x));

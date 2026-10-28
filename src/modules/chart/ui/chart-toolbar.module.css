@@ -45,6 +45,11 @@
   background-color: var(--surface-raised);
 }
 
+.button:focus-visible {
+  outline: 2px solid var(--brand-gold);
+  outline-offset: 1px;
+}
+
 .button.active {
   color: var(--brand-gold);
   border-color: var(--brand-gold);

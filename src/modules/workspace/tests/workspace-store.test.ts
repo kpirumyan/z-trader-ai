@@ -283,6 +283,49 @@ describe("useWorkspaceStore (Unit)", () => {
     expect(stateIdempotent.windows.find((windowItem) => windowItem.id === id1)?.zIndex).toBe(3);
   });
 
+  it("Scenario 1 (focus-management): blurs active window via blurWindow, setting activeWindowId to null while preserving window geometry and zIndices", () => {
+    const store = useWorkspaceStore.getState();
+    const id1 = store.addWindow("chart", appleInstrument);
+    const id2 = store.addWindow("orderBook", spFuturesInstrument);
+
+    let state = useWorkspaceStore.getState();
+
+    expect(state.windows).toHaveLength(2);
+    expect(state.activeWindowId).toBe(id2);
+
+    const win1Before = state.windows.find((windowItem) => windowItem.id === id1);
+    const win2Before = state.windows.find((windowItem) => windowItem.id === id2);
+
+    expect(win1Before?.zIndex).toBe(1);
+    expect(win2Before?.zIndex).toBe(2);
+
+    // Dispatches blurWindow action
+    store.blurWindow();
+
+    state = useWorkspaceStore.getState();
+
+    // activeWindowId is reset to null
+    expect(state.activeWindowId).toBeNull();
+    // windows list is preserved
+    expect(state.windows).toHaveLength(2);
+
+    const win1After = state.windows.find((windowItem) => windowItem.id === id1);
+    const win2After = state.windows.find((windowItem) => windowItem.id === id2);
+
+    expect(win1After?.position).toEqual(win1Before?.position);
+    expect(win1After?.zIndex).toBe(win1Before?.zIndex);
+    expect(win2After?.position).toEqual(win2Before?.position);
+    expect(win2After?.zIndex).toBe(win2Before?.zIndex);
+
+    // Idempotent: repeated blurWindow call leaves state intact
+    store.blurWindow();
+
+    const stateAfterSecondBlur = useWorkspaceStore.getState();
+
+    expect(stateAfterSecondBlur.activeWindowId).toBeNull();
+    expect(stateAfterSecondBlur.windows).toHaveLength(2);
+  });
+
   it("Scenario 5: closes an active window and falls back to window with highest remaining zIndex", () => {
     const store = useWorkspaceStore.getState();
     const idA = store.addWindow("chart", appleInstrument);

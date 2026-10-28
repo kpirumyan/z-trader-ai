@@ -37,6 +37,11 @@
   border-color: var(--border);
 }
 
+.tickerButton:focus-visible {
+  outline: 2px solid var(--brand-gold);
+  outline-offset: 1px;
+}
+
 .symbol {
   font-family: var(--font-ui);
   font-size: 13px;
@@ -108,6 +113,11 @@
 .filterButton:hover {
   color: var(--text-primary);
   border-color: var(--brand-gold);
+}
+
+.filterButton:focus-visible {
+  outline: 2px solid var(--brand-gold);
+  outline-offset: 1px;
 }
 
 .filterButtonActive {

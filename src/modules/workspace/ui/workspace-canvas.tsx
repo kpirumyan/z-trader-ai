@@ -7,9 +7,23 @@ import styles from "./workspace-canvas.module.css";
 
 import type { WorkspaceCanvasProps } from "../types";
 
-export function WorkspaceCanvas({ children, isEmpty = false }: WorkspaceCanvasProps) {
+export function WorkspaceCanvas({ children, isEmpty = false, onClearFocus }: WorkspaceCanvasProps) {
+  const handlePointerDown = (e: React.PointerEvent<HTMLElement>) => {
+    if (
+      e.target === e.currentTarget ||
+      (e.target as HTMLElement)?.closest?.(`.${styles.watermark}`)
+    ) {
+      onClearFocus?.();
+    }
+  };
+
   return (
-    <main className={styles.canvas} role="main" aria-label="Workspace">
+    <main
+      className={styles.canvas}
+      role="main"
+      aria-label="Workspace"
+      onPointerDown={handlePointerDown}
+    >
       <div className={styles.watermark} aria-hidden="true">
         <Image
           className="theme-light-only"

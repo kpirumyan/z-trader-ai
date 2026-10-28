@@ -1,3 +1,5 @@
+import { useEffect, useRef } from "react";
+
 import { cn } from "@/src/shared/lib";
 
 import { SIZE_FILTER_PRESETS } from "../constants";
@@ -20,12 +22,45 @@ export function TimeAndSalesFilterPopover({
   onApplyFilter,
   onResetFilter,
 }: TimeAndSalesFilterPopoverProps) {
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const firstInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    firstInputRef.current?.focus();
+
+    const handlePointerDownOutside = (event: PointerEvent) => {
+      const target = event.target as HTMLElement | null;
+
+      if (popoverRef.current && !popoverRef.current.contains(target)) {
+        if (
+          target?.closest?.(`.${styles.filterButton}`) ||
+          target?.closest?.('[aria-label="Filter"]')
+        ) {
+          return;
+        }
+
+        onClose();
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDownOutside);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDownOutside);
+    };
+  }, [isOpen, onClose]);
+
   if (!isOpen) {
     return null;
   }
 
   return (
     <div
+      ref={popoverRef}
       className={styles.filterPopover}
       role="dialog"
       aria-label="Trade size filter"
@@ -73,6 +108,7 @@ export function TimeAndSalesFilterPopover({
             Min Size
           </label>
           <input
+            ref={firstInputRef}
             id="min-trade-size"
             type="number"
             min="0"

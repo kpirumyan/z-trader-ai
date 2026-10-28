@@ -30,8 +30,8 @@ export function TerminalWindow({
   } | null>(null);
 
   useEffect(() => {
-    if (isFocused) {
-      sectionRef.current?.focus();
+    if (isFocused && sectionRef.current && !sectionRef.current.contains(document.activeElement)) {
+      sectionRef.current.focus();
     }
   }, [isFocused, window.instrument.symbol]);
 
@@ -104,6 +104,7 @@ export function TerminalWindow({
         height,
       }}
       onPointerDown={() => onFocus(window.id)}
+      onFocusCapture={() => onFocus(window.id)}
     >
       <header
         className={styles.header}

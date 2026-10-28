@@ -8,9 +8,21 @@ import styles from "./top-bar.module.css";
 
 import type { TopBarProps } from "../types";
 
-export function TopBar({ isNewOpen, newButtonRef, onToggleNew, children }: TopBarProps) {
+export function TopBar({
+  isNewOpen,
+  newButtonRef,
+  onToggleNew,
+  onClearFocus,
+  children,
+}: TopBarProps) {
+  const handlePointerDown = (e: React.PointerEvent<HTMLElement>) => {
+    if (e.target === e.currentTarget) {
+      onClearFocus?.();
+    }
+  };
+
   return (
-    <header className={styles.topBar} role="banner">
+    <header className={styles.topBar} role="banner" onPointerDown={handlePointerDown}>
       <div className={styles.brand} aria-label="Z-Trader AI">
         <span className={styles.brandSymbol} aria-hidden="true">
           <Image

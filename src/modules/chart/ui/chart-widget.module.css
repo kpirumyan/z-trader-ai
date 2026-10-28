@@ -5,12 +5,8 @@
   height: 100%;
   overflow: hidden;
   background-color: var(--surface);
-  border: 1px solid var(--border);
+  border: none;
   box-sizing: border-box;
-}
-
-.root.focused {
-  border-color: var(--brand-gold);
 }
 
 .chartArea {

@@ -42,6 +42,7 @@ export interface WorkspaceStoreActions {
   readonly addWindow: (kind: WindowKind, instrument: Instrument) => string;
   readonly closeWindow: (id: string) => void;
   readonly focusWindow: (id: string) => void;
+  readonly blurWindow: () => void;
   readonly moveWindow: (id: string, position: WindowPosition) => void;
   readonly resizeWindow: (id: string, size: WindowSize) => void;
   readonly changeInstrument: (id: string, instrument: Instrument) => void;
@@ -72,6 +73,7 @@ export interface TopBarProps {
   readonly isNewOpen: boolean;
   readonly newButtonRef: Ref<HTMLButtonElement>;
   readonly onToggleNew: () => void;
+  readonly onClearFocus?: () => void;
   readonly children?: ReactNode;
 }
 
@@ -84,10 +86,12 @@ export interface NewMenuPopoverProps {
 export interface WorkspaceCanvasProps {
   readonly children?: ReactNode;
   readonly isEmpty?: boolean;
+  readonly onClearFocus?: () => void;
 }
 
 export interface StatusBarProps {
   readonly status?: "connected" | "connecting" | "disconnected";
   readonly latencyMs?: number;
   readonly serverTime?: string;
+  readonly onClearFocus?: () => void;
 }

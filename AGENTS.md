@@ -15,6 +15,10 @@
   Never edit files or make decisions for the developer when they ask questions, seek clarification, or discuss options. Answer in conversational text first, explain trade-offs, and wait for explicit approval before modifying any workspace files, specifications, or rules.
 </rule>
 
+<rule id="build-in-non-sandbox" severity="REGULAR">
+  Never run `pnpm build` and `pnpmp test:e2e` in sandbox environment.
+</rule>
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 ## This is NOT the Next.js you know

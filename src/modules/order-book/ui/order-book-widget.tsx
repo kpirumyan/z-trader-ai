@@ -15,7 +15,6 @@ import type { OrderBookWidgetProps } from "../types";
 export function OrderBookWidget({
   windowId,
   instrument,
-  onChangeInstrument,
   isFocused = false,
   onSelectPrice,
 }: OrderBookWidgetProps) {
@@ -54,7 +53,6 @@ export function OrderBookWidget({
         name={instrument.name}
         depthLimit={depthLimit}
         onChangeDepthLimit={(limit) => setDepthLimit(windowId, limit)}
-        onChangeInstrument={onChangeInstrument}
       />
 
       <div className={styles.body}>

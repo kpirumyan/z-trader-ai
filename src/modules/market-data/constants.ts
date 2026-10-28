@@ -19,3 +19,5 @@ export const DEMO_INITIAL_PRICES: Readonly<Record<string, number>> = {
   NVDA: 880.0,
   DEFAULT: 100.0,
 } as const;
+
+export const DEMO_ORDER_BOOK_DEPTH = 50;

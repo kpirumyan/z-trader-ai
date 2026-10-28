@@ -34,30 +34,6 @@
   white-space: nowrap;
 }
 
-.changeButton {
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  color: var(--text-secondary);
-  font-family: var(--font-ui);
-  font-size: 11px;
-  padding: 2px 6px;
-  cursor: pointer;
-  transition:
-    background-color 100ms,
-    color 100ms;
-}
-
-.changeButton:hover {
-  background-color: var(--surface-raised);
-  color: var(--text-primary);
-}
-
-.changeButton:focus-visible {
-  outline: 2px solid var(--brand-gold);
-  outline-offset: 1px;
-}
-
 .depthSelector {
   display: flex;
   align-items: center;

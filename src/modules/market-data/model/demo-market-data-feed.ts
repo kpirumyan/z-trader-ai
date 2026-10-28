@@ -1,4 +1,9 @@
-import { DEFAULT_TIMEFRAME, DEMO_FEED_INTERVALS, DEMO_INITIAL_PRICES } from "../constants";
+import {
+  DEFAULT_TIMEFRAME,
+  DEMO_FEED_INTERVALS,
+  DEMO_INITIAL_PRICES,
+  DEMO_ORDER_BOOK_DEPTH,
+} from "../constants";
 
 import type {
   ErrorHandler,
@@ -262,7 +267,7 @@ export class DemoMarketDataFeed implements MarketDataFeed {
     const bids: OrderBookLevel[] = [];
     const asks: OrderBookLevel[] = [];
 
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < DEMO_ORDER_BOOK_DEPTH; i++) {
       const bidPrice = Number((mid * (1 - 0.0003 * (i + 1))).toFixed(2));
       const askPrice = Number((mid * (1 + 0.0003 * (i + 1))).toFixed(2));
       const bidSize = Math.floor(Math.random() * 50) + 1;

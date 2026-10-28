@@ -152,6 +152,40 @@ describe("demo-market-data-feed: DemoMarketDataFeed", () => {
       }
     });
 
+    it("Scenario C: DemoMarketDataFeed generates 50 levels of bids and asks", () => {
+      // Given: DemoMarketDataFeed instance subscribed to ES orderBook topic
+      const feed = createDemoMarketDataFeed();
+
+      feed.connect();
+
+      const receivedMessages: MarketDataMessage[] = [];
+
+      feed.onMessage((msg) => receivedMessages.push(msg));
+
+      feed.subscribeTopic({ symbol: "ES", channel: "orderBook" });
+
+      // When: timer advances by orderBookMs
+      vi.advanceTimersByTime(DEMO_FEED_INTERVALS.orderBookMs);
+
+      // Then: received snapshot bids and asks strictly have length of 50
+      expect(receivedMessages.length).toBeGreaterThanOrEqual(1);
+
+      const message = receivedMessages[0];
+
+      expect(message.topic).toEqual({ symbol: "ES", channel: "orderBook" });
+
+      const parseResult = orderBookSnapshotSchema.safeParse(message.data);
+
+      expect(parseResult.success).toBe(true);
+
+      if (parseResult.success) {
+        const snapshot: OrderBookSnapshot = parseResult.data;
+
+        expect(snapshot.bids).toHaveLength(50);
+        expect(snapshot.asks).toHaveLength(50);
+      }
+    });
+
     it("emits valid ticker quotes at DEMO_FEED_INTERVALS.tickerMs intervals", () => {
       // Given: connected feed subscribed to ticker
       const feed = createDemoMarketDataFeed();

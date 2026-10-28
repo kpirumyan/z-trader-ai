@@ -515,21 +515,67 @@ describe("Order Book Widget Component: UI Presentation & Interaction", () => {
     expect(useOrderBookStore.getState().windows["win-ui-depth"].depthLimit).toBe(50);
   });
 
-  it("Scenario 6 (instrument button): clicking change instrument invokes onChangeInstrument", () => {
+  it("Scenario A: OrderBookHeader renders symbol and name without redundant Change button", () => {
     const onChangeInstrument = vi.fn();
 
     render(
       <OrderBookWidget
-        windowId="win-ui-change"
+        windowId="win-ui-header"
         instrument={mockInstrumentApple}
         onChangeInstrument={onChangeInstrument}
       />,
     );
 
-    const changeButton = screen.getByRole("button", { name: /change/i });
+    expect(screen.getByText("AAPL")).toBeDefined();
+    expect(screen.getByText("Apple Inc.")).toBeDefined();
+    expect(screen.queryByRole("button", { name: /change/i })).toBeNull();
+  });
 
-    fireEvent.click(changeButton);
-    expect(onChangeInstrument).toHaveBeenCalledTimes(1);
+  it("Scenario B: switching depth limit dynamically changes row count using 50-level snapshot", () => {
+    const snapshot50: OrderBookSnapshot = {
+      symbol: "AAPL",
+      timestamp: 1700000020000,
+      bids: Array.from({ length: 50 }, (_, i) => ({
+        price: Number((100 - (i + 1) * 0.1).toFixed(2)),
+        size: 10 + i,
+      })),
+      asks: Array.from({ length: 50 }, (_, i) => ({
+        price: Number((100 + (i + 1) * 0.1).toFixed(2)),
+        size: 10 + i,
+      })),
+    };
+
+    render(<OrderBookWidget windowId="win-ui-depth-switch" instrument={mockInstrumentApple} />);
+
+    act(() => {
+      useOrderBookStore.getState().updateSnapshot("win-ui-depth-switch", snapshot50);
+    });
+
+    const asksSection = screen.getByRole("rowgroup", { name: "Asks" });
+    const bidsSection = screen.getByRole("rowgroup", { name: "Bids" });
+    const button10 = screen.getByRole("button", { name: "10" });
+    const button20 = screen.getByRole("button", { name: "20" });
+    const button50 = screen.getByRole("button", { name: "50" });
+
+    // Initial default depth limit is 20
+    expect(within(asksSection).getAllByRole("row")).toHaveLength(20);
+    expect(within(bidsSection).getAllByRole("row")).toHaveLength(20);
+    expect(button20.getAttribute("data-active")).toBe("true");
+    expect(button20.getAttribute("aria-pressed")).toBe("true");
+
+    // Click depth 10
+    fireEvent.click(button10);
+    expect(within(asksSection).getAllByRole("row")).toHaveLength(10);
+    expect(within(bidsSection).getAllByRole("row")).toHaveLength(10);
+    expect(button10.getAttribute("data-active")).toBe("true");
+    expect(button10.getAttribute("aria-pressed")).toBe("true");
+
+    // Click depth 50
+    fireEvent.click(button50);
+    expect(within(asksSection).getAllByRole("row")).toHaveLength(50);
+    expect(within(bidsSection).getAllByRole("row")).toHaveLength(50);
+    expect(button50.getAttribute("data-active")).toBe("true");
+    expect(button50.getAttribute("aria-pressed")).toBe("true");
   });
 
   it("Scenario 7: renders loading presentation state without NaN or crashes", () => {

@@ -10,7 +10,6 @@ export interface OrderBookHeaderProps {
   readonly name?: string;
   readonly depthLimit: OrderBookDepthLimit;
   readonly onChangeDepthLimit: (limit: OrderBookDepthLimit) => void;
-  readonly onChangeInstrument?: () => void;
 }
 
 export function OrderBookHeader({
@@ -18,23 +17,12 @@ export function OrderBookHeader({
   name,
   depthLimit,
   onChangeDepthLimit,
-  onChangeInstrument,
 }: OrderBookHeaderProps) {
   return (
     <div className={styles.header} role="toolbar" aria-label="Order book controls">
       <div className={styles.instrumentGroup}>
         <span className={styles.symbol}>{symbol}</span>
         {name && <span className={styles.name}>{name}</span>}
-        {onChangeInstrument && (
-          <button
-            type="button"
-            className={styles.changeButton}
-            onClick={onChangeInstrument}
-            aria-label="Change instrument"
-          >
-            Change
-          </button>
-        )}
       </div>
 
       <div className={styles.depthSelector} role="group" aria-label="Depth Limit">

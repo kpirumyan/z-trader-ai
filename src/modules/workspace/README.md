@@ -9,6 +9,9 @@ Provides the modular multi-window workspace manager and terminal shell (`src/mod
   - Focus elevation (`focusWindow`) raising the active window's `zIndex` above all other windows.
   - Window closure (`closeWindow`) with automatic focus fallback to the remaining window with the highest `zIndex`.
   - Interactive pointer drag-and-drop (`moveWindow`) with non-negative coordinate boundary clamping (`x >= 0`, `y >= 0`).
+  - Interactive corner resizing (`resizeWindow`) via bottom-right pointer handle clamped to minimum dimensions (260 × 180px).
+  - Classic MDI minimization (`minimizeWindow`, `restoreWindow`, `toggleMinimizeWindow`) collapsing windows to 180 × 28px headers aligned along the canvas bottom edge in dynamic wrapping slot rows without additional docks or taskbars.
+  - Header double-click and button restoration re-expanding windows to original coordinates/dimensions and raising active focus.
   - Instrument switching (`changeInstrument`) propagating symbol updates across window headers.
   - Workspace reset (`resetWorkspace`) clearing in-memory windows and overwriting persistent storage.
 - Resilient, silent layout persistence in `safeStorage` (`src/shared/storage`) with strict Zod runtime validation (`workspaceStorageSchema`) and zero user-interrupting recovery banners (ADR-0004).
@@ -26,7 +29,7 @@ Exported via `@/src/modules/workspace`:
 
 - **Types**: `NewMenuPopoverProps`, `StatusBarProps`, `TerminalShellProps`, `TerminalWindowProps`, `TopBarProps`, `WindowPosition`, `WindowSize`, `WorkspaceCanvasProps`, `WorkspaceRecord`, `WorkspaceStorageEnvelope`, `WorkspaceStore`, `WorkspaceStoreActions`, `WorkspaceStoreState`, `WorkspaceWindow`
 - **Schemas**: `windowPositionSchema`, `windowSizeSchema`, `workspaceInstrumentSchema`, `workspaceRecordSchema`, `workspaceStorageSchema`, `workspaceWindowSchema`
-- **Constants**: `CURRENT_WORKSPACE_VERSION`, `DEFAULT_WINDOW_HEIGHT`, `DEFAULT_WINDOW_KIND_LABELS`, `DEFAULT_WINDOW_WIDTH`, `DEFAULT_WORKSPACE_ID`, `EMPTY_WORKSPACE_INSTRUCTION`, `EMPTY_WORKSPACE_TITLE`, `MIN_WINDOW_HEIGHT`, `MIN_WINDOW_WIDTH`, `WINDOW_CASCADE_MAX_SLOTS`, `WINDOW_CASCADE_OFFSET`, `WINDOW_CASCADE_STEP`, `WORKSPACE_STORAGE_KEY`
+- **Constants**: `CURRENT_WORKSPACE_VERSION`, `DEFAULT_WINDOW_HEIGHT`, `DEFAULT_WINDOW_KIND_LABELS`, `DEFAULT_WINDOW_WIDTH`, `DEFAULT_WORKSPACE_ID`, `EMPTY_WORKSPACE_INSTRUCTION`, `EMPTY_WORKSPACE_TITLE`, `MIN_WINDOW_HEIGHT`, `MIN_WINDOW_WIDTH`, `MINIMIZED_WINDOW_GAP`, `MINIMIZED_WINDOW_HEIGHT`, `MINIMIZED_WINDOW_MARGIN`, `MINIMIZED_WINDOW_WIDTH`, `WINDOW_CASCADE_MAX_SLOTS`, `WINDOW_CASCADE_OFFSET`, `WINDOW_CASCADE_STEP`, `WORKSPACE_STORAGE_KEY`
 - **Model / State**: `useWorkspaceStore`
 - **Components / Entry Points**: `NewMenuPopover`, `StatusBar`, `TerminalShell`, `TerminalWindow`, `TopBar`, `WorkspaceCanvas`
 

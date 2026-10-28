@@ -25,6 +25,8 @@ export function TerminalShell({ widgets = [], className }: TerminalShellProps) {
   const focusWindow = useWorkspaceStore((state) => state.focusWindow);
   const blurWindow = useWorkspaceStore((state) => state.blurWindow);
   const moveWindow = useWorkspaceStore((state) => state.moveWindow);
+  const resizeWindow = useWorkspaceStore((state) => state.resizeWindow);
+  const toggleMinimizeWindow = useWorkspaceStore((state) => state.toggleMinimizeWindow);
   const changeInstrument = useWorkspaceStore((state) => state.changeInstrument);
   const loadWorkspace = useWorkspaceStore((state) => state.loadWorkspace);
 
@@ -102,6 +104,8 @@ export function TerminalShell({ widgets = [], className }: TerminalShellProps) {
               onClose={closeWindow}
               onFocus={focusWindow}
               onMove={moveWindow}
+              onResize={resizeWindow}
+              onToggleMinimize={toggleMinimizeWindow}
               onChangeInstrument={handleChangeInstrument}
             />
           );

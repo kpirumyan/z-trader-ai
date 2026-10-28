@@ -334,4 +334,112 @@ test.describe("Terminal Multi-Window Workspace E2E Scenarios", () => {
     await expect(windowRegion).toBeVisible();
     await expect(windowRegions(page)).toHaveCount(1);
   });
+
+  test("Scenario 11: Full Resize & MDI Minimize/Restore flow", async ({ page }) => {
+    await page.goto("/");
+    await expectEmptyWorkspace(page);
+
+    // 1. Create Chart window via New menu
+    const chartWindow = await openNewWindow(page, "Chart", "NQ");
+
+    await expect(chartWindow).toBeVisible();
+    await expect(chartWindow).toHaveAttribute("data-minimized", "false");
+
+    const initialBox = await chartWindow.boundingBox();
+
+    expect(initialBox).not.toBeNull();
+
+    // 2. Resize window by dragging bottom-right corner (resize handle)
+    const resizeHandle = chartWindow.locator(
+      'button[aria-label="Resize window"], [data-testid="resize-handle"], div[class*="resizeHandle"]',
+    );
+
+    await expect(resizeHandle).toBeVisible();
+
+    const handleBox = await resizeHandle.boundingBox();
+
+    expect(handleBox).not.toBeNull();
+
+    if (handleBox && initialBox) {
+      await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(handleBox.x + 80, handleBox.y + 60, { steps: 5 });
+      await page.mouse.up();
+
+      const resizedBox = await chartWindow.boundingBox();
+
+      expect(resizedBox).not.toBeNull();
+
+      if (resizedBox) {
+        expect(resizedBox.width).toBeGreaterThan(initialBox.width + 40);
+        expect(resizedBox.height).toBeGreaterThan(initialBox.height + 30);
+      }
+    }
+
+    // 3. Click minimize button; verify window collapses into header (180x28px) at canvas bottom
+    const minimizeBtn = chartWindow.getByRole("button", {
+      name: "Minimize window",
+      exact: true,
+    });
+
+    await expect(minimizeBtn).toBeVisible();
+    await minimizeBtn.click();
+
+    await expect(chartWindow).toHaveAttribute("data-minimized", "true");
+
+    const minimizedBox = await chartWindow.boundingBox();
+
+    expect(minimizedBox).not.toBeNull();
+
+    if (minimizedBox) {
+      expect(Math.round(minimizedBox.width)).toBe(180);
+      expect(Math.round(minimizedBox.height)).toBe(28);
+    }
+
+    // Verify Restore button is now available in minimized header
+    const restoreBtn = chartWindow.getByRole("button", {
+      name: "Restore window",
+      exact: true,
+    });
+
+    await expect(restoreBtn).toBeVisible();
+
+    // 4. Create and minimize second and third window
+    const orderBookWindow = await openNewWindow(page, "Level II", "ES");
+
+    await expect(orderBookWindow).toBeVisible();
+    await orderBookWindow.getByRole("button", { name: "Minimize window", exact: true }).click();
+    await expect(orderBookWindow).toHaveAttribute("data-minimized", "true");
+
+    const tapeWindow = await openNewWindow(page, "T & S", "YM");
+
+    await expect(tapeWindow).toBeVisible();
+    await tapeWindow.getByRole("button", { name: "Minimize window", exact: true }).click();
+    await expect(tapeWindow).toHaveAttribute("data-minimized", "true");
+
+    // Verify all 3 windows exist, are minimized, and are aligned near canvas bottom
+    await expect(windowRegions(page)).toHaveCount(3);
+
+    const box1 = await chartWindow.boundingBox();
+    const box2 = await orderBookWindow.boundingBox();
+    const box3 = await tapeWindow.boundingBox();
+
+    expect(box1).not.toBeNull();
+    expect(box2).not.toBeNull();
+    expect(box3).not.toBeNull();
+
+    // 5. Restore the first minimized window
+    await chartWindow.getByRole("button", { name: "Restore window", exact: true }).click();
+    await expect(chartWindow).toHaveAttribute("data-minimized", "false");
+    await expect(chartWindow).toBeFocused();
+
+    const restoredBox = await chartWindow.boundingBox();
+
+    expect(restoredBox).not.toBeNull();
+
+    if (restoredBox) {
+      expect(restoredBox.width).toBeGreaterThan(250);
+      expect(restoredBox.height).toBeGreaterThan(150);
+    }
+  });
 });

@@ -13,6 +13,11 @@ export const DEFAULT_WINDOW_HEIGHT = 440 as const;
 export const MIN_WINDOW_WIDTH = 260 as const;
 export const MIN_WINDOW_HEIGHT = 180 as const;
 
+export const MINIMIZED_WINDOW_WIDTH = 180 as const;
+export const MINIMIZED_WINDOW_HEIGHT = 28 as const;
+export const MINIMIZED_WINDOW_GAP = 6 as const;
+export const MINIMIZED_WINDOW_MARGIN = 8 as const;
+
 export const DEFAULT_WINDOW_KIND_LABELS: Readonly<Record<WindowKind, string>> = {
   chart: "Chart",
   orderBook: "Level II",

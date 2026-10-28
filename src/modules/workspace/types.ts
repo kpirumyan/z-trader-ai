@@ -18,6 +18,7 @@ export interface WorkspaceWindow {
   readonly position: WindowPosition;
   readonly size?: WindowSize;
   readonly zIndex: number;
+  readonly isMinimized?: boolean;
 }
 
 export interface WorkspaceRecord {
@@ -45,6 +46,9 @@ export interface WorkspaceStoreActions {
   readonly blurWindow: () => void;
   readonly moveWindow: (id: string, position: WindowPosition) => void;
   readonly resizeWindow: (id: string, size: WindowSize) => void;
+  readonly minimizeWindow: (id: string) => void;
+  readonly restoreWindow: (id: string) => void;
+  readonly toggleMinimizeWindow: (id: string) => void;
   readonly changeInstrument: (id: string, instrument: Instrument) => void;
   readonly resetWorkspace: () => void;
   readonly loadWorkspace: () => void;
@@ -63,9 +67,13 @@ export interface TerminalWindowProps {
   readonly window: WorkspaceWindow;
   readonly widgetDefinition?: WidgetDefinition;
   readonly isFocused: boolean;
+  readonly renderPosition?: WindowPosition;
+  readonly renderSize?: WindowSize;
   readonly onClose: (id: string) => void;
   readonly onFocus: (id: string) => void;
   readonly onMove: (id: string, position: WindowPosition) => void;
+  readonly onResize: (id: string, size: WindowSize) => void;
+  readonly onToggleMinimize: (id: string) => void;
   readonly onChangeInstrument: (id: string) => void;
 }
 

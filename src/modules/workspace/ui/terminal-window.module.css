@@ -16,6 +16,27 @@
   border-color: var(--brand-gold);
 }
 
+.window[data-minimized="true"] {
+  width: 180px;
+  height: 28px;
+}
+
+.window[data-minimized="true"]:hover {
+  border-color: var(--brand-gold);
+}
+
+.window[data-minimized="true"] .header {
+  cursor: pointer;
+}
+
+.window[data-minimized="true"] .content {
+  display: none;
+}
+
+.window[data-minimized="true"] .resizeHandle {
+  display: none;
+}
+
 .header {
   display: flex;
   align-items: center;
@@ -90,4 +111,23 @@
   min-height: 0;
   overflow: auto;
   position: relative;
+}
+
+.resizeHandle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 14px;
+  height: 14px;
+  cursor: se-resize;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--border);
+  user-select: none;
+}
+
+.resizeHandle:hover {
+  color: var(--brand-gold);
 }

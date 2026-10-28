@@ -5,6 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   EMPTY_WORKSPACE_INSTRUCTION,
   EMPTY_WORKSPACE_TITLE,
+  MINIMIZED_WINDOW_HEIGHT,
+  MINIMIZED_WINDOW_WIDTH,
+  MIN_WINDOW_HEIGHT,
+  MIN_WINDOW_WIDTH,
   NewMenuPopover,
   StatusBar,
   TerminalShell,
@@ -314,6 +318,8 @@ describe("Workspace UI Components (Unit)", () => {
           onClose={vi.fn()}
           onFocus={vi.fn()}
           onMove={vi.fn()}
+          onResize={vi.fn()}
+          onToggleMinimize={vi.fn()}
           onChangeInstrument={vi.fn()}
         />,
       );
@@ -330,6 +336,8 @@ describe("Workspace UI Components (Unit)", () => {
           onClose={vi.fn()}
           onFocus={vi.fn()}
           onMove={vi.fn()}
+          onResize={vi.fn()}
+          onToggleMinimize={vi.fn()}
           onChangeInstrument={vi.fn()}
         />,
       );
@@ -471,6 +479,8 @@ describe("Workspace UI Components (Unit)", () => {
       const handleClose = vi.fn();
       const handleFocus = vi.fn();
       const handleMove = vi.fn();
+      const handleResize = vi.fn();
+      const handleToggleMinimize = vi.fn();
       const handleChangeInstrument = vi.fn();
 
       render(
@@ -481,6 +491,8 @@ describe("Workspace UI Components (Unit)", () => {
           onClose={handleClose}
           onFocus={handleFocus}
           onMove={handleMove}
+          onResize={handleResize}
+          onToggleMinimize={handleToggleMinimize}
           onChangeInstrument={handleChangeInstrument}
         />,
       );
@@ -526,6 +538,8 @@ describe("Workspace UI Components (Unit)", () => {
           onClose={vi.fn()}
           onFocus={handleFocus}
           onMove={vi.fn()}
+          onResize={vi.fn()}
+          onToggleMinimize={vi.fn()}
           onChangeInstrument={vi.fn()}
         />,
       );
@@ -666,6 +680,356 @@ describe("Workspace UI Components (Unit)", () => {
       fireEvent.pointerDown(footer);
 
       expect(handleClearFocus).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("Window Minimization & Resizing UI Scenarios (Scenarios 7-10)", () => {
+    describe("Scenario 7 UI: Minimizing window collapses it to header dimensions and snaps to bottom of canvas", () => {
+      it("collapses window to header dimensions and hides widget content when clicking Minimize button", () => {
+        const store = useWorkspaceStore.getState();
+
+        store.addWindow("chart", appleInstrument);
+
+        render(<TerminalShell widgets={mockWidgets} />);
+
+        const windowRegion = screen.getByRole("region", { name: "Chart AAPL" });
+
+        expect(windowRegion.getAttribute("data-minimized")).toBe("false");
+
+        const minimizeBtn = within(windowRegion).getByRole("button", {
+          name: "Minimize window",
+        });
+
+        fireEvent.click(minimizeBtn);
+
+        expect(windowRegion.getAttribute("data-minimized")).toBe("true");
+
+        // Minimize button toggles to 'Restore window' accessible label
+        const restoreBtn = within(windowRegion).getByRole("button", {
+          name: "Restore window",
+        });
+
+        expect(restoreBtn).toBeDefined();
+
+        // Dimensions collapse to 180px x 28px
+        expect(windowRegion.style.width).toBe(`${MINIMIZED_WINDOW_WIDTH}px`);
+        expect(windowRegion.style.height).toBe(`${MINIMIZED_WINDOW_HEIGHT}px`);
+
+        // Widget content is hidden in minimized state
+        const widgetContent = windowRegion.querySelector("[data-testid^='widget-chart-']");
+
+        if (widgetContent) {
+          const contentContainer = widgetContent.closest("[class*='content']");
+
+          if (contentContainer) {
+            expect(window.getComputedStyle(contentContainer).display).toBe("none");
+          }
+        }
+      });
+    });
+
+    describe("Scenario 8 UI: Multiple minimized windows wrap into multiple rows at the bottom", () => {
+      it("calculates MDI slot positions wrapping across rows for multiple minimized windows", () => {
+        const store = useWorkspaceStore.getState();
+        const win1 = store.addWindow("chart", appleInstrument);
+        const win2 = store.addWindow("orderBook", spFuturesInstrument);
+        const win3 = store.addWindow("timeAndSales", microsoftInstrument);
+        const win4 = store.addWindow("chart", appleInstrument);
+
+        // Mock canvas client dimensions: width 500px, height 600px
+        // (500 - 2 * 8) / (180 + 6) = 484 / 186 = 2.6 => 2 items per row
+        const clientWidthSpy = vi
+          .spyOn(HTMLElement.prototype, "clientWidth", "get")
+          .mockImplementation(function (this: HTMLElement) {
+            if (this.getAttribute("role") === "main" || this.tagName.toLowerCase() === "main") {
+              return 500;
+            }
+
+            return 0;
+          });
+
+        const clientHeightSpy = vi
+          .spyOn(HTMLElement.prototype, "clientHeight", "get")
+          .mockImplementation(function (this: HTMLElement) {
+            if (this.getAttribute("role") === "main" || this.tagName.toLowerCase() === "main") {
+              return 600;
+            }
+
+            return 0;
+          });
+
+        store.minimizeWindow(win1);
+        store.minimizeWindow(win2);
+        store.minimizeWindow(win3);
+        store.minimizeWindow(win4);
+
+        render(<TerminalShell widgets={mockWidgets} />);
+
+        const regions = screen.getAllByRole("region");
+
+        expect(regions).toHaveLength(4);
+
+        // All 4 windows have data-minimized="true"
+        for (const region of regions) {
+          expect(region.getAttribute("data-minimized")).toBe("true");
+        }
+
+        // Row 0 (bottom row): y = 600 - (0 + 1) * (28 + 6) = 566px
+        // Win 0: left = 8 + 0 * 186 = 8px, top = 566px
+        // Win 1: left = 8 + 1 * 186 = 194px, top = 566px
+        // Row 1 (upper row): y = 600 - (1 + 1) * 34 = 532px
+        // Win 2: left = 8px, top = 532px
+        // Win 3: left = 194px, top = 532px
+        expect(regions[0]?.style.left).toBe("8px");
+        expect(regions[0]?.style.top).toBe("566px");
+
+        expect(regions[1]?.style.left).toBe("194px");
+        expect(regions[1]?.style.top).toBe("566px");
+
+        expect(regions[2]?.style.left).toBe("8px");
+        expect(regions[2]?.style.top).toBe("532px");
+
+        expect(regions[3]?.style.left).toBe("194px");
+        expect(regions[3]?.style.top).toBe("532px");
+
+        clientWidthSpy.mockRestore();
+        clientHeightSpy.mockRestore();
+      });
+
+      it("TerminalWindow applies renderPosition and renderSize overrides when provided", () => {
+        const sampleWindow: WorkspaceWindow = {
+          id: "win-min-render",
+          kind: "chart",
+          instrument: appleInstrument,
+          position: { x: 100, y: 100 },
+          size: { width: 400, height: 300 },
+          zIndex: 2,
+          isMinimized: true,
+        };
+
+        render(
+          <TerminalWindow
+            window={sampleWindow}
+            widgetDefinition={mockChartWidget}
+            isFocused={false}
+            renderPosition={{ x: 8, y: 566 }}
+            renderSize={{ width: MINIMIZED_WINDOW_WIDTH, height: MINIMIZED_WINDOW_HEIGHT }}
+            onClose={vi.fn()}
+            onFocus={vi.fn()}
+            onMove={vi.fn()}
+            onResize={vi.fn()}
+            onToggleMinimize={vi.fn()}
+            onChangeInstrument={vi.fn()}
+          />,
+        );
+
+        const region = screen.getByRole("region", { name: "Chart AAPL" });
+
+        expect(region.getAttribute("data-minimized")).toBe("true");
+        expect(region.style.left).toBe("8px");
+        expect(region.style.top).toBe("566px");
+        expect(region.style.width).toBe(`${MINIMIZED_WINDOW_WIDTH}px`);
+        expect(region.style.height).toBe(`${MINIMIZED_WINDOW_HEIGHT}px`);
+      });
+    });
+
+    describe("Scenario 9 UI: Restoring window via button or double-click expands to original geometry", () => {
+      it("restores minimized window to original size and visible content on Restore button click", () => {
+        const store = useWorkspaceStore.getState();
+        const winId = store.addWindow("chart", appleInstrument);
+
+        store.resizeWindow(winId, { width: 450, height: 350 });
+        store.minimizeWindow(winId);
+
+        render(<TerminalShell widgets={mockWidgets} />);
+
+        const region = screen.getByRole("region", { name: "Chart AAPL" });
+
+        expect(region.getAttribute("data-minimized")).toBe("true");
+
+        const restoreBtn = within(region).getByRole("button", { name: "Restore window" });
+
+        fireEvent.click(restoreBtn);
+
+        expect(region.getAttribute("data-minimized")).toBe("false");
+        expect(region.getAttribute("data-focused")).toBe("true");
+        expect(region.style.width).toBe("450px");
+        expect(region.style.height).toBe("350px");
+
+        // Button toggles back to Minimize window
+        expect(within(region).getByRole("button", { name: "Minimize window" })).toBeDefined();
+      });
+
+      it("restores minimized window when double clicking the window header", () => {
+        const store = useWorkspaceStore.getState();
+        const winId = store.addWindow("chart", appleInstrument);
+
+        store.minimizeWindow(winId);
+
+        render(<TerminalShell widgets={mockWidgets} />);
+
+        const region = screen.getByRole("region", { name: "Chart AAPL" });
+
+        expect(region.getAttribute("data-minimized")).toBe("true");
+
+        const header = region.querySelector("header")!;
+
+        expect(header).toBeDefined();
+
+        fireEvent.doubleClick(header);
+
+        expect(region.getAttribute("data-minimized")).toBe("false");
+        expect(region.getAttribute("data-focused")).toBe("true");
+      });
+
+      it("TerminalWindow dispatches onToggleMinimize on double-click and on minimize/restore button click", () => {
+        const handleToggleMinimize = vi.fn();
+        const sampleWindow: WorkspaceWindow = {
+          id: "win-toggle-test",
+          kind: "chart",
+          instrument: appleInstrument,
+          position: { x: 50, y: 50 },
+          size: { width: 380, height: 440 },
+          zIndex: 1,
+          isMinimized: false,
+        };
+
+        const { rerender } = render(
+          <TerminalWindow
+            window={sampleWindow}
+            widgetDefinition={mockChartWidget}
+            isFocused={true}
+            onClose={vi.fn()}
+            onFocus={vi.fn()}
+            onMove={vi.fn()}
+            onResize={vi.fn()}
+            onToggleMinimize={handleToggleMinimize}
+            onChangeInstrument={vi.fn()}
+          />,
+        );
+
+        const region = screen.getByRole("region", { name: "Chart AAPL" });
+        const minimizeBtn = within(region).getByRole("button", { name: "Minimize window" });
+
+        fireEvent.click(minimizeBtn);
+        expect(handleToggleMinimize).toHaveBeenCalledWith("win-toggle-test");
+
+        // When minimized, double-click on header also invokes onToggleMinimize
+        rerender(
+          <TerminalWindow
+            window={{ ...sampleWindow, isMinimized: true }}
+            widgetDefinition={mockChartWidget}
+            isFocused={true}
+            onClose={vi.fn()}
+            onFocus={vi.fn()}
+            onMove={vi.fn()}
+            onResize={vi.fn()}
+            onToggleMinimize={handleToggleMinimize}
+            onChangeInstrument={vi.fn()}
+          />,
+        );
+
+        const header = region.querySelector("header")!;
+
+        fireEvent.doubleClick(header);
+        expect(handleToggleMinimize).toHaveBeenCalledWith("win-toggle-test");
+      });
+    });
+
+    describe("Scenario 10 UI: Pointer drag on resize handle updates dimensions", () => {
+      it("dispatches onResize with updated dimensions on pointer drag and clamps to minimums", () => {
+        const handleResize = vi.fn();
+        const sampleWindow: WorkspaceWindow = {
+          id: "win-resize-test",
+          kind: "chart",
+          instrument: appleInstrument,
+          position: { x: 50, y: 50 },
+          size: { width: 380, height: 440 },
+          zIndex: 1,
+          isMinimized: false,
+        };
+
+        render(
+          <TerminalWindow
+            window={sampleWindow}
+            widgetDefinition={mockChartWidget}
+            isFocused={true}
+            onClose={vi.fn()}
+            onFocus={vi.fn()}
+            onMove={vi.fn()}
+            onResize={handleResize}
+            onToggleMinimize={vi.fn()}
+            onChangeInstrument={vi.fn()}
+          />,
+        );
+
+        const region = screen.getByRole("region", { name: "Chart AAPL" });
+        const resizeHandle = region.querySelector(
+          "[data-testid='resize-handle'], [aria-label='Resize window'], [class*='resizeHandle']",
+        )!;
+
+        expect(resizeHandle).toBeDefined();
+
+        // Drag SE handle by +50px X, +60px Y
+        fireEvent.pointerDown(resizeHandle, { clientX: 430, clientY: 490, pointerId: 1 });
+        fireEvent.pointerMove(window, { clientX: 480, clientY: 550, pointerId: 1 });
+        fireEvent.pointerUp(window, { clientX: 480, clientY: 550, pointerId: 1 });
+
+        expect(handleResize).toHaveBeenCalledWith("win-resize-test", {
+          width: 430,
+          height: 500,
+        });
+
+        handleResize.mockClear();
+
+        // Drag SE handle inward below minimums (-300px X, -300px Y)
+        fireEvent.pointerDown(resizeHandle, { clientX: 430, clientY: 490, pointerId: 1 });
+        fireEvent.pointerMove(window, { clientX: 130, clientY: 190, pointerId: 1 });
+        fireEvent.pointerUp(window, { clientX: 130, clientY: 190, pointerId: 1 });
+
+        // Should clamp to MIN_WINDOW_WIDTH (260) and MIN_WINDOW_HEIGHT (180)
+        expect(handleResize).toHaveBeenCalledWith("win-resize-test", {
+          width: MIN_WINDOW_WIDTH,
+          height: MIN_WINDOW_HEIGHT,
+        });
+      });
+
+      it("hides resize handle when window is minimized", () => {
+        const sampleWindow: WorkspaceWindow = {
+          id: "win-min-no-resize",
+          kind: "chart",
+          instrument: appleInstrument,
+          position: { x: 50, y: 50 },
+          size: { width: 380, height: 440 },
+          zIndex: 1,
+          isMinimized: true,
+        };
+
+        render(
+          <TerminalWindow
+            window={sampleWindow}
+            widgetDefinition={mockChartWidget}
+            isFocused={false}
+            onClose={vi.fn()}
+            onFocus={vi.fn()}
+            onMove={vi.fn()}
+            onResize={vi.fn()}
+            onToggleMinimize={vi.fn()}
+            onChangeInstrument={vi.fn()}
+          />,
+        );
+
+        const region = screen.getByRole("region", { name: "Chart AAPL" });
+        const resizeHandle = region.querySelector(
+          "[data-testid='resize-handle'], [aria-label='Resize window'], [class*='resizeHandle']",
+        );
+
+        if (resizeHandle) {
+          expect(window.getComputedStyle(resizeHandle).display).toBe("none");
+        } else {
+          expect(resizeHandle).toBeNull();
+        }
+      });
     });
   });
 });

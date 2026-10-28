@@ -22,6 +22,7 @@ export const workspaceWindowSchema = z.object({
   position: windowPositionSchema,
   size: windowSizeSchema.optional(),
   zIndex: z.number().int().nonnegative(),
+  isMinimized: z.boolean().optional(),
 });
 
 export const workspaceRecordSchema = z.object({

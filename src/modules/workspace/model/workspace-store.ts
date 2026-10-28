@@ -81,14 +81,21 @@ export const useWorkspaceStore = create<WorkspaceStore>()((set, get) => ({
       let nextActiveId: string | null = null;
 
       if (nextWindows.length > 0) {
-        if (state.activeWindowId !== id && nextWindows.some((w) => w.id === state.activeWindowId)) {
+        if (
+          state.activeWindowId !== id &&
+          nextWindows.some((w) => w.id === state.activeWindowId && !w.isMinimized)
+        ) {
           nextActiveId = state.activeWindowId;
         } else {
-          const topWindow = nextWindows.reduce((highest, current) =>
-            current.zIndex > highest.zIndex ? current : highest,
-          );
+          const visibleWindows = nextWindows.filter((w) => !w.isMinimized);
 
-          nextActiveId = topWindow.id;
+          if (visibleWindows.length > 0) {
+            const topWindow = visibleWindows.reduce((highest, current) =>
+              current.zIndex > highest.zIndex ? current : highest,
+            );
+
+            nextActiveId = topWindow.id;
+          }
         }
       }
 
@@ -167,6 +174,73 @@ export const useWorkspaceStore = create<WorkspaceStore>()((set, get) => ({
     });
   },
 
+  minimizeWindow: (id: string) => {
+    set((state) => {
+      const target = state.windows.find((w) => w.id === id);
+
+      if (!target) return state;
+
+      const nextWindows = state.windows.map((w) => (w.id === id ? { ...w, isMinimized: true } : w));
+
+      let nextActiveId = state.activeWindowId;
+
+      if (state.activeWindowId === id) {
+        const visibleWindows = nextWindows.filter((w) => !w.isMinimized);
+
+        if (visibleWindows.length > 0) {
+          const topVisible = visibleWindows.reduce((highest, current) =>
+            current.zIndex > highest.zIndex ? current : highest,
+          );
+
+          nextActiveId = topVisible.id;
+        } else {
+          nextActiveId = null;
+        }
+      }
+
+      safeStorage.setJSON(WORKSPACE_STORAGE_KEY, buildStorageEnvelope(nextWindows));
+
+      return {
+        windows: nextWindows,
+        activeWindowId: nextActiveId,
+      };
+    });
+  },
+
+  restoreWindow: (id: string) => {
+    set((state) => {
+      const target = state.windows.find((w) => w.id === id);
+
+      if (!target) return state;
+
+      const maxZ = state.windows.reduce((max, w) => Math.max(max, w.zIndex), 0);
+      const nextZ = maxZ + 1;
+      const nextWindows = state.windows.map((w) =>
+        w.id === id ? { ...w, isMinimized: false, zIndex: nextZ } : w,
+      );
+
+      safeStorage.setJSON(WORKSPACE_STORAGE_KEY, buildStorageEnvelope(nextWindows));
+
+      return {
+        windows: nextWindows,
+        activeWindowId: id,
+      };
+    });
+  },
+
+  toggleMinimizeWindow: (id: string) => {
+    const { windows, minimizeWindow, restoreWindow } = get();
+    const target = windows.find((w) => w.id === id);
+
+    if (!target) return;
+
+    if (target.isMinimized) {
+      restoreWindow(id);
+    } else {
+      minimizeWindow(id);
+    }
+  },
+
   changeInstrument: (id: string, instrument: Instrument) => {
     set((state) => {
       const nextWindows = state.windows.map((w) => (w.id === id ? { ...w, instrument } : w));
@@ -208,11 +282,15 @@ export const useWorkspaceStore = create<WorkspaceStore>()((set, get) => ({
       let activeWindowId: string | null = null;
 
       if (windows.length > 0) {
-        const topWindow = windows.reduce((highest, current) =>
-          current.zIndex > highest.zIndex ? current : highest,
-        );
+        const visibleWindows = windows.filter((w) => !w.isMinimized);
 
-        activeWindowId = topWindow.id;
+        if (visibleWindows.length > 0) {
+          const topWindow = visibleWindows.reduce((highest, current) =>
+            current.zIndex > highest.zIndex ? current : highest,
+          );
+
+          activeWindowId = topWindow.id;
+        }
       }
 
       set({

@@ -10,6 +10,10 @@ import {
   EMPTY_WORKSPACE_TITLE,
   MIN_WINDOW_HEIGHT,
   MIN_WINDOW_WIDTH,
+  MINIMIZED_WINDOW_GAP,
+  MINIMIZED_WINDOW_HEIGHT,
+  MINIMIZED_WINDOW_MARGIN,
+  MINIMIZED_WINDOW_WIDTH,
   WINDOW_CASCADE_MAX_SLOTS,
   WINDOW_CASCADE_OFFSET,
   WINDOW_CASCADE_STEP,
@@ -85,6 +89,34 @@ describe("Workspace Schema Validation", () => {
     expect(workspaceWindowSchema.safeParse(invalidKind).success).toBe(false);
   });
 
+  it("validates workspaceWindowSchema with optional isMinimized flag", () => {
+    const validWindow: WorkspaceWindow = {
+      id: "win-1",
+      kind: "chart",
+      instrument: appleInstrument,
+      position: { x: 16, y: 16 },
+      size: { width: 380, height: 440 },
+      zIndex: 1,
+      isMinimized: true,
+    };
+
+    expect(workspaceWindowSchema.safeParse(validWindow).success).toBe(true);
+
+    const validUnminimized: WorkspaceWindow = {
+      ...validWindow,
+      isMinimized: false,
+    };
+
+    expect(workspaceWindowSchema.safeParse(validUnminimized).success).toBe(true);
+
+    const invalidMinimizedType = {
+      ...validWindow,
+      isMinimized: "not-a-boolean",
+    };
+
+    expect(workspaceWindowSchema.safeParse(invalidMinimizedType).success).toBe(false);
+  });
+
   it("validates workspaceRecordSchema", () => {
     const validRecord = {
       id: "workspace-1",
@@ -154,6 +186,10 @@ describe("Workspace Constants", () => {
     expect(DEFAULT_WINDOW_HEIGHT).toBe(440);
     expect(MIN_WINDOW_WIDTH).toBe(260);
     expect(MIN_WINDOW_HEIGHT).toBe(180);
+    expect(MINIMIZED_WINDOW_WIDTH).toBe(180);
+    expect(MINIMIZED_WINDOW_HEIGHT).toBe(28);
+    expect(MINIMIZED_WINDOW_GAP).toBe(6);
+    expect(MINIMIZED_WINDOW_MARGIN).toBe(8);
     expect(DEFAULT_WINDOW_KIND_LABELS.chart).toBe("Chart");
     expect(DEFAULT_WINDOW_KIND_LABELS.orderBook).toBe("Level II");
     expect(DEFAULT_WINDOW_KIND_LABELS.timeAndSales).toBe("T & S");
@@ -521,5 +557,138 @@ describe("useWorkspaceStore (Unit)", () => {
 
     expect(stateAfterInvalidSchema.windows).toEqual([]);
     expect(stateAfterInvalidSchema.activeWindowId).toBeNull();
+  });
+
+  describe("Window Minimization & Resizing Behavioral Scenarios", () => {
+    it("Scenario 1: minimizing an active window updates state and shifts focus to remaining highest-z window", () => {
+      const store = useWorkspaceStore.getState();
+      const id1 = store.addWindow("chart", appleInstrument);
+      const id2 = store.addWindow("orderBook", spFuturesInstrument);
+
+      const beforeWin2 = useWorkspaceStore.getState().windows.find((w) => w.id === id2);
+
+      expect(beforeWin2).toBeDefined();
+      expect(useWorkspaceStore.getState().activeWindowId).toBe(id2);
+
+      store.minimizeWindow(id2);
+
+      const state = useWorkspaceStore.getState();
+      const win2After = state.windows.find((w) => w.id === id2);
+
+      expect(win2After?.isMinimized).toBe(true);
+      expect(win2After?.position).toEqual(beforeWin2?.position);
+      expect(win2After?.size).toEqual(beforeWin2?.size);
+      expect(state.activeWindowId).toBe(id1);
+    });
+
+    it("Scenario 2: minimizing all windows sets activeWindowId to null", () => {
+      const store = useWorkspaceStore.getState();
+      const id1 = store.addWindow("chart", appleInstrument);
+
+      expect(useWorkspaceStore.getState().activeWindowId).toBe(id1);
+
+      store.minimizeWindow(id1);
+
+      const state = useWorkspaceStore.getState();
+      const win1After = state.windows.find((w) => w.id === id1);
+
+      expect(win1After?.isMinimized).toBe(true);
+      expect(state.activeWindowId).toBeNull();
+    });
+
+    it("Scenario 3: restoring a minimized window unminimizes, elevates zIndex, and focuses it", () => {
+      const store = useWorkspaceStore.getState();
+      const id1 = store.addWindow("chart", appleInstrument);
+      const id2 = store.addWindow("orderBook", spFuturesInstrument);
+
+      store.minimizeWindow(id1);
+      expect(useWorkspaceStore.getState().activeWindowId).toBe(id2);
+
+      const win2ZIndex =
+        useWorkspaceStore.getState().windows.find((w) => w.id === id2)?.zIndex ?? 0;
+
+      store.restoreWindow(id1);
+
+      const state = useWorkspaceStore.getState();
+      const win1After = state.windows.find((w) => w.id === id1);
+
+      expect(win1After?.isMinimized).toBe(false);
+      expect(win1After?.zIndex).toBeGreaterThan(win2ZIndex);
+      expect(state.activeWindowId).toBe(id1);
+    });
+
+    it("Scenario 4: toggle minimize alternates window state", () => {
+      const store = useWorkspaceStore.getState();
+      const id1 = store.addWindow("chart", appleInstrument);
+
+      expect(
+        useWorkspaceStore.getState().windows.find((w) => w.id === id1)?.isMinimized,
+      ).toBeFalsy();
+
+      store.toggleMinimizeWindow(id1);
+
+      expect(useWorkspaceStore.getState().windows.find((w) => w.id === id1)?.isMinimized).toBe(
+        true,
+      );
+
+      store.toggleMinimizeWindow(id1);
+
+      expect(useWorkspaceStore.getState().windows.find((w) => w.id === id1)?.isMinimized).toBe(
+        false,
+      );
+
+      expect(useWorkspaceStore.getState().activeWindowId).toBe(id1);
+    });
+
+    it("Scenario 5: resizing window clamps to minimum dimensions", () => {
+      const store = useWorkspaceStore.getState();
+      const id1 = store.addWindow("chart", appleInstrument);
+
+      store.resizeWindow(id1, { width: 150, height: 100 });
+
+      const stateClamped = useWorkspaceStore.getState();
+      const targetClamped = stateClamped.windows.find((w) => w.id === id1);
+
+      expect(targetClamped?.size).toEqual({
+        width: MIN_WINDOW_WIDTH,
+        height: MIN_WINDOW_HEIGHT,
+      });
+
+      store.resizeWindow(id1, { width: 450, height: 350 });
+
+      const stateValid = useWorkspaceStore.getState();
+      const targetValid = stateValid.windows.find((w) => w.id === id1);
+
+      expect(targetValid?.size).toEqual({ width: 450, height: 350 });
+    });
+
+    it("Scenario 6: safeStorage persistence preserves custom geometry and minimized flags across reload", () => {
+      const store = useWorkspaceStore.getState();
+      const id1 = store.addWindow("chart", appleInstrument);
+
+      const customSize: WindowSize = { width: 500, height: 600 };
+
+      store.resizeWindow(id1, customSize);
+      store.minimizeWindow(id1);
+
+      store.saveWorkspace();
+
+      // Clear in-memory state
+      useWorkspaceStore.setState({ windows: [], activeWindowId: null });
+      expect(useWorkspaceStore.getState().windows).toHaveLength(0);
+
+      // Rehydrate from storage
+      store.loadWorkspace();
+
+      const restoredState = useWorkspaceStore.getState();
+
+      expect(restoredState.windows).toHaveLength(1);
+
+      const restoredWindow = restoredState.windows[0];
+
+      expect(restoredWindow?.id).toBe(id1);
+      expect(restoredWindow?.size).toEqual(customSize);
+      expect(restoredWindow?.isMinimized).toBe(true);
+    });
   });
 });

@@ -6,6 +6,10 @@ import {
   DEFAULT_WINDOW_HEIGHT,
   DEFAULT_WINDOW_KIND_LABELS,
   DEFAULT_WINDOW_WIDTH,
+  MINIMIZED_WINDOW_HEIGHT,
+  MINIMIZED_WINDOW_WIDTH,
+  MIN_WINDOW_HEIGHT,
+  MIN_WINDOW_WIDTH,
 } from "../constants";
 import styles from "./terminal-window.module.css";
 
@@ -15,9 +19,13 @@ export function TerminalWindow({
   window,
   widgetDefinition,
   isFocused,
+  renderPosition,
+  renderSize,
   onClose,
   onFocus,
   onMove,
+  onResize,
+  onToggleMinimize,
   onChangeInstrument,
 }: TerminalWindowProps) {
   const sectionRef = useRef<HTMLElement>(null);
@@ -29,16 +37,50 @@ export function TerminalWindow({
     windowY: number;
   } | null>(null);
 
+  const resizeCleanupRef = useRef<(() => void) | null>(null);
+
+  const isMinimized = Boolean(window.isMinimized);
+  const prevMinimizedRef = useRef(isMinimized);
+  const unminimizedPendingFocusRef = useRef(false);
+
   useEffect(() => {
-    if (isFocused && sectionRef.current && !sectionRef.current.contains(document.activeElement)) {
+    return () => {
+      resizeCleanupRef.current?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    const wasMinimized = prevMinimizedRef.current;
+
+    prevMinimizedRef.current = isMinimized;
+
+    if (wasMinimized && !isMinimized) {
+      unminimizedPendingFocusRef.current = true;
+    } else if (!wasMinimized && isMinimized) {
+      unminimizedPendingFocusRef.current = false;
+    }
+
+    if (!isFocused || !sectionRef.current) return;
+
+    if (
+      unminimizedPendingFocusRef.current ||
+      !sectionRef.current.contains(document.activeElement)
+    ) {
+      unminimizedPendingFocusRef.current = false;
       sectionRef.current.focus();
     }
-  }, [isFocused, window.instrument.symbol]);
+  }, [isFocused, isMinimized, window.instrument.symbol]);
 
   const title = DEFAULT_WINDOW_KIND_LABELS[window.kind] ?? widgetDefinition?.title ?? window.kind;
 
-  const width = window.size?.width ?? DEFAULT_WINDOW_WIDTH;
-  const height = window.size?.height ?? DEFAULT_WINDOW_HEIGHT;
+  const posX = renderPosition?.x ?? window.position.x;
+  const posY = renderPosition?.y ?? window.position.y;
+  const width =
+    renderSize?.width ??
+    (isMinimized ? MINIMIZED_WINDOW_WIDTH : (window.size?.width ?? DEFAULT_WINDOW_WIDTH));
+  const height =
+    renderSize?.height ??
+    (isMinimized ? MINIMIZED_WINDOW_HEIGHT : (window.size?.height ?? DEFAULT_WINDOW_HEIGHT));
 
   const handlePointerDown = (e: React.PointerEvent<HTMLElement>) => {
     if ((e.target as HTMLElement).closest("button")) {
@@ -46,6 +88,10 @@ export function TerminalWindow({
     }
 
     onFocus(window.id);
+
+    if (isMinimized) {
+      return;
+    }
 
     try {
       e.currentTarget.setPointerCapture(e.pointerId);
@@ -56,8 +102,8 @@ export function TerminalWindow({
     dragRef.current = {
       startX: e.clientX,
       startY: e.clientY,
-      windowX: window.position.x,
-      windowY: window.position.y,
+      windowX: posX,
+      windowY: posY,
     };
 
     setIsDragging(true);
@@ -87,6 +133,50 @@ export function TerminalWindow({
     }
   };
 
+  const handleResizePointerDown = (e: React.PointerEvent<HTMLElement>) => {
+    e.stopPropagation();
+    e.preventDefault();
+    onFocus(window.id);
+
+    resizeCleanupRef.current?.();
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startWidth = width;
+    const startHeight = height;
+
+    const handleWindowPointerMove = (ev: PointerEvent) => {
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+      const newWidth = Math.max(MIN_WINDOW_WIDTH, Math.round(startWidth + dx));
+      const newHeight = Math.max(MIN_WINDOW_HEIGHT, Math.round(startHeight + dy));
+
+      onResize(window.id, { width: newWidth, height: newHeight });
+    };
+
+    const handleWindowPointerUp = () => {
+      if (typeof globalThis.window !== "undefined") {
+        globalThis.window.removeEventListener("pointermove", handleWindowPointerMove);
+        globalThis.window.removeEventListener("pointerup", handleWindowPointerUp);
+        globalThis.window.removeEventListener("pointercancel", handleWindowPointerUp);
+      }
+
+      resizeCleanupRef.current = null;
+    };
+
+    if (typeof globalThis.window !== "undefined") {
+      globalThis.window.addEventListener("pointermove", handleWindowPointerMove);
+      globalThis.window.addEventListener("pointerup", handleWindowPointerUp);
+      globalThis.window.addEventListener("pointercancel", handleWindowPointerUp);
+
+      resizeCleanupRef.current = () => {
+        globalThis.window.removeEventListener("pointermove", handleWindowPointerMove);
+        globalThis.window.removeEventListener("pointerup", handleWindowPointerUp);
+        globalThis.window.removeEventListener("pointercancel", handleWindowPointerUp);
+      };
+    }
+  };
+
   const WidgetComponent = widgetDefinition?.component;
 
   return (
@@ -97,11 +187,13 @@ export function TerminalWindow({
       tabIndex={-1}
       aria-label={`${title} ${window.instrument.symbol}`}
       data-focused={isFocused}
+      data-minimized={isMinimized ? "true" : "false"}
       style={{
-        transform: `translate3d(${window.position.x}px, ${window.position.y}px, 0)`,
+        left: `${posX}px`,
+        top: `${posY}px`,
+        width: `${width}px`,
+        height: `${height}px`,
         zIndex: window.zIndex,
-        width,
-        height,
       }}
       onPointerDown={() => onFocus(window.id)}
       onFocusCapture={() => onFocus(window.id)}
@@ -112,6 +204,16 @@ export function TerminalWindow({
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
+        onDoubleClick={() => {
+          const wasMinimized = isMinimized;
+
+          onToggleMinimize(window.id);
+
+          if (wasMinimized) {
+            onFocus(window.id);
+            sectionRef.current?.focus();
+          }
+        }}
       >
         <div className={styles.titleGroup}>
           <span className={styles.title}>{title}</span>
@@ -128,6 +230,7 @@ export function TerminalWindow({
               e.stopPropagation();
               onChangeInstrument(window.id);
             }}
+            onDoubleClick={(e) => e.stopPropagation()}
           >
             <svg
               width="14"
@@ -148,12 +251,39 @@ export function TerminalWindow({
           <button
             type="button"
             className={styles.actionButton}
+            aria-label={isMinimized ? "Restore window" : "Minimize window"}
+            title={isMinimized ? "Restore window" : "Minimize window"}
+            onClick={(e) => {
+              e.stopPropagation();
+
+              const wasMinimized = isMinimized;
+
+              if (wasMinimized) {
+                e.currentTarget.blur();
+              }
+
+              onToggleMinimize(window.id);
+
+              if (wasMinimized) {
+                onFocus(window.id);
+                sectionRef.current?.focus();
+              }
+            }}
+            onDoubleClick={(e) => e.stopPropagation()}
+          >
+            {isMinimized ? "▲" : "—"}
+          </button>
+
+          <button
+            type="button"
+            className={styles.actionButton}
             aria-label="Close window"
             title="Close window"
             onClick={(e) => {
               e.stopPropagation();
               onClose(window.id);
             }}
+            onDoubleClick={(e) => e.stopPropagation()}
           >
             <svg
               width="14"
@@ -173,7 +303,7 @@ export function TerminalWindow({
         </div>
       </header>
 
-      <div className={styles.content}>
+      <div className={styles.content} style={isMinimized ? { display: "none" } : undefined}>
         {WidgetComponent ? (
           <WidgetComponent
             windowId={window.id}
@@ -183,6 +313,29 @@ export function TerminalWindow({
           />
         ) : null}
       </div>
+
+      {!isMinimized && (
+        <div
+          className={styles.resizeHandle}
+          data-testid="resize-handle"
+          aria-label="Resize window"
+          onPointerDown={handleResizePointerDown}
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 14 14"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            aria-hidden="true"
+          >
+            <line x1="12" y1="4" x2="4" y2="12" />
+            <line x1="12" y1="8" x2="8" y2="12" />
+          </svg>
+        </div>
+      )}
     </section>
   );
 }

@@ -36,7 +36,7 @@ Conduct an adaptive, context-driven interview asking **strictly one question at 
 - Core logic: store shape & actions (for modules), adapters/hooks (for shared), or reproduction steps (for bugfixes).
 - UI presentation (if visual): layout, empty/loading/error states, and `DESIGN.md` tokens (mark `N/A` if non-visual).
 - Behavioral test scenarios (Given-When-Then cases, boundary conditions, error recovery).
-- Wiring point (`src/composition/widgets.ts`, `providers.ts`, or `none`) and Playwright E2E necessity.
+- Wiring point (`src/composition/<registry>.ts` or `none`) and Playwright E2E necessity.
 - **Architectural Invariant Impact**: If the design alters system-wide patterns (cross-module boundaries, storage protocols, layer direction, or shared foundations), explicitly agree with the developer on an ADR revision before proceeding.
 
 ### Step 3: Architecture & Frontend Guidance Consultation
@@ -47,9 +47,9 @@ Before drafting the specification, explain in conversational text in maximum det
 
 ### Step 5: RFC Generation (`.agents/plans/specs/<name>.md`)
 Write `.agents/plans/specs/<name>.md` following [spec-template.md](./resources/spec-template.md):
-- Set frontmatter with `name`, `type`, `target_path`, and `status: draft`.
-- Link relevant active ADRs in `Architectural Invariants`.
-- Provide exact, compilable TypeScript code strictly for public contracts in Section 2 (`types.ts`, `index.ts`, and optionally `schema.ts`, `constants.ts`). For shared utilities or units without domain schemas or immutable configs, mark `schema.ts` and `constants.ts` as `N/A: Non-applicable`; never invent artificial schemas (e.g. key string validators) or dummy configs just to satisfy template slots.
+- Set frontmatter with `name`, `type`, `target_path`, `composition_point`, `e2e_required`, and `status: draft`.
+- Link relevant active ADRs and allowed dependencies in `Purpose & Scope`.
+- Provide exact, compilable TypeScript code strictly for public contracts in Section 2 (`types.ts`, `index.ts` including exported function/hook/component signatures, and optionally `schema.ts`, `constants.ts`). For shared utilities or units without domain schemas or immutable configs, mark `schema.ts` and `constants.ts` as `N/A: Non-applicable`; never invent artificial schemas (e.g. key string validators) or dummy configs just to satisfy template slots.
 - Do not write implementation code, function bodies, JSX/TSX markup, or full CSS stylesheets in Sections 3 and 4, nor executable tests in Section 5. Specify state models, action signatures, lifecycles, and Given-When-Then scenarios in prose or interfaces.
 - Specify concrete Given-When-Then behavioral test scenarios applying Anti-Tautology invariants (strictly no static type checks and no external library feature suites; focus on state mutations, custom transforms, and contract seams).
 

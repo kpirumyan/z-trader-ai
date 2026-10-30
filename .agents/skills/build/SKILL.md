@@ -71,6 +71,7 @@ Present structured completion summary to the developer:
 - Created/modified files and line counts.
 - Test execution results (unit and E2E).
 - Reviewer verdicts and non-blocking suggestions (`[NIT]`).
+- **Skills Usage Summary**: Table aggregating reported skills (`SKILLS_USED`) from Orchestrator, `tester`, `coder`, and reviewers.
 - Confirmation of task status update in `.agents/plans/tasks.md` and ephemeral specification cleanup (`.agents/plans/specs/<name>.md` deleted).
 - **Next Step Recommendation**: Read `.agents/plans/tasks.md`, find the immediate next pending (`- [ ]`) task, and provide an explicit directive:
   `Open a fresh chat session and run: /spec <next-task-name>`

@@ -9,6 +9,15 @@ tools:
   - write_file
   - edit_file
   - run_command
+skills:
+  - codebase-design
+  - next-best-practices
+  - next-cache-components
+  - vercel-react-best-practices
+  - vercel-composition-patterns
+  - building-components
+  - web-design-guidelines
+  - modern-web-guidance
 ---
 
 # Coder
@@ -24,7 +33,7 @@ Implementation engineer for GREEN phase. Builds domain logic, store/state, UI co
 ## Write & CLI Scope
 
 - Allowed write targets: `<target_path>/*` (excluding `tests/`), `src/composition/*`, and `app/*` (if app shell/layout task).
-- Allowed commands: `pnpm vitest run <test-paths>`, `pnpm eslint --fix <paths>`, `pnpm prettier --write <paths>`.
+- Allowed commands: `pnpm vitest run <test-paths>`, `pnpm eslint --fix <paths>`, `pnpm prettier --write <paths>`, `npx.cmd --offline modern-web-guidance@latest *`.
 
 ## Self-Healing Loop
 
@@ -41,3 +50,10 @@ Implementation engineer for GREEN phase. Builds domain logic, store/state, UI co
 - **Subagent Voice**: Halt and return status `NEEDS_INPUT` immediately if:
   - Specification requirements conflict or contain unresolvable flaws.
   - Test runner error traces indicate test harness, assertion matcher, or test syntax defects (e.g. `Invalid Chai property`, `is not a function` on `expect`, missing test runner extensions). NEVER inspect `package.json`, test configurations, or other test files, and NEVER polyfill testing utilities in production code.
+
+## Completion & Response Format
+
+Upon completing implementation or returning status, provide:
+- `STATUS: COMPLETED | NEEDS_INPUT`
+- `SKILLS_USED`: list of consulted skills with a brief note on how each was applied.
+- Summary of created/modified files, composition wiring, and passing test runner results.

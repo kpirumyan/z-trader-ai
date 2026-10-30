@@ -39,8 +39,8 @@ Conduct an adaptive, context-driven interview asking **strictly one question at 
 - Wiring point (`src/composition/widgets.ts`, `providers.ts`, or `none`) and Playwright E2E necessity.
 - **Architectural Invariant Impact**: If the design alters system-wide patterns (cross-module boundaries, storage protocols, layer direction, or shared foundations), explicitly agree with the developer on an ADR revision before proceeding.
 
-### Step 3: Frontend Guidance Consultation
-Immediately after the interview and before drafting the RFC, consult the `code-guidance` skill.
+### Step 3: Architecture & Frontend Guidance Consultation
+Immediately after the interview and before drafting the RFC, consult the relevant domain skills for the task (`codebase-design` for module depth and seam placement, `next-best-practices` and `vercel-composition-patterns` for React/Next.js architecture, `building-components` and `modern-web-guidance` for UI/platform capabilities, and `tdd` for non-tautological behavioral test scenarios).
 
 ### Step 4: Solution Vision Explanation
 Before drafting the specification, explain in conversational text in maximum detail how you envision solving the task: architectural approach, data flows, component/service decomposition, state modeling, and integration points.
@@ -58,7 +58,8 @@ Write `.agents/plans/specs/<name>.md` following [spec-template.md](./resources/s
    - When a design supersedes an existing ADR: draft replacement `docs/adr/<NNNN>-<name>.md`, move old approach to `## Rejected Alternatives`, delete superseded ADR, and update `docs/adr/README.md`.
    - When introducing a new system invariant: create a new numbered record in `docs/adr/` and add to `docs/adr/README.md`.
 2. Present the RFC (and any ADR updates) to the developer via `ask_question`:
-   - Include a direct clickable markdown link to the generated specification file (`[.agents/plans/specs/<name>.md](file:///<workspace-root>/.agents/plans/specs/<name>.md)`) and any touched ADRs in the question text so the developer can open and inspect the specification with one click before approving.
+   - Include a direct clickable markdown link to the generated specification file (`[.agents/plans/specs/<name>.md](.agents/plans/specs/<name>.md)`) and any touched ADRs in the question text so the developer can open and inspect the specification with one click before approving.
    - Summarize key architectural decisions, public contract shapes, and test scenarios.
 3. Upon approval, update frontmatter to `status: approved`.
-4. Instruct the developer to open a **fresh chat session** and run `/build <name>` to begin multi-agent assembly.
+4. Output the **Skills Usage Summary** table listing all skills consulted during Session 1 (by the Architect and any subagents).
+5. Instruct the developer to open a **fresh chat session** and run `/build <name>` to begin multi-agent assembly.

@@ -27,6 +27,8 @@ Every reviewer must respond using this exact format:
 
 ```markdown
 STATUS: APPROVED | CHANGES_REQUESTED | NEEDS_INPUT
+SKILLS_USED:
+  - <skill-name>: Concise rule or pattern applied (or none)
 BLOCKERS:
   - [file:line]: Precise failure mechanic, reproduction scenario, or rule violation
 SUGGESTIONS:

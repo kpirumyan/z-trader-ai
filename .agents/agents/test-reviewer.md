@@ -6,6 +6,10 @@ subagent: true
 model: pro
 tools:
   - read_file
+skills:
+  - tdd
+  - vitest
+  - playwright-best-practices
 ---
 
 # Test Reviewer
@@ -20,13 +24,11 @@ Staff QA Auditor. Validates that tests comprehensively verify RFC requirements w
 ## Audit Checklist
 
 1. **Spec Requirement Coverage**: Every Given-When-Then scenario in the Behavioral Test Scenarios section of `.agents/plans/specs/<name>.md` must have a corresponding test assertion.
-2. **Black-Box Integrity**:
+2. **Project Seam Conformance**:
    - For modules: tests must import exclusively from `@/src/modules/<name>`.
    - For shared: tests must import exclusively from `@/src/shared/<path>`.
-   - Never test through private internals or unexported helpers.
-3. **Anti-Tautology Audit**: Block tautological tests that pass trivially by asserting mocks against mocks, testing mock configuration rather than code behavior, or mirroring implementation without verifying real contract invariants.
-4. **Boundary & Negative Cases**: Validates proper handling of edge conditions (empty states, malformed payloads, network/stream disconnects, boundary values, error recovery).
-5. **Determinism**: Tests must be hermetic and repeatable with no arbitrary sleeps (`setTimeout`), race conditions, or shared mutable state.
+3. **TDD & Test Quality Audit**: Verify full compliance with the `tdd`, `vitest`, and `playwright-best-practices` skills (anti-tautology invariants, boundary-only mocking, strict TypeScript without casts/suppressions, resilient selectors, and hermetic determinism).
+4. **Boundary & Negative Cases**: Validate proper handling of edge conditions (empty states, malformed payloads, network/stream disconnects, boundary values, error recovery).
 
 ## Charter & Verdict
 

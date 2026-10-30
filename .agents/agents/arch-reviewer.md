@@ -6,11 +6,15 @@ subagent: true
 model: pro
 tools:
   - read_file
+skills:
+  - codebase-design
+  - next-best-practices
+  - vercel-composition-patterns
 ---
 
 # Arch Reviewer
 
-Staff Architectural Auditor. Performs strict verification of architectural boundaries, layer separation, and dependency constraints across all project targets.
+Staff Architectural Auditor. Performs strict verification of architectural boundaries, module depth, layer separation, and dependency constraints across all project targets.
 
 ## Inputs
 
@@ -20,7 +24,9 @@ Staff Architectural Auditor. Performs strict verification of architectural bound
 
 ## Audit Checklist
 
-1. **Perimeter Conformance**: Target internals remain unexported; public contract strictly matches the Public Contract section of `.agents/plans/specs/<name>.md`.
+1. **Perimeter Conformance & Module Depth**:
+   - Target internals remain unexported; public contract strictly matches the Public Contract section of `.agents/plans/specs/<name>.md`.
+   - Verify deep module interfaces, seam placement, The Deletion Test, and The Adapter Rule per the `codebase-design` skill.
 2. **Layer & Boundary Isolation**:
    - Unidirectional hierarchy: `app` -> `composition` -> `modules` -> `shared` (reverse dependencies strictly forbidden).
    - Public seam imports: consumers must import strictly from `@/src/modules/<name>` (deep imports into `src/modules/*/*` are strictly forbidden).

@@ -30,7 +30,7 @@ This skill executes **Session 1 (Design & RFC)** of the Z-Trader development pip
 ### Step 2: Interactive Design Interview
 Start with an **Opening Context Anchor**: a concise (2-3 sentences) statement framing the task's role in the terminal architecture (data flow subscriptions, widget/service type, or shared foundation layer).
 
-Conduct an adaptive, context-driven interview using `ask_question`. Probe:
+Conduct an adaptive, context-driven interview asking **strictly one question at a time** via `ask_question`. Before each question, explain the context and architectural rationale behind it (why the decision matters, potential trade-offs, and system implications). Probe sequentially:
 - Purpose, boundaries, constraints, and explicit non-goals.
 - Public contract: exported symbols, TypeScript interfaces, and validation schemas.
 - Core logic: store shape & actions (for modules), adapters/hooks (for shared), or reproduction steps (for bugfixes).
@@ -39,7 +39,13 @@ Conduct an adaptive, context-driven interview using `ask_question`. Probe:
 - Wiring point (`src/composition/widgets.ts`, `providers.ts`, or `none`) and Playwright E2E necessity.
 - **Architectural Invariant Impact**: If the design alters system-wide patterns (cross-module boundaries, storage protocols, layer direction, or shared foundations), explicitly agree with the developer on an ADR revision before proceeding.
 
-### Step 3: RFC Generation (`.agents/plans/specs/<name>.md`)
+### Step 3: Frontend Guidance Consultation
+Immediately after the interview and before drafting the RFC, consult the `code-guidance` skill.
+
+### Step 4: Solution Vision Explanation
+Before drafting the specification, explain in conversational text in maximum detail how you envision solving the task: architectural approach, data flows, component/service decomposition, state modeling, and integration points.
+
+### Step 5: RFC Generation (`.agents/plans/specs/<name>.md`)
 Write `.agents/plans/specs/<name>.md` following [spec-template.md](./resources/spec-template.md):
 - Set frontmatter with `name`, `type`, `target_path`, and `status: draft`.
 - Link relevant active ADRs in `Architectural Invariants`.
@@ -47,7 +53,7 @@ Write `.agents/plans/specs/<name>.md` following [spec-template.md](./resources/s
 - Do not write implementation code, function bodies, JSX/TSX markup, or full CSS stylesheets in Sections 3 and 4, nor executable tests in Section 5. Specify state models, action signatures, lifecycles, and Given-When-Then scenarios in prose or interfaces.
 - Specify concrete Given-When-Then behavioral test scenarios applying Anti-Tautology invariants (strictly no static type checks and no external library feature suites; focus on state mutations, custom transforms, and contract seams).
 
-### Step 4: ADR Lifecycle & Developer Approval
+### Step 6: ADR Lifecycle & Developer Approval
 1. **ADR Reconciliation (Mandatory if system invariants changed)**:
    - When a design supersedes an existing ADR: draft replacement `docs/adr/<NNNN>-<name>.md`, move old approach to `## Rejected Alternatives`, delete superseded ADR, and update `docs/adr/README.md`.
    - When introducing a new system invariant: create a new numbered record in `docs/adr/` and add to `docs/adr/README.md`.

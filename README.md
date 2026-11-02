@@ -27,14 +27,3 @@ pnpm test:unit
 pnpm build
 pnpm start
 ```
-
-## Architecture & Conventions
-
-- **Domain Topology & Overview**: [docs/project-overview.md](docs/project-overview.md)
-- **Architectural Decision Records**: [docs/adr/README.md](docs/adr/README.md)
-- **UI Design System & Tokens**: [DESIGN.md](DESIGN.md)
-- **Modular Codebase Rules**: [.agents/rules/codebase-layout.md](.agents/rules/codebase-layout.md)
-
-## Commit Policy
-
-Husky enforces that all commit messages are written strictly in English without Cyrillic characters.

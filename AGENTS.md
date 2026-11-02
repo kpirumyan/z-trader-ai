@@ -2,22 +2,12 @@
 
 **Z-Trader** is a high-performance, multi-window financial trading and market analysis terminal (charts, order book, time & sales, indicators) running in Next.js.
 
-<rule id="ui-design-guidelines" severity="MANDATORY">
-  <summary>When designing, specifying, or implementing UI components or layout, DESIGN.md is the single source of truth for color tokens, themes, typography, and density.</summary>
-  <list type="checklist">
-    <item>Architects must incorporate design tokens and theme requirements from DESIGN.md into the task contract.</item>
-    <item>Coders must strictly follow DESIGN.md tokens and dark/light theme invariants without hardcoding rogue styles.</item>
-    <item>Reviewers must verify that UI changes conform to DESIGN.md and task contracts.</item>
-  </list>
-</rule>
+## Architecture & Conventions
 
-<rule id="discussion-first" severity="MANDATORY">
-  Never edit files or make decisions for the developer when they ask questions, seek clarification, or discuss options. Answer in conversational text first, explain trade-offs, and wait for explicit approval before modifying any workspace files, specifications, or rules.
-</rule>
-
-<rule id="build-in-non-sandbox" severity="REGULAR">
-  Never run `pnpm build` and `pnpmp test:e2e` in sandbox environment.
-</rule>
+- **Domain Topology & Overview**: [docs/project-overview.md](docs/project-overview.md)
+- **Architectural Decision Records**: [docs/adr/README.md](docs/adr/README.md)
+- **UI Design System & Tokens**: [DESIGN.md](DESIGN.md)
+- **Modular Codebase Rules**: [.agents/rules/codebase-layout.md](.agents/rules/codebase-layout.md)
 
 <!-- BEGIN:nextjs-agent-rules -->
 

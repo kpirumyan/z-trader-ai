@@ -69,7 +69,7 @@ describe("Terminal Composition (Integration)", () => {
 
   describe("Scenario 3: Clean application shell perimeter validation", () => {
     it("contains strictly layout.tsx, page.tsx, globals.css in app directory", () => {
-      const appDirectory = path.resolve(process.cwd(), "app");
+      const appDirectory = path.resolve(process.cwd(), "src/app");
       const entries = readdirSync(appDirectory);
       const sortedEntries = [...entries].sort();
 
@@ -82,8 +82,8 @@ describe("Terminal Composition (Integration)", () => {
       expect(existsSync(unitTestsDirectory)).toBe(false);
     });
 
-    it("ensures app/page.tsx imports TerminalApp strictly from @/src/composition", () => {
-      const pageFilePath = path.resolve(process.cwd(), "app/page.tsx");
+    it("ensures src/app/page.tsx imports TerminalApp strictly from @/src/composition", () => {
+      const pageFilePath = path.resolve(process.cwd(), "src/app/page.tsx");
       const fileContent = readFileSync(pageFilePath, "utf-8");
 
       expect(fileContent).toMatch(/from\s+["']@\/src\/composition["']/);

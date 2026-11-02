@@ -16,9 +16,10 @@ module.exports = {
       comment: "Layer violation: code in src/ must not depend on app shell/routing.",
       from: {
         path: "^src",
+        pathNot: "^src/app",
       },
       to: {
-        path: "^app",
+        path: "^src/app",
       },
     },
     {
@@ -29,7 +30,7 @@ module.exports = {
         path: "^src/shared",
       },
       to: {
-        path: "^(src/(modules|composition)|app)",
+        path: "^src/(modules|composition|app)",
       },
     },
     {
@@ -40,7 +41,7 @@ module.exports = {
         path: "^src/modules",
       },
       to: {
-        path: "^(src/composition|app)",
+        path: "^src/(composition|app)",
       },
     },
     {
@@ -51,7 +52,7 @@ module.exports = {
         path: "^src/composition",
       },
       to: {
-        path: "^app",
+        path: "^src/app",
       },
     },
     {
@@ -60,7 +61,7 @@ module.exports = {
       comment:
         "Layer violation: app shell must not depend directly on domain modules. Route via src/composition.",
       from: {
-        path: "^app",
+        path: "^src/app",
       },
       to: {
         path: "^src/modules",
@@ -107,7 +108,7 @@ module.exports = {
       severity: "error",
       comment: "Production code must not import from test files or test suites.",
       from: {
-        path: "^(src|app)",
+        path: "^src",
         pathNot: "tests?/",
       },
       to: {

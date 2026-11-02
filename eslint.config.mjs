@@ -63,11 +63,11 @@ const eslintConfig = defineConfig([
     },
     settings: {
       "import/internal-regex": "^@/",
-      "boundaries/include": ["src/**/*", "app/**/*"],
+      "boundaries/include": ["src/**/*"],
       "boundaries/elements": [
         {
           type: "app",
-          pattern: "app/**",
+          pattern: "src/app/**",
         },
         {
           type: "composition",
@@ -220,7 +220,7 @@ const eslintConfig = defineConfig([
     },
   },
   {
-    files: ["app/**/*.{ts,tsx}"],
+    files: ["src/app/**/*.{ts,tsx}"],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -242,13 +242,21 @@ const eslintConfig = defineConfig([
   },
   {
     files: ["src/**/*.{ts,tsx}"],
+    ignores: ["src/app/**/*.{ts,tsx}"],
     rules: {
       "no-restricted-imports": [
         "error",
         {
           patterns: [
             {
-              group: ["@/app/**", "**/app/**", "../app/**", "../../app/**", "../../../app/**"],
+              group: [
+                "@/app/**",
+                "@/src/app/**",
+                "**/app/**",
+                "../app/**",
+                "../../app/**",
+                "../../../app/**",
+              ],
               message:
                 "Layer violation: code in src/ must not import from app/ (app/ is Next.js shell and routing only).",
             },

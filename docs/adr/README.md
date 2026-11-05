@@ -1,20 +1,22 @@
 # Architectural Decision Records (ADRs)
 
-This directory contains only active, current architectural decisions for Z-Trader. When a decision is superseded, the outdated record is removed, and its rationale and rejected alternatives are incorporated into the replacement ADR.
+This directory contains the Architecture Decision Log (ADL) for Z-Trader, structured according to the **MADR 4.0 (Markdown Architectural Decision Records)** standard enhanced with **AI-Agent bidirectional traceability** (`applies_to` and `enforced_by` frontmatter).
 
-## Governance & Ownership
+## Governance, Lifecycle & Immutability
 
-- **Owner**: System Architect (in consultation with Core Team / Developer).
-- **Lifecycle & Timing**: Authored and reconciled during architectural design sessions or Session 1 (`/spec`) _before_ implementation begins. Downstream agents (`coder`, `tester`, reviewers) execute strictly within these bounds and do not modify ADRs.
+- **Decision Makers**: Product Owner & specialized AI agents (e.g. Architect Agent, Main Agent, Tester Agent).
+- **MADR 4.0 Immutable Log**: Accepted ADRs are immutable historical records. When an architectural decision is replaced or retired, the original file is never deleted or overwritten; its frontmatter `status` is updated to `superseded by ADR-XXXX` or `deprecated`, and a new ADR is created.
+- **AI Agent Filtering & Enforcement**: Coding agents and automated path gates enforce only active decisions (`status: "accepted"`). Use `pnpm adr:list --module <name>` to query active decisions for a domain module, and `pnpm adr:check` to validate compliance.
 
 ## Active Decisions Index
 
-| ID                                                                   | Title                                                                       | Status   | Date       | Area                    |
-| -------------------------------------------------------------------- | --------------------------------------------------------------------------- | -------- | ---------- | ----------------------- |
-| [ADR-0001](./0001-modular-architecture.md)                           | Modular Architecture & Vertical Domain Slices                               | Accepted | 2026-10-24 | Architecture & Layout   |
-| [ADR-0002](./0002-boundary-enforcement-and-quarantine.md)            | Automated Architectural Boundary Enforcement                                | Accepted | 2026-10-24 | Tooling & Governance    |
-| [ADR-0003](./0003-css-architecture.md)                               | CSS Modules, Design Tokens & Styling Standard                               | Accepted | 2026-10-24 | UI & Styling            |
-| [ADR-0004](./0004-resilient-storage-and-terminal-status-bar.md)      | Resilient Silent Storage & Terminal Status Bar                              | Accepted | 2026-10-25 | Storage & UI Layout     |
-| [ADR-0005](./0005-market-data-streaming-and-transport-separation.md) | Out-of-React Market Data Streaming & Transport Separation                   | Accepted | 2026-10-25 | Market Data & Streaming |
-| [ADR-0006](./0006-canvas-charting-and-lightweight-charts.md)         | High-Performance Canvas Charting via Lightweight Charts & Theme Integration | Accepted | 2026-10-25 | Charting & Performance  |
-| [ADR-0007](./0007-ninjatrader-cme-market-data.md)                    | CME Futures Market Data via NinjaTrader 8 Dual-Workflow Architecture        | Accepted | 2026-10-30 | Market Data & Replay    |
+| ID                                                                   | Title                                                                        | Status   | Date       | Area                    |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------------------- | -------- | ---------- | ----------------------- |
+| [ADR-0000](./0000-executable-adr-governance.md)                      | Executable ADR Governance via Hybrid MADR 4.0 and Bidirectional Traceability | accepted | 2026-11-05 | Tooling & Governance    |
+| [ADR-0001](./0001-modular-architecture.md)                           | Modular Architecture & Vertical Domain Slices                                | accepted | 2026-10-24 | Architecture & Layout   |
+| [ADR-0002](./0002-boundary-enforcement-and-quarantine.md)            | Automated Architectural Boundary Enforcement                                 | accepted | 2026-11-05 | Tooling & Governance    |
+| [ADR-0003](./0003-css-architecture.md)                               | CSS Modules, Design Tokens & Styling Standard                                | accepted | 2026-10-24 | UI & Styling            |
+| [ADR-0004](./0004-resilient-storage-and-terminal-status-bar.md)      | Resilient Silent Storage & Terminal Status Bar                               | accepted | 2026-10-25 | Storage & UI Layout     |
+| [ADR-0005](./0005-market-data-streaming-and-transport-separation.md) | Out-of-React Market Data Streaming & Transport Separation                    | accepted | 2026-10-25 | Market Data & Streaming |
+| [ADR-0006](./0006-canvas-charting-and-lightweight-charts.md)         | High-Performance Canvas Charting via Lightweight Charts & Theme Integration  | accepted | 2026-10-25 | Charting & Performance  |
+| [ADR-0007](./0007-ninjatrader-cme-market-data.md)                    | CME Futures Market Data via NinjaTrader 8 Dual-Workflow Architecture         | accepted | 2026-10-30 | Market Data & Replay    |

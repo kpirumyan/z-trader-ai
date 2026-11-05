@@ -1,62 +1,60 @@
 ---
-id: "{{ID}}"
-title: "{{TITLE}}"
-status: "{{STATUS}}"
-date: "{{DATE}}"
+id: "ADR-XXXX"
+title: "<Short Noun Phrase Title>"
+status: "accepted"
+date: "YYYY-MM-DD"
 decision-makers:
   - "Product Owner"
-  - "Architect Agent" # Or Main Agent, Tester Agent, etc. (specify Product Owner and participating agents with 'Agent' suffix)
-area: "{{AREA}}"
+  - "Architect Agent"
+area: "<Architectural Area>"
 applies_to:
-{{APPLIES_TO}}
+  - "src/modules/<module-name>"
 enforced_by:
-{{ENFORCED_BY}}
-supersedes: {{SUPERSEDES}}
-superseded_by: {{SUPERSEDED_BY}}
+  - "src/modules/<module-name>/tests/<test-file>.test.ts"
+supersedes: null
+superseded_by: null
 ---
 
-# {{ID}}: {{TITLE}}
+# ADR-XXXX: <Short Noun Phrase Title>
 
 ## Context and Problem Statement
 
-Describe the context, technical forces, and problem statement motivating this decision. What challenge or architectural choice is being addressed? End with the explicit architectural question being resolved.
+<Describe the architectural context and problem statement in 2–4 paragraphs or bullet points. State clearly what forces are in tension and end with the core question this decision answers.>
 
 ## Decision Drivers
 
-List the primary drivers, requirements, and constraints for this decision. Adapt these to the specific problem domain (e.g., performance, modularity, simplicity, developer ergonomics, security, data integrity, third-party constraints, or testability):
-
-- **Driver 1 (Primary Goal/Requirement)**: State the primary functional or architectural goal.
-- **Driver 2 (Quality Attribute / Constraint)**: State operational boundaries, latency/memory limits, typing, or isolation requirements.
-- **Driver 3 (Verification / Maintainability)**: State automated verification criteria, developer experience, or maintenance constraints.
+- **<Driver 1>**: <Concrete requirement, quality attribute, or constraint.>
+- **<Driver 2>**: <Concrete requirement, quality attribute, or constraint.>
+- **<Driver 3>**: <Concrete requirement, quality attribute, or constraint.>
 
 ## Decision Outcome
 
-Chosen option: **{{TITLE}}**, because it best satisfies the decision drivers with acceptable trade-offs and minimal architectural complexity.
+Chosen option: **<Chosen Option Summary>**, because <concise justification linking back to the decision drivers>.
 
-### 1. Core Architectural Invariant
+### 1. <Core Mechanism or Boundary>
 
-Define the primary structural, behavioral, data-flow, or contract rules established by this decision. Specify what is guaranteed and what constraints must be respected.
+- <Architectural rule or design detail.>
+
+### 2. <Integration or Contract Rules>
+
+- <How modules or layers interact under this decision.>
 
 ## Confirmation and Enforcement
 
-Explain how compliance with this decision is verified and prevented from regressing over time:
-
-- **Automated Verification**: Specify the automated gates (e.g. ESLint rules, TypeScript types, Dependency Cruiser rules, Knip constraints, Vitest unit/integration tests, or Playwright E2E suites).
-- **Manual / Review Gates**: (Optional) Specify code review checks or architectural review protocols if automated enforcement is not applicable.
+- **<Verification Gate 1> (`<path/in/enforced_by>`)**: <How this test, schema, or linter rule mechanically enforces the decision.>
 
 ## Consequences
 
 ### Positive
 
-- [Direct benefit, resolved pain point, or architectural advantage].
-- [Secondary benefit, e.g. improved maintainability, faster development, or clearer ownership].
+- <Direct architectural benefit.>
+- <Direct operational or maintainability benefit.>
 
 ### Negative
 
-- [Accepted trade-off, added maintenance effort, or operational constraint].
-- [Any specific limitations or edge cases that require care].
+- <Explicit trade-off, constraint, or maintenance cost.>
 
 ## Rejected Alternatives
 
-- **[Alternative Option A]**: [Reason for dismissal, e.g. excessive complexity, violates a decision driver, or lacks required capabilities].
-- **[Alternative Option B]**: [Reason for dismissal].
+- **<Alternative 1>**: <Concrete technical reason why this option was rejected.>
+- **<Alternative 2>**: <Concrete technical reason why this option was rejected.>

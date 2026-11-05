@@ -330,8 +330,6 @@ const eslintConfig = defineConfig([
   prettierConfig,
   globalIgnores([
     ".next/**",
-    ".agents/**",
-    ".codex/**",
     "out/**",
     "build/**",
     "coverage/**",

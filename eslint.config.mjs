@@ -231,6 +231,11 @@ const eslintConfig = defineConfig([
               message: "Production code in app/ must not import from tests/.",
             },
             {
+              group: ["@/src/composition/*", "**/src/composition/*"],
+              message:
+                "Deep imports into composition are forbidden. Import only from public entry point '@/src/composition'.",
+            },
+            {
               group: ["@/src/modules/*/*", "**/src/modules/*/*"],
               message:
                 "Deep imports into modules are forbidden. Import only from public entry point '@/src/modules/<name>'.",
@@ -265,6 +270,11 @@ const eslintConfig = defineConfig([
               message: "Production code in src/ must not import from tests/.",
             },
             {
+              group: ["@/src/composition/*", "**/src/composition/*"],
+              message:
+                "Deep imports into composition are forbidden. Import only from public entry point '@/src/composition'.",
+            },
+            {
               group: ["@/src/modules/*/*", "**/src/modules/*/*"],
               message:
                 "Deep imports into modules are forbidden. Import only from public entry point '@/src/modules/<name>'.",
@@ -288,8 +298,11 @@ const eslintConfig = defineConfig([
           patterns: [
             {
               group: [
+                "@/src/composition/*",
                 "@/src/modules/*/*",
                 // 1 level up (e.g. tests/*.test.ts)
+                "../terminal*",
+                "../widgets*",
                 "../model/**",
                 "../model",
                 "../ui/**",

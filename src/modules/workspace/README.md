@@ -54,3 +54,11 @@ Exported via `@/src/modules/workspace`:
 ## Verification
 
 - Behavior verified via black-box test suite in [`tests/`](./tests/).
+
+## Governing ADRs
+
+- [ADR-0001: Modular Architecture & Vertical Domain Slices](../../../docs/adr/0001-modular-architecture.md) — Architecture & Layout
+- [ADR-0002: Automated Architectural Boundary Enforcement](../../../docs/adr/0002-boundary-enforcement-and-quarantine.md) — Tooling & Governance
+- [ADR-0003: CSS Modules, Design Tokens & Styling Standard](../../../docs/adr/0003-css-architecture.md) — UI & Styling
+- [ADR-0004: Resilient Silent Storage & Terminal Status Bar](../../../docs/adr/0004-resilient-storage-and-terminal-status-bar.md) — Storage & UI Layout
+- [ADR-0007: CME Futures Market Data via NinjaTrader 8 Dual-Workflow Architecture](../../../docs/adr/0007-ninjatrader-cme-market-data.md) — Market Data & Replay

@@ -34,3 +34,8 @@ Exported via `@/src/modules/indicators`:
 ## Verification
 
 - Verified via black-box test suite in [`tests/`](./tests/).
+
+## Governing ADRs
+
+- [ADR-0001: Modular Architecture & Vertical Domain Slices](../../../docs/adr/0001-modular-architecture.md) — Architecture & Layout
+- [ADR-0002: Automated Architectural Boundary Enforcement](../../../docs/adr/0002-boundary-enforcement-and-quarantine.md) — Tooling & Governance

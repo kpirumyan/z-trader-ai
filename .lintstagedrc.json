@@ -1,4 +1,6 @@
 {
+  "docs/adr/**": ["pnpm adr:check"],
+  "src/modules/*/README.md": ["pnpm adr:check"],
   "*": "prettier --write --ignore-unknown",
   "*.{js,jsx,mjs,ts,tsx,mts,cts}": ["eslint --fix --max-warnings 0"]
 }

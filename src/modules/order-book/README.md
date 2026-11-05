@@ -43,3 +43,10 @@ Exported via `@/src/modules/order-book`:
 ## Verification
 
 - Behavior verified via black-box test suite in [`tests/`](./tests/).
+
+## Governing ADRs
+
+- [ADR-0001: Modular Architecture & Vertical Domain Slices](../../../docs/adr/0001-modular-architecture.md) — Architecture & Layout
+- [ADR-0002: Automated Architectural Boundary Enforcement](../../../docs/adr/0002-boundary-enforcement-and-quarantine.md) — Tooling & Governance
+- [ADR-0003: CSS Modules, Design Tokens & Styling Standard](../../../docs/adr/0003-css-architecture.md) — UI & Styling
+- [ADR-0005: Out-of-React Market Data Streaming & Transport Separation](../../../docs/adr/0005-market-data-streaming-and-transport-separation.md) — Market Data & Streaming

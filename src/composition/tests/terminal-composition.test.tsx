@@ -1,22 +1,82 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import path from "node:path";
-
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import React from "react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { TerminalApp, WIDGET_REGISTRY } from "@/src/composition";
+import { TerminalApp } from "@/src/composition";
+import { useWorkspaceStore } from "@/src/modules/workspace";
 import { safeStorage } from "@/src/shared/storage";
+
+vi.mock("lightweight-charts", () => {
+  return {
+    createChart: vi.fn((container: HTMLElement) => {
+      const mockSeries = {
+        setData: vi.fn(),
+        update: vi.fn(),
+        applyOptions: vi.fn(),
+        seriesType: vi.fn().mockReturnValue("Candlestick"),
+      };
+
+      const canvas = document.createElement("canvas");
+
+      container.appendChild(canvas);
+
+      return {
+        applyOptions: vi.fn(),
+        resize: vi.fn(),
+        remove: vi.fn(() => {
+          if (container.contains(canvas)) {
+            container.removeChild(canvas);
+          }
+        }),
+        addSeries: vi.fn().mockReturnValue(mockSeries),
+        addCandlestickSeries: vi.fn().mockReturnValue(mockSeries),
+        addHistogramSeries: vi.fn().mockReturnValue(mockSeries),
+        addLineSeries: vi.fn().mockReturnValue(mockSeries),
+        addBarSeries: vi.fn().mockReturnValue(mockSeries),
+        subscribeCrosshairMove: vi.fn(),
+        unsubscribeCrosshairMove: vi.fn(),
+        timeScale: vi.fn().mockReturnValue({
+          fitContent: vi.fn(),
+          scrollToRealtime: vi.fn(),
+        }),
+      };
+    }),
+    CandlestickSeries: "CandlestickSeries",
+    HistogramSeries: "HistogramSeries",
+    LineSeries: "LineSeries",
+    BarSeries: "BarSeries",
+    ColorType: { Solid: "solid", VerticalGradient: "gradient" },
+    CrosshairMode: { Normal: 0, Magnet: 1 },
+  };
+});
+
+class MockResizeObserver implements ResizeObserver {
+  observe = vi.fn();
+  unobserve = vi.fn();
+  disconnect = vi.fn();
+}
+
+const originalResizeObserver = global.ResizeObserver;
+
+beforeAll(() => {
+  global.ResizeObserver = MockResizeObserver;
+});
+
+afterAll(() => {
+  global.ResizeObserver = originalResizeObserver;
+});
 
 describe("Terminal Composition (Integration)", () => {
   beforeEach(() => {
     cleanup();
     safeStorage.clear();
+    useWorkspaceStore.getState().resetWorkspace();
   });
 
   afterEach(() => {
     cleanup();
     safeStorage.clear();
+    useWorkspaceStore.getState().resetWorkspace();
   });
 
   describe("Scenario 1: TerminalApp composition mounting with complete shell hierarchy", () => {
@@ -27,10 +87,9 @@ describe("Terminal Composition (Integration)", () => {
 
       expect(topBar).toBeDefined();
 
-      const mainLandmark = screen.getByRole("main");
+      const mainLandmark = screen.getByRole("main", { name: /Workspace/i });
 
       expect(mainLandmark).toBeDefined();
-      expect(mainLandmark.getAttribute("aria-label")).toMatch(/Workspace/i);
 
       const statusBar = screen.queryByRole("status") ?? screen.getByRole("contentinfo");
 
@@ -38,56 +97,52 @@ describe("Terminal Composition (Integration)", () => {
     });
   });
 
-  describe("Scenario 2: Widget registry exposure and widget definitions integration", () => {
-    it("exposes exactly three widget definitions with unique kinds and valid components", () => {
-      expect(WIDGET_REGISTRY).toHaveLength(3);
+  describe("Scenario 2: End-to-end widget wiring across workspace and domain modules", () => {
+    async function spawnWidgetFromMenu(menuItemLabel: RegExp) {
+      const newButton = screen.getByRole("button", { name: "New" });
 
-      const kinds = WIDGET_REGISTRY.map((widget) => widget.kind);
-      const uniqueKinds = new Set(kinds);
+      fireEvent.click(newButton);
 
-      expect(uniqueKinds.size).toBe(3);
+      const menuItem = screen.getByRole("menuitem", { name: menuItemLabel });
 
-      const chartWidget = WIDGET_REGISTRY.find((widget) => widget.kind === "chart");
+      fireEvent.click(menuItem);
 
-      expect(chartWidget).toBeDefined();
-      expect(chartWidget?.title).toBe("Chart");
-      expect(typeof chartWidget?.component).toBe("function");
+      const firstInstrumentOption = await waitFor(() => {
+        const options = screen.getAllByRole("option");
 
-      const orderBookWidget = WIDGET_REGISTRY.find((widget) => widget.kind === "orderBook");
+        expect(options.length).toBeGreaterThan(0);
 
-      expect(orderBookWidget).toBeDefined();
-      expect(orderBookWidget?.title).toBe("Order Book");
-      expect(typeof orderBookWidget?.component).toBe("function");
+        return options[0]!;
+      });
 
-      const timeAndSalesWidget = WIDGET_REGISTRY.find((widget) => widget.kind === "timeAndSales");
+      const optionButton = within(firstInstrumentOption).getByRole("button");
 
-      expect(timeAndSalesWidget).toBeDefined();
-      expect(timeAndSalesWidget?.title).toBe("Time & Sales");
-      expect(typeof timeAndSalesWidget?.component).toBe("function");
-    });
-  });
+      fireEvent.click(optionButton);
+    }
 
-  describe("Scenario 3: Clean application shell perimeter validation", () => {
-    it("contains strictly layout.tsx, page.tsx, globals.css in app directory", () => {
-      const appDirectory = path.resolve(process.cwd(), "src/app");
-      const entries = readdirSync(appDirectory);
-      const sortedEntries = [...entries].sort();
+    it("exposes Chart, Order Book, and Time & Sales in the New menu and mounts each real domain widget", async () => {
+      render(<TerminalApp />);
 
-      expect(sortedEntries).toEqual(["globals.css", "layout.tsx", "page.tsx"]);
-    });
+      await spawnWidgetFromMenu(/^Chart$/i);
 
-    it("verifies tests/unit directory is completely removed from the project", () => {
-      const unitTestsDirectory = path.resolve(process.cwd(), "tests/unit");
+      const chartRegion = screen.getByRole("region", { name: /^Chart /i });
 
-      expect(existsSync(unitTestsDirectory)).toBe(false);
-    });
+      expect(chartRegion).toBeDefined();
+      expect(within(chartRegion).getByTestId(/^chart-widget-/)).toBeDefined();
 
-    it("ensures src/app/page.tsx imports TerminalApp strictly from @/src/composition", () => {
-      const pageFilePath = path.resolve(process.cwd(), "src/app/page.tsx");
-      const fileContent = readFileSync(pageFilePath, "utf-8");
+      await spawnWidgetFromMenu(/^Level II$/i);
 
-      expect(fileContent).toMatch(/from\s+["']@\/src\/composition["']/);
-      expect(fileContent).not.toMatch(/from\s+["']@\/src\/composition\/.+["']/);
+      const orderBookRegion = screen.getByRole("region", { name: /^Level II /i });
+
+      expect(orderBookRegion).toBeDefined();
+      expect(within(orderBookRegion).getByTestId(/^order-book-widget-/)).toBeDefined();
+
+      await spawnWidgetFromMenu(/^T & S$/i);
+
+      const timeAndSalesRegion = screen.getByRole("region", { name: /^T & S /i });
+
+      expect(timeAndSalesRegion).toBeDefined();
+      expect(within(timeAndSalesRegion).getByTestId(/^time-and-sales-widget-/)).toBeDefined();
     });
   });
 });

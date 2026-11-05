@@ -8,7 +8,7 @@
 
 A core hazard when developing modular systems with autonomous AI agents is architectural drift: agents can easily introduce deep imports (`@/src/modules/foo/model/bar`), circular dependencies, or cross-widget coupling if boundaries are only described in prompts rather than mechanically enforced.
 
-The target architecture defines strict separation between Next.js application shell/routing (`app/`), composition root (`src/composition/`), domain modules (`src/modules/`), and shared foundation (`src/shared/`). Mechanical tooling is necessary to prevent layer violations and maintain codebase integrity.
+The target architecture defines strict separation between Next.js application shell/routing (`src/app/`), composition root (`src/composition/`), domain modules (`src/modules/`), and shared foundation (`src/shared/`). Mechanical tooling is necessary to prevent layer violations and maintain codebase integrity.
 
 ## Decision
 
@@ -31,8 +31,8 @@ We establish automated compile-time and lint-time boundary enforcement using thr
    - Detects dead code, unused exports, unused types, and unreferenced packages with zero tolerance (`--max-issues 0`), maintaining clean public contract seams during and after multi-agent development.
 
 4. **App Shell Layer Isolation:**
-   - Code in `src/**` is strictly forbidden from importing anything from `app/**` via ESLint (`no-restricted-imports`) and `dependency-cruiser`.
-   - `app/` is strictly for Next.js routing and global styling (`layout.tsx`, `page.tsx`, `globals.css`). Any legacy files temporarily remaining in `app/` are obsolete and to be deleted as new units are implemented under `src/`.
+   - Code in `src/composition/**`, `src/modules/**`, and `src/shared/**` is strictly forbidden from importing anything from `src/app/**` via ESLint (`no-restricted-imports`) and `dependency-cruiser`.
+   - `src/app/` is strictly for Next.js routing and global styling (`layout.tsx`, `page.tsx`, `globals.css`). Any legacy files temporarily remaining in `src/app/` are obsolete and to be deleted as new units are implemented under `src/modules/` or `src/shared/`.
 
 ## Consequences
 

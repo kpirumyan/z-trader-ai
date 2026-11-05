@@ -42,7 +42,7 @@
 ## 3. Architectural References
 
 - **Architectural Decisions & Invariants**: [adr/README.md](adr/README.md)
-- **Roadmap Tasks & Status**: [../.agents/plans/tasks.md](../.agents/plans/tasks.md)
+- **Roadmap Plans & Specs**: [../PLANS.md](../PLANS.md)
+- **Roadmap Tasks & Status**: [../TASKS.md](../TASKS.md)
 - **Design Tokens & Themes**: [../DESIGN.md](../DESIGN.md)
-- **Codebase Layout Rules**: [../.agents/rules/codebase-layout.md](../.agents/rules/codebase-layout.md)
-- **Naming Conventions**: [../.agents/rules/naming-conventions.md](../.agents/rules/naming-conventions.md)
+- **Architecture Overview**: [../ARCHITECTURE.md](../ARCHITECTURE.md)

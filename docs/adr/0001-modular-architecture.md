@@ -16,7 +16,7 @@ The initial codebase used horizontal technical partitioning (`app/types`, `app/c
 
 ## Decision
 
-We migrate Z-Trader to a vertical modular architecture structured under `src/modules/<name>/`, accompanied by a composition root (`src/composition/`), a shared foundation layer (`src/shared/`), and minimal Next.js routing in `app/`.
+We migrate Z-Trader to a vertical modular architecture structured under `src/modules/<name>/`, accompanied by a composition root (`src/composition/`), a shared foundation layer (`src/shared/`), and minimal Next.js routing in `src/app/`.
 
 ### 1. Module Structure & Black-Box Perimeter
 
@@ -39,7 +39,7 @@ src/modules/<name>/
 
 - `src/composition/`: The single orchestration root that imports public module seams (`widgets.ts`, `indicators.ts`, `providers.ts`).
 - `src/shared/`: Domain-agnostic foundation code (`contracts/`, `theme/`, `storage/`, `ui/`, `lib/`). `shared/` is strictly unidirectional and must never depend on modules, composition, or routing.
-- `app/`: Contains only Next.js routing (`layout.tsx`, `page.tsx`) and global styling (`globals.css`).
+- `src/app/`: Contains only Next.js routing (`layout.tsx`, `page.tsx`) and global styling (`globals.css`).
 
 ### 3. Replaceable Internals ("Replace Rather Than Fix")
 
@@ -56,7 +56,7 @@ If a module's internal implementation (`model/`, `ui/`) degrades or becomes obso
 ### Negative
 
 - Requires strict automated tooling to prevent deep imports and enforce unidirectional layers.
-- Requires replacing obsolete code in `app/` with modular units under `src/`.
+- Requires replacing obsolete code in `src/app/` with modular units under `src/modules/` and `src/shared/`.
 
 ## Rejected Alternatives
 

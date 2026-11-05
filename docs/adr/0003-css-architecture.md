@@ -8,7 +8,7 @@
 
 Z-Trader is a high-performance financial trading terminal (real-time charts, depth of market, order routing, streaming quotes) built on Next.js 16 and React 19.
 
-The initial implementation stored all component styling in a single monolithic stylesheet (`app/globals.css`, 635+ lines). With the transition to a modular vertical slice architecture ([ADR-0001](./0001-modular-architecture.md)), keeping all styles in a global file creates severe architectural friction:
+The initial implementation stored all component styling in a single monolithic stylesheet (`src/app/globals.css`, 635+ lines). With the transition to a modular vertical slice architecture ([ADR-0001](./0001-modular-architecture.md)), keeping all styles in a global file creates severe architectural friction:
 
 1. **Broken Encapsulation:** Deleting or rewriting a vertical module (`src/modules/<name>/`) leaves dead styles behind in `globals.css`.
 2. **Naming Collisions & Global Leakage:** Global class names require artificial BEM prefixes (`.terminal-window-heading`, `.order-book-cell`) to avoid unintentional collisions across widgets.
@@ -23,7 +23,7 @@ We establish **CSS Modules (`*.module.css`) + CSS Custom Properties (Design Toke
 All design tokens specified in [`DESIGN.md`](../../DESIGN.md) (canvas, surface, borders, typography, brand gold, market buy/sell colors for both light and dark themes) reside in `src/shared/theme/tokens.css`.
 
 - The theme segment owns all token definitions.
-- `app/globals.css` (or `app/layout.tsx`) imports `tokens.css` globally.
+- `src/app/globals.css` (or `src/app/layout.tsx`) imports `tokens.css` globally.
 - Components never hardcode hex colors or rogue palette values; they consume CSS variables (`var(--canvas)`, `var(--brand-gold)`).
 
 ### 2. Component Scoped Styles (`*.module.css`)
@@ -61,10 +61,10 @@ To avoid error-prone template string concatenations and accidental `"false"` cla
 
 ### 4. Incremental Migration Strategy
 
-Migration from `app/globals.css` occurs incrementally alongside the modular architecture rollout:
+Migration from `src/app/globals.css` occurs incrementally alongside the modular architecture rollout:
 
-- When a component is migrated or created in `src/shared/` or `src/modules/`, its styles are extracted into `<component>.module.css` and its legacy class block is removed from `app/globals.css`.
-- Upon completion of Phase 1, `app/globals.css` contains exclusively:
+- When a component is migrated or created in `src/shared/` or `src/modules/`, its styles are extracted into `<component>.module.css` and its legacy class block is removed from `src/app/globals.css`.
+- Upon completion of Phase 1, `src/app/globals.css` contains exclusively:
   1. Token import (`@import "@/src/shared/theme/tokens.css"`).
   2. Baseline HTML/body reset and font configuration.
   3. Root viewport application shell layout (`.terminal-shell`).

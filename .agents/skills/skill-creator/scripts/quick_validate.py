@@ -1,13 +1,60 @@
 #!/usr/bin/env python3
 """
-Quick validation script for skills - minimal version
+Quick validation script for skills - minimal cross-platform version (Linux & Windows)
 """
 
 import sys
-import os
 import re
-import yaml
 from pathlib import Path
+
+try:
+    import yaml
+except ImportError:
+    yaml = None
+
+
+def _parse_frontmatter_fallback(frontmatter_text: str) -> dict:
+    """Minimal zero-dependency YAML frontmatter parser when PyYAML is unavailable."""
+    result: dict = {}
+    lines = frontmatter_text.splitlines()
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            i += 1
+            continue
+        if ":" not in line or line.startswith((" ", "\t")):
+            raise ValueError(f"Unexpected YAML line: {line}")
+        key, val = line.split(":", 1)
+        key = key.strip()
+        val = val.strip()
+        if val in (">", "|", ">-", "|-"):
+            cont: list[str] = []
+            i += 1
+            while i < len(lines) and (lines[i].startswith("  ") or lines[i].startswith("\t") or not lines[i].strip()):
+                if lines[i].strip():
+                    cont.append(lines[i].strip())
+                i += 1
+            result[key] = " ".join(cont)
+            continue
+        elif not val:
+            # Nested mapping or empty value
+            nested: dict = {}
+            i += 1
+            while i < len(lines) and (lines[i].startswith("  ") or lines[i].startswith("\t")):
+                nline = lines[i].strip()
+                if ":" in nline:
+                    nk, nv = nline.split(":", 1)
+                    nested[nk.strip()] = nv.strip().strip('"').strip("'")
+                i += 1
+            result[key] = nested if nested else ""
+            continue
+        else:
+            result[key] = val.strip('"').strip("'")
+        i += 1
+    return result
+
 
 def validate_skill(skill_path):
     """Basic validation of a skill"""
@@ -18,8 +65,8 @@ def validate_skill(skill_path):
     if not skill_md.exists():
         return False, "SKILL.md not found"
 
-    # Read and validate frontmatter
-    content = skill_md.read_text()
+    # Read and validate frontmatter (normalize CRLF -> LF for Windows/Linux compatibility)
+    content = skill_md.read_text(encoding="utf-8-sig").replace("\r\n", "\n")
     if not content.startswith('---'):
         return False, "No YAML frontmatter found"
 
@@ -31,12 +78,18 @@ def validate_skill(skill_path):
     frontmatter_text = match.group(1)
 
     # Parse YAML frontmatter
-    try:
-        frontmatter = yaml.safe_load(frontmatter_text)
-        if not isinstance(frontmatter, dict):
-            return False, "Frontmatter must be a YAML dictionary"
-    except yaml.YAMLError as e:
-        return False, f"Invalid YAML in frontmatter: {e}"
+    if yaml is not None:
+        try:
+            frontmatter = yaml.safe_load(frontmatter_text)
+            if not isinstance(frontmatter, dict):
+                return False, "Frontmatter must be a YAML dictionary"
+        except Exception as e:
+            return False, f"Invalid YAML in frontmatter: {e}"
+    else:
+        try:
+            frontmatter = _parse_frontmatter_fallback(frontmatter_text)
+        except Exception as e:
+            return False, f"Invalid YAML in frontmatter: {e}"
 
     # Define allowed properties
     ALLOWED_PROPERTIES = {'name', 'description', 'license', 'allowed-tools', 'metadata', 'compatibility'}
@@ -93,11 +146,17 @@ def validate_skill(skill_path):
 
     return True, "Skill is valid!"
 
+
 if __name__ == "__main__":
+    if hasattr(sys.stdout, "reconfigure"):
+        try:
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
     if len(sys.argv) != 2:
         print("Usage: python quick_validate.py <skill_directory>")
         sys.exit(1)
-    
+
     valid, message = validate_skill(sys.argv[1])
     print(message)
     sys.exit(0 if valid else 1)

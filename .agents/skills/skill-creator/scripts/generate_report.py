@@ -12,6 +12,8 @@ import json
 import sys
 from pathlib import Path
 
+from scripts.utils import ensure_utf8_stdio
+
 
 def generate_html(data: dict, auto_refresh: bool = False, skill_name: str = "") -> str:
     """Generate HTML report from loop output data. If auto_refresh is True, adds a meta refresh tag."""
@@ -148,7 +150,7 @@ def generate_html(data: dict, auto_refresh: bool = False, skill_name: str = "") 
 <body>
     <h1>""" + title_prefix + """Skill Description Optimization</h1>
     <div class="explainer">
-        <strong>Optimizing your skill's description.</strong> This page updates automatically as Claude tests different versions of your skill's description. Each row is an iteration — a new description attempt. The columns show test queries: green checkmarks mean the skill triggered correctly (or correctly didn't trigger), red crosses mean it got it wrong. The "Train" score shows performance on queries used to improve the description; the "Test" score shows performance on held-out queries the optimizer hasn't seen. When it's done, Claude will apply the best-performing description to your skill.
+        <strong>Optimizing your skill's description.</strong> This page updates automatically as the agent tests different versions of your skill's description. Each row is an iteration — a new description attempt. The columns show test queries: green checkmarks mean the skill triggered correctly (or correctly didn't trigger), red crosses mean it got it wrong. The "Train" score shows performance on queries used to improve the description; the "Test" score shows performance on held-out queries the optimizer hasn't seen. When it's done, the agent will apply the best-performing description to your skill.
     </div>
 """]
 
@@ -203,21 +205,19 @@ def generate_html(data: dict, auto_refresh: bool = False, skill_name: str = "") 
 """)
 
     # Find best iteration for highlighting
-    if test_queries:
-        best_iter = max(history, key=lambda h: h.get("test_passed") or 0).get("iteration")
-    else:
-        best_iter = max(history, key=lambda h: h.get("train_passed", h.get("passed", 0))).get("iteration")
+    best_iter = None
+    if history:
+        if test_queries:
+            best_iter = max(history, key=lambda h: h.get("test_passed") or 0).get("iteration")
+        else:
+            best_iter = max(history, key=lambda h: h.get("train_passed", h.get("passed", 0))).get("iteration")
 
     # Add rows for each iteration
     for h in history:
         iteration = h.get("iteration", "?")
-        train_passed = h.get("train_passed", h.get("passed", 0))
-        train_total = h.get("train_total", h.get("total", 0))
-        test_passed = h.get("test_passed")
-        test_total = h.get("test_total")
         description = h.get("description", "")
         train_results = h.get("train_results", h.get("results", []))
-        test_results = h.get("test_results", [])
+        test_results = h.get("test_results", []) or []
 
         # Create lookups for results by query
         train_by_query = {r["query"]: r for r in train_results}
@@ -302,6 +302,7 @@ def generate_html(data: dict, auto_refresh: bool = False, skill_name: str = "") 
 
 
 def main():
+    ensure_utf8_stdio()
     parser = argparse.ArgumentParser(description="Generate HTML report from run_loop output")
     parser.add_argument("input", help="Path to JSON output from run_loop.py (or - for stdin)")
     parser.add_argument("-o", "--output", default=None, help="Output HTML file (default: stdout)")
@@ -311,12 +312,12 @@ def main():
     if args.input == "-":
         data = json.load(sys.stdin)
     else:
-        data = json.loads(Path(args.input).read_text())
+        data = json.loads(Path(args.input).read_text(encoding="utf-8-sig"))
 
     html_output = generate_html(data, skill_name=args.skill_name)
 
     if args.output:
-        Path(args.output).write_text(html_output)
+        Path(args.output).write_text(html_output, encoding="utf-8")
         print(f"Report written to {args.output}", file=sys.stderr)
     else:
         print(html_output)

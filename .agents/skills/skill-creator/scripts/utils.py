@@ -1,15 +1,25 @@
 """Shared utilities for skill-creator scripts."""
 
+import sys
 from pathlib import Path
 
+
+def ensure_utf8_stdio() -> None:
+    """Ensure stdout and stderr use UTF-8 encoding on Windows and POSIX."""
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(encoding="utf-8", errors="replace")
+            except Exception:
+                pass
 
 
 def parse_skill_md(skill_path: Path) -> tuple[str, str, str]:
     """Parse a SKILL.md file, returning (name, description, full_content)."""
-    content = (skill_path / "SKILL.md").read_text()
-    lines = content.split("\n")
+    content = (skill_path / "SKILL.md").read_text(encoding="utf-8-sig")
+    lines = content.splitlines()
 
-    if lines[0].strip() != "---":
+    if not lines or lines[0].strip() != "---":
         raise ValueError("SKILL.md missing frontmatter (no opening ---)")
 
     end_idx = None
@@ -45,3 +55,4 @@ def parse_skill_md(skill_path: Path) -> tuple[str, str, str]:
         i += 1
 
     return name, description, content
+

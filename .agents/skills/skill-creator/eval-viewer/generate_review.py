@@ -7,9 +7,10 @@ a tiny HTTP server. Feedback auto-saves to feedback.json in the workspace.
 
 Usage:
     python generate_review.py <workspace-path> [--port PORT] [--skill-name NAME]
-    python generate_review.py <workspace-path> --previous-feedback /path/to/old/feedback.json
+    python generate_review.py <workspace-path> --previous-workspace /path/to/old/workspace
+    python generate_review.py <workspace-path> --static /path/to/review.html
 
-No dependencies beyond the Python stdlib are required.
+No dependencies beyond the Python stdlib are required. Works on Linux, macOS, and Windows.
 """
 
 import argparse
@@ -61,7 +62,11 @@ def find_runs(workspace: Path) -> list[dict]:
     """Recursively find directories that contain an outputs/ subdirectory."""
     runs: list[dict] = []
     _find_runs_recursive(workspace, workspace, runs)
-    runs.sort(key=lambda r: (r.get("eval_id", float("inf")), r["id"]))
+    runs.sort(key=lambda r: (
+        r.get("eval_id", float("inf")),
+        0 if "with_skill" in r["id"] or "new_skill" in r["id"] else 1,
+        r["id"],
+    ))
     return runs
 
 
@@ -91,7 +96,7 @@ def build_run(root: Path, run_dir: Path) -> dict | None:
     for candidate in [run_dir / "eval_metadata.json", run_dir.parent / "eval_metadata.json"]:
         if candidate.exists():
             try:
-                metadata = json.loads(candidate.read_text())
+                metadata = json.loads(candidate.read_text(encoding="utf-8-sig"))
                 prompt = metadata.get("prompt", "")
                 eval_id = metadata.get("eval_id")
             except (json.JSONDecodeError, OSError):
@@ -104,7 +109,7 @@ def build_run(root: Path, run_dir: Path) -> dict | None:
         for candidate in [run_dir / "transcript.md", run_dir / "outputs" / "transcript.md"]:
             if candidate.exists():
                 try:
-                    text = candidate.read_text()
+                    text = candidate.read_text(encoding="utf-8-sig", errors="replace")
                     match = re.search(r"## Eval Prompt\n\n([\s\S]*?)(?=\n##|$)", text)
                     if match:
                         prompt = match.group(1).strip()
@@ -131,7 +136,7 @@ def build_run(root: Path, run_dir: Path) -> dict | None:
     for candidate in [run_dir / "grading.json", run_dir.parent / "grading.json"]:
         if candidate.exists():
             try:
-                grading = json.loads(candidate.read_text())
+                grading = json.loads(candidate.read_text(encoding="utf-8-sig"))
             except (json.JSONDecodeError, OSError):
                 pass
             if grading:
@@ -153,7 +158,7 @@ def embed_file(path: Path) -> dict:
 
     if ext in TEXT_EXTENSIONS:
         try:
-            content = path.read_text(errors="replace")
+            content = path.read_text(encoding="utf-8-sig", errors="replace")
         except OSError:
             content = "(Error reading file)"
         return {
@@ -222,7 +227,7 @@ def load_previous_iteration(workspace: Path) -> dict[str, dict]:
     feedback_path = workspace / "feedback.json"
     if feedback_path.exists():
         try:
-            data = json.loads(feedback_path.read_text())
+            data = json.loads(feedback_path.read_text(encoding="utf-8-sig"))
             feedback_map = {
                 r["run_id"]: r["feedback"]
                 for r in data.get("reviews", [])
@@ -255,7 +260,7 @@ def generate_html(
 ) -> str:
     """Generate the complete standalone HTML page with embedded data."""
     template_path = Path(__file__).parent / "viewer.html"
-    template = template_path.read_text()
+    template = template_path.read_text(encoding="utf-8-sig")
 
     # Build previous_feedback and previous_outputs maps for the template
     previous_feedback: dict[str, str] = {}
@@ -282,11 +287,38 @@ def generate_html(
 
 
 # ---------------------------------------------------------------------------
-# HTTP server (stdlib only, zero dependencies)
+# HTTP server (stdlib only, zero dependencies, Linux + Windows compatible)
 # ---------------------------------------------------------------------------
 
 def _kill_port(port: int) -> None:
-    """Kill any process listening on the given port."""
+    """Kill any process listening on the given port (supports Linux, macOS, and Windows)."""
+    if sys.platform == "win32":
+        try:
+            result = subprocess.run(
+                ["netstat", "-ano"],
+                capture_output=True, text=True, timeout=5,
+            )
+            pids: set[int] = set()
+            for line in result.stdout.splitlines():
+                if f":{port}" in line and "LISTENING" in line:
+                    parts = line.split()
+                    if parts:
+                        try:
+                            pids.add(int(parts[-1]))
+                        except ValueError:
+                            pass
+            for pid in pids:
+                if pid > 0 and pid != os.getpid():
+                    subprocess.run(
+                        ["taskkill", "/F", "/PID", str(pid)],
+                        capture_output=True, timeout=5,
+                    )
+            if pids:
+                time.sleep(0.5)
+        except Exception:
+            pass
+        return
+
     try:
         result = subprocess.run(
             ["lsof", "-ti", f":{port}"],
@@ -303,7 +335,8 @@ def _kill_port(port: int) -> None:
     except subprocess.TimeoutExpired:
         pass
     except FileNotFoundError:
-        print("Note: lsof not found, cannot check if port is in use", file=sys.stderr)
+        pass
+
 
 class ReviewHandler(BaseHTTPRequestHandler):
     """Serves the review HTML and handles feedback saves.
@@ -336,7 +369,7 @@ class ReviewHandler(BaseHTTPRequestHandler):
             benchmark = None
             if self.benchmark_path and self.benchmark_path.exists():
                 try:
-                    benchmark = json.loads(self.benchmark_path.read_text())
+                    benchmark = json.loads(self.benchmark_path.read_text(encoding="utf-8-sig"))
                 except (json.JSONDecodeError, OSError):
                     pass
             html = generate_html(runs, self.skill_name, self.previous, benchmark)
@@ -363,14 +396,14 @@ class ReviewHandler(BaseHTTPRequestHandler):
             length = int(self.headers.get("Content-Length", 0))
             body = self.rfile.read(length)
             try:
-                data = json.loads(body)
+                data = json.loads(body.decode("utf-8"))
                 if not isinstance(data, dict) or "reviews" not in data:
                     raise ValueError("Expected JSON object with 'reviews' key")
-                self.feedback_path.write_text(json.dumps(data, indent=2) + "\n")
+                self.feedback_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
                 resp = b'{"ok":true}'
                 self.send_response(200)
             except (json.JSONDecodeError, OSError, ValueError) as e:
-                resp = json.dumps({"error": str(e)}).encode()
+                resp = json.dumps({"error": str(e)}).encode("utf-8")
                 self.send_response(500)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(resp)))
@@ -385,6 +418,13 @@ class ReviewHandler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(encoding="utf-8", errors="replace")
+            except Exception:
+                pass
+
     parser = argparse.ArgumentParser(description="Generate and serve eval review")
     parser.add_argument("workspace", type=Path, help="Path to workspace directory")
     parser.add_argument("--port", "-p", type=int, default=3117, help="Server port (default: 3117)")
@@ -424,14 +464,14 @@ def main() -> None:
     benchmark = None
     if benchmark_path and benchmark_path.exists():
         try:
-            benchmark = json.loads(benchmark_path.read_text())
+            benchmark = json.loads(benchmark_path.read_text(encoding="utf-8-sig"))
         except (json.JSONDecodeError, OSError):
             pass
 
     if args.static:
         html = generate_html(runs, skill_name, previous, benchmark)
         args.static.parent.mkdir(parents=True, exist_ok=True)
-        args.static.write_text(html)
+        args.static.write_text(html, encoding="utf-8")
         print(f"\n  Static viewer written to: {args.static}\n")
         sys.exit(0)
 

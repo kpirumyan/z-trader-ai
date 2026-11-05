@@ -1,66 +1,88 @@
+---
+id: "ADR-0004"
+title: "Resilient Silent Storage & Terminal Status Bar"
+status: "accepted"
+date: "2026-10-25"
+decision-makers:
+  - "Product Owner"
+  - "Architect Agent"
+area: "Storage & UI Layout"
+applies_to:
+  - "src/shared/storage"
+  - "src/modules/workspace"
+enforced_by:
+  - "src/shared/storage/tests/storage.test.ts"
+  - "src/modules/workspace/tests/workspace-store.test.ts"
+  - "src/modules/workspace/tests/workspace-ui.test.tsx"
+supersedes: null
+superseded_by: null
+---
+
 # ADR-0004: Resilient Silent Storage & Terminal Status Bar
 
-- **Status:** Accepted
-- **Date:** 2026-10-25
-- **Deciders:** System Architect, Core Team
+## Context and Problem Statement
 
-## Context
+Z-Trader persists window geometry, active workspace layouts, and user theme preferences on the client via browser storage (`localStorage`). Client storage operations can fail due to quota exhaustion (`QuotaExceededError`), private browsing restrictions (`DOMException: SecurityError`), SSR execution (`typeof window === "undefined"`), or corrupted JSON payloads from schema changes.
 
-Z-Trader persists window geometry, active layouts, and user preferences on the client using browser storage (`localStorage`). Storage operations can fail due to quota restrictions, private browsing / incognito mode restrictions (`DOMException: SecurityError`), or JSON payload corruption from schema migrations.
+Displaying prominent recovery banners or storage diagnostic popovers in a high-density financial trading terminal introduces critical usability issues:
 
-The initial legacy approach relied on a prominent `StorageRecoveryBanner` inside the `WorkspaceCanvas`. An intermediate RFC proposed a reactive `StorageStatusIcon` with diagnostic popovers in the status bar.
+1. **Canvas Occlusion**: Alert banners displace or cover live candlestick charts, Level 2 order books, and Time & Sales feeds during active market monitoring.
+2. **Cognitive Distraction**: Storage health warnings create false urgency for non-critical client caching anomalies that should never interrupt trading workflows.
 
-In a high-density multi-window financial trading terminal:
+How should Z-Trader handle client-side storage failures and allocate status bar real estate?
 
-1. **Canvas Occlusion:** Banners displace or cover active candlestick charts, Level 2 order books, and real-time execution monitors, disrupting active trading operations.
-2. **Cognitive Distraction & Redundant Telemetry:** High-contrast banners or reactive storage health icons in the status bar produce false urgency for transient or background client storage anomalies. Client caching failure should never disrupt the trader nor demand manual intervention.
-3. **Resilience Principle:** If persistent browser storage is blocked or exhausted, the terminal must degrade gracefully and silently into an in-memory session store, allowing all trading workflows to proceed unobstructed.
+## Decision Drivers
 
-## Decision
+- **Zero Trader Disruption**: Client persistence failures must never throw unhandled exceptions, render blocking banners, or occlude active trading windows.
+- **Graceful In-Memory Degradation**: When `localStorage` is blocked or full, state persistence must transparently fall back to an in-memory session store.
+- **Dedicated Operational Telemetry**: The 24px bottom `StatusBar` must be reserved strictly for trading and market feed telemetry (connection status, tick latency, UTC clock).
 
-We establish silent, resilient client-side storage and dedicate the terminal status bar strictly to operational trading telemetry:
+## Decision Outcome
 
-### 1. Abolish All Storage Error Banners and UI Status Indicators
+Chosen option: **Silent Resilient `safeStorage` (`src/shared/storage/`) with In-Memory Fallback + Telemetry-Only `StatusBar` (`src/modules/workspace/`)**.
 
-We eliminate `StorageRecoveryBanner`, and explicitly reject `StorageStatusIcon` and diagnostic storage popovers. Storage operates completely silently without distracting or cluttering the trader UI.
+### 1. Abolish Storage Error Banners & Diagnostic Popovers
 
-### 2. Introduce Resilient Dual-Layer `safeStorage` (`src/shared/storage/`)
+Z-Trader renders zero UI error banners, toasts, or status bar icons for client storage anomalies. All storage recovery happens silently behind the storage abstraction.
 
-We introduce a domain-agnostic, resilient storage utility in `src/shared/storage/` providing a unified dual-layer API:
+### 2. Resilient Dual-Layer `safeStorage` (`src/shared/storage/`)
 
-- **Low-level Storage API:** String-based key-value methods matching the browser contract (`getItem`, `setItem`, `removeItem`, `clear`).
-- **High-level Typed JSON & Schema API:** Typed helpers (`getJSON<T>`, `setJSON<T>`) supporting optional runtime Zod schema parsing and safe fallbacks.
-- **Transparent In-Memory Fallback:** Traps SSR environments (`typeof window === 'undefined'`), private browsing errors (`DOMException: SecurityError`), and storage exhaustion (`QuotaExceededError`). When `localStorage` is inaccessible or fails, operations automatically and silently divert to an internal in-memory key-value store for the remainder of the session without throwing.
+`src/shared/storage/` exports `safeStorage`, providing a unified dual-layer API:
 
-### 3. Retain `StatusBar` Strictly for Terminal Telemetry (`src/modules/workspace/`)
+- **Low-Level String API**: Browser-compatible `getItem`, `setItem`, `removeItem`, and `clear`.
+- **High-Level Typed JSON & Schema API**: `getJSON<T>` and `setJSON<T>` supporting optional runtime Zod schema validation and typed default fallbacks.
+- **Transparent In-Memory Fallback**: Traps SSR environments, `SecurityError`, `QuotaExceededError`, and malformed JSON payloads, automatically diverting reads/writes to an internal in-memory map for the remainder of the session without throwing.
 
-We maintain the standardized bottom bar component (`src/modules/workspace/ui/status-bar.tsx` with `status-bar.module.css`) in the terminal shell structure:
+### 3. Telemetry-Dedicated `StatusBar` (`src/modules/workspace/`)
+
+The terminal shell (`TerminalShell` in `src/modules/workspace/ui/terminal-shell.tsx`) maintains a strict three-tier vertical layout:
 
 ```text
 TerminalShell
-├── TopBar            # Top: branding, window creation ("New"), workspace actions, theme toggle
-├── WorkspaceCanvas   # Main: multi-window draggable canvas (Chart, Order Book, Time & Sales)
-└── StatusBar         # Bottom: operational telemetry (WebSocket feed health, tick latency, UTC clock)
+├── TopBar            # Top (32px): branding, window creation ("New"), workspace actions, theme toggle
+├── WorkspaceCanvas   # Main: multi-window draggable MDI canvas (Chart, Order Book, Time & Sales)
+└── StatusBar         # Bottom (24px): operational telemetry (feed health, tick latency, UTC clock)
 ```
 
-- **Height & Layout:** Compact height (24px), docked to the bottom edge with a subtle border (`var(--border)`) and neutral surface (`var(--surface)`).
-- **Telemetry Host:** Hosts purely operational trading telemetry (market data connectivity, server clock, latency). Hosts zero storage diagnostic controls or icons.
+## Confirmation and Enforcement
+
+- **Storage Resilience Unit Tests (`src/shared/storage/tests/storage.test.ts`)**: Verifies silent in-memory fallback when `localStorage` throws `SecurityError` or `QuotaExceededError`, and verifies Zod schema fallback on corrupt JSON payloads.
+- **Workspace Persistence & UI Tests (`src/modules/workspace/tests/workspace-store.test.ts`, `src/modules/workspace/tests/workspace-ui.test.tsx`)**: Verifies layout recovery on corrupted storage envelopes and ensures `StatusBar` renders operational telemetry without storage alert clutter.
 
 ## Consequences
 
 ### Positive
 
-- **Zero Trader Disruption:** Charts and execution views retain 100% visibility; storage failures degrade gracefully in-memory without error popovers or banners.
-- **Developer Ergonomics:** Modules (`workspace`, `theme`) consume a unified dual API (`safeStorage.getItem` or `safeStorage.getJSON`) without boilerplate try-catch blocks.
-- **Clean Telemetry Separation:** The status bar remains dedicated to actual market infrastructure telemetry rather than client-side persistence internals.
+- Charts and market depth ladders retain 100% canvas visibility under all browser storage conditions.
+- Domain modules (`workspace`, `theme`) consume `safeStorage` without repetitive `try/catch` boilerplate.
+- The bottom `StatusBar` communicates high-signal market connectivity and latency metrics.
 
 ### Negative
 
-- If a user operates in private browsing mode, layout changes persist only for the duration of the browser tab session (expected behavior for private sessions).
+- Users in strict incognito/private browsing sessions that block `localStorage` retain layout modifications only for the duration of the tab session.
 
 ## Rejected Alternatives
 
-- **Canvas Recovery Banner (`StorageRecoveryBanner`):** Obstructs financial charts and creates intrusive visual clutter.
-- **Storage Status Icon & Diagnostic Popover (`StorageStatusIcon`):** Unnecessary cognitive overhead and visual noise for background client caching that degrades safely in-memory.
-- **Toast Notifications:** Ephemeral toasts disappear before traders observe them, while persistent toasts block canvas corners.
-- **Embedding Storage Status in `TopBar`:** The top bar is reserved for primary navigation, instrument search triggers, and window management.
+- **Canvas Recovery Banner (`StorageRecoveryBanner`)**: Shifts viewport layout and obstructs live financial charts.
+- **Status Bar Storage Diagnostic Popover (`StorageStatusIcon`)**: Adds cognitive noise for background caching that already degrades safely in-memory.
+- **Toast Notifications on Storage Failure**: Transient toasts distract traders and occlude corner windows.

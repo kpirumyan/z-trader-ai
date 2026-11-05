@@ -1,70 +1,98 @@
+---
+id: "ADR-0005"
+title: "Out-of-React Market Data Streaming & Transport Separation"
+status: "accepted"
+date: "2026-10-25"
+decision-makers:
+  - "Product Owner"
+  - "Architect Agent"
+area: "Market Data & Streaming"
+applies_to:
+  - "src/shared/contracts"
+  - "src/modules/market-data"
+  - "src/modules/chart"
+  - "src/modules/order-book"
+  - "src/modules/time-and-sales"
+enforced_by:
+  - ".dependency-cruiser.cjs"
+  - "src/shared/contracts/tests/market-data-contracts.test.ts"
+  - "src/modules/market-data/tests/market-stream.test.ts"
+  - "src/modules/market-data/tests/demo-market-data-feed.test.ts"
+supersedes: null
+superseded_by: null
+---
+
 # ADR-0005: Out-of-React Market Data Streaming & Transport Separation
 
-- **Status:** Accepted
-- **Date:** 2026-10-25
-- **Deciders:** System Architect, Core Team
+## Context and Problem Statement
 
-## Context
+Financial trading terminals require real-time delivery of market events across multiple concurrent widgets:
 
-Financial trading terminals require real-time market data delivery across multiple concurrent widgets:
+- Candlestick Chart (`candles` — OHLCV bars across configurable timeframes)
+- Level 2 Order Book (`orderBook` — Bid/Ask depth snapshots)
+- Time & Sales (`trades` — Chronological stream of executed trade ticks)
+- Window Headers & Status Bar (`ticker` — Best bid/ask, spread, 24h delta)
 
-- Candlestick Chart (OHLCV candles across configurable timeframes)
-- Level 2 Order Book (Bid / Ask market depth ladder)
-- Time & Sales (Live stream of executed trade ticks)
-- Window Headers & Status Bar (Ticker quotes, bid/ask spread, 24h delta)
+Managing high-frequency quote streams (hundreds of updates per second during volatility bursts) directly inside React Context or component hooks creates critical bottlenecks:
 
-Quotes arrive at high frequencies (up to hundreds or thousands of ticks per second during high market volatility).
-Handling streaming data directly inside React component trees or React hooks introduces severe bottlenecks:
+1. Frequent React state transitions trigger full subtree reconciliation, dropping frame rates below 60 FPS.
+2. Multiple windows viewing the same symbol (e.g., Chart and Order Book both observing `ES 12-26`) open duplicate transport subscriptions when managed per component.
+3. Unvalidated feed payloads (`NaN`, negative volume, malformed timestamps) corrupt depth ladders and crash HTML5 Canvas charting engines.
 
-1. Frequent React state updates trigger expensive subtree reconciliation, degrading frame rates below 60 FPS and freezing UI interactions.
-2. Multiple windows displaying the same ticker (e.g. Chart and Order Book both monitoring `AAPL`) open redundant network subscriptions if streams are managed at component level.
-3. Ingress of malformed data (such as strings instead of numbers, `NaN`, negative sizes, or non-monotonic timestamps) crashes canvas charting engines (e.g. Lightweight Charts) and corrupts depth calculations.
+How should we architect market data streaming to achieve 60 FPS UI responsiveness, zero duplicate network subscriptions, and strict ingress payload safety?
 
-## Decision
+## Decision Drivers
 
-We establish an out-of-React streaming architecture with transport abstraction and boundary validation:
+- **Out-of-React Subscription Lifecycle**: Stream multiplexing and message dispatch must execute outside React's Virtual DOM reconciliation loop.
+- **Reference-Counted Multiplexing**: Multiple widgets subscribing to the same `symbol:channel:timeframe` topic must share a single underlying transport subscription.
+- **Transport Swappability**: The streaming orchestrator must be decoupled from the physical transport (`DemoMarketDataFeed`, local WebSocket bridges, or replay feeds).
+- **Ingress Boundary Validation & Immutability**: Malformed packets must be rejected via Zod validation at ingress, and valid payloads must be frozen (`Object.freeze`) before reaching subscribers.
 
-### 1. Out-of-React Subscription Lifecycle
+## Decision Outcome
 
-Market data streaming is managed by a standalone TypeScript service (`MarketDataStreamService` in `src/modules/market-data/model/market-stream.ts`) executing entirely outside the React lifecycle.
+Chosen option: **Two-Tier Out-of-React Streaming Architecture (`MarketStreamService` + `MarketDataFeed` Transport Abstraction) with Shared Contracts and Ingress Zod Validation**.
 
-- Domain widgets and their respective Zustand stores subscribe to specific topics via lightweight callbacks (`subscribeCandles`, `subscribeOrderBook`, `subscribeTrades`, `subscribeTicker`).
-- Zustand stores batch or apply state changes selectively, protecting React rendering from excessive thrashing.
+### 1. Out-of-React Subscription Lifecycle (`src/modules/market-data/`)
 
-### 2. Two-Tier Separation: Transport vs Multiplexing
+Market data streaming is managed by `MarketDataStreamServiceImpl` (`marketStreamService` in `src/modules/market-data/model/market-stream.ts`) executing outside React:
 
-We decouple physical data transport from subscription orchestration:
+- Domain widgets and Zustand stores subscribe via topic-specific methods (`subscribeCandles`, `subscribeOrderBook`, `subscribeTrades`, `subscribeTicker`), supporting both `Unsubscribe` callbacks and `AbortSignal` teardown.
+- Dispatched payloads flow directly to module Zustand stores or imperative canvas series without triggering parent React tree re-renders.
 
-- **`MarketDataFeed` (Transport Layer)**: An abstract provider interface responsible for network connection lifecycle (`connect()`, `disconnect()`), topic subscription commands (`subscribeTopic()`, `unsubscribeTopic()`), and raw message emission (`onMessage()`). In Phase 3, implemented via `DemoMarketDataFeed` (simulating realistic quotes via timers); in future phases, swappable with WebSocket connectors (e.g. Binance, Bybit, Interactive Brokers).
-- **`MarketDataStreamService` (Orchestration Layer)**: Multiplexes client subscriptions using reference counting (only one transport subscription per unique `symbol:channel:timeframe` tuple), performs ingress validation, and dispatches updates to subscribers.
+### 2. Two-Tier Separation: Transport vs. Multiplexing
 
-### 3. Canonical Market Data Contracts in `src/shared/contracts/`
+- **`MarketDataFeed` (Transport Layer)**: Provider interface responsible for connection lifecycle (`connect()`, `disconnect()`), topic commands (`subscribeTopic()`, `unsubscribeTopic()`), and raw packet emission (`onMessage()`).
+- **`MarketStreamService` (Orchestration Layer)**: Multiplexes client listeners with reference counting (subscribing on the transport when the first listener attaches and unsubscribing only when the last listener detaches), validates payloads at ingress, and freezes emitted objects.
 
-Canonical market entity interfaces (`Candle`, `Trade`, `OrderBookLevel`, `OrderBookSnapshot`, `TickerQuote`) and their corresponding Zod schemas reside in `src/shared/contracts/`.
+### 3. Canonical Market Data Contracts (`src/shared/contracts/`)
 
-- Terminal widgets (`chart`, `order-book`, `time-and-sales`) import standardized data types from `@/src/shared/contracts`, preventing direct inter-module coupling and satisfying widget isolation invariants.
+Canonical market entities (`Candle`, `Trade`, `OrderBookLevel`, `OrderBookSnapshot`, `TickerQuote`, `Timeframe`) and their Zod schemas reside in `src/shared/contracts/`. Widgets import data shapes from `@/src/shared/contracts`, preserving widget isolation.
 
-### 4. Ingress Boundary Zod Validation
+### 4. Ingress Boundary Validation
 
-All incoming feed events are validated against strict Zod schemas at the ingress boundary before publication to subscribers.
+Every incoming transport message is parsed against its canonical Zod schema in `src/shared/contracts/` before dispatch. Invalid records (`NaN`, negative sizes, non-monotonic timestamps) are dropped safely without crashing downstream consumers.
 
-- Malformed, corrupt, or out-of-spec payloads (e.g. `NaN`, negative price or volume, invalid sides) are safely rejected and logged, guaranteeing that downstream stores and visual canvas renderers receive 100% sanitized data.
+## Confirmation and Enforcement
+
+- **Service Isolation Gate (`.dependency-cruiser.cjs`)**: Rule `market-data-service-isolation` forbids `src/modules/market-data` from importing any UI widget or `workspace`.
+- **Contract Schema Tests (`src/shared/contracts/tests/market-data-contracts.test.ts`)**: Verifies strict Zod rejection of malformed market payloads.
+- **Stream Multiplexing & Feed Tests (`src/modules/market-data/tests/market-stream.test.ts`, `src/modules/market-data/tests/demo-market-data-feed.test.ts`)**: Verifies reference counting, `AbortSignal` cleanup, payload freezing, and ingress filtering.
 
 ## Consequences
 
 ### Positive
 
-- **Performance**: Zero React re-renders on subscription management; updates flow straight to stores or canvas engines.
-- **Resource Efficiency**: Reference counting multiplexing eliminates duplicate network feeds when multiple widgets monitor the same instrument.
-- **Swappability**: Mock feeds and live WebSocket transports share an identical interface (`MarketDataFeed`).
-- **Data Integrity**: Ingress Zod validation guarantees no corrupted records reach charting or depth calculations.
+- Subscription management and high-frequency tick routing bypass React Virtual DOM reconciliation.
+- Reference counting prevents duplicate transport subscriptions across multi-window layouts.
+- `MarketDataFeed` allows seamless switching between `DemoMarketDataFeed` and external feeds ([ADR-0007](./0007-ninjatrader-cme-market-data.md)).
+- Ingress Zod validation + `Object.freeze` guarantees downstream data integrity.
 
 ### Negative
 
-- Requires explicit unsubscribe calls during component unmounting or store teardown to avoid memory leaks (enforced via `Unsubscribe` callback convention).
+- Consumers must deterministically invoke returned `Unsubscribe` callbacks or abort signals on unmount to prevent listener leaks.
 
 ## Rejected Alternatives
 
-- **React Context / Hook-driven stream**: Pushing raw quote streams through React Context causes whole-tree re-rendering and severe lag under market bursts.
-- **Widgets importing contracts directly from `market-data`**: Couples widget domain boundaries to a specific service module instead of relying on universal shared contracts.
-- **Permissive type casting without ingress validation**: While marginally faster, malformed feed payloads crash canvas charting and cause silent NaN propagation in financial arithmetic.
+- **React Context / Custom Hook Transport**: Pushing high-frequency market ticks through React Context triggers cascading component re-renders.
+- **Defining Market Entity Types Inside `src/modules/market-data`**: Widgets importing types from a concrete service module increases coupling compared to universal `src/shared/contracts/`.
+- **Unvalidated Type Assertions (`as Candle`)**: Corrupted external feed packets crash Lightweight Charts and propagate `NaN` across financial calculations.

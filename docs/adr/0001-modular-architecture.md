@@ -1,64 +1,108 @@
+---
+id: "ADR-0001"
+title: "Modular Architecture & Vertical Domain Slices"
+status: "accepted"
+date: "2026-10-24"
+decision-makers:
+  - "Product Owner"
+  - "Architect Agent"
+area: "Architecture & Layout"
+applies_to:
+  - "src/app"
+  - "src/composition"
+  - "src/modules/chart"
+  - "src/modules/indicators"
+  - "src/modules/instruments"
+  - "src/modules/market-data"
+  - "src/modules/order-book"
+  - "src/modules/time-and-sales"
+  - "src/modules/workspace"
+  - "src/shared"
+enforced_by:
+  - "eslint.config.mjs"
+  - ".dependency-cruiser.cjs"
+  - "knip.json"
+supersedes: null
+superseded_by: null
+---
+
 # ADR-0001: Modular Architecture & Vertical Domain Slices
 
-- **Status:** Accepted
-- **Date:** 2026-10-24
-- **Deciders:** System Architect, Core Team
+## Context and Problem Statement
 
-## Context
+Z-Trader is a high-performance multi-window financial trading and market analysis terminal (real-time charts, custom indicators, Level 2 market depth, Time & Sales tape, and instrument discovery) developed under strict Test-Driven Development (TDD) with AI coding agents.
 
-Z-Trader is growing toward a comprehensive financial market trading terminal (featuring real-time charts, custom indicators, market depth, order routing, and autonomous bot connectivity). The codebase is developed largely by AI agents operating under strict Test-Driven Development (TDD).
+Horizontal technical partitioning (`app/types`, `app/constants`, `app/hooks`, `app/components`) causes architectural friction as terminal capabilities scale:
 
-The initial codebase used horizontal technical partitioning (`app/types`, `app/constants`, `app/hooks`, `app/components`). As terminal features expanded, this horizontal structure caused friction:
+1. Implicit coupling across unrelated widgets through flat shared folders.
+2. Inability to replace or refactor an isolated domain feature without touching several disjoint directories.
+3. Lack of a strict black-box perimeter separating a feature's public contract from its internal state and UI implementation.
 
-1. Coupling across unrelated components through flat shared folders.
-2. Inability to replace or refactor an entire feature without touching several disjoint directories.
-3. Lack of strict encapsulation around feature state and internal presentation components.
+How should we structure the codebase to guarantee strict domain encapsulation, unidirectional dependencies, and safe module-level replacement?
 
-## Decision
+## Decision Drivers
 
-We migrate Z-Trader to a vertical modular architecture structured under `src/modules/<name>/`, accompanied by a composition root (`src/composition/`), a shared foundation layer (`src/shared/`), and minimal Next.js routing in `src/app/`.
+- **Strict Black-Box Encapsulation**: Each domain capability must expose a single, minimal public entry point (`index.ts`) while hiding internal state, hooks, and UI components.
+- **Unidirectional Dependency Flow**: Shared foundation utilities must never depend on domain modules, and domain widgets must never couple directly to one another or to the routing shell.
+- **Replaceable Internals ("Replace Rather Than Fix")**: An AI agent or developer must be able to wipe and regenerate a module's internal implementation (`model/`, `ui/`) against its unchanged contract perimeter (`index.ts`, `README.md`, `tests/`).
+
+## Decision Outcome
+
+Chosen option: **Vertical Modular Architecture with Contract Perimeters**, organizing the codebase into `src/modules/<name>/`, a composition root (`src/composition/`), a shared foundation layer (`src/shared/`), and a minimal Next.js routing shell (`src/app/`).
 
 ### 1. Module Structure & Black-Box Perimeter
 
-Each domain module (`src/modules/<name>/`) is split into a **contract perimeter** and **replaceable implementation**:
+Each domain module (`src/modules/<name>/`) is split into a **contract perimeter** and **replaceable internal implementation**:
 
 ```text
 src/modules/<name>/
 ├── index.ts        # Contract perimeter: ONLY re-exports of public API symbols and types
-├── README.md       # Module passport: responsibilities, contract, dependencies, invariants
+├── README.md       # Module passport: responsibilities, contract, dependencies, invariants, governing ADRs
 ├── tests/          # Black-box behavioral unit tests: imports ONLY from ../index.ts
 │
 ├── types.ts        # Internal TS types (no runtime code)
 ├── constants.ts    # Internal constants and default configuration
-├── schema.ts       # Runtime validation schemas (e.g., Zod)
+├── schema.ts       # Runtime validation schemas (Zod)
 ├── model/          # Domain logic, state management (Zustand), services, and hooks
-└── ui/             # Presentation React components
+└── ui/             # Presentation React components and co-located *.module.css
 ```
 
-### 2. Composition Root & Shared Foundation
+### 2. Four-Layer Unidirectional Topology
 
-- `src/composition/`: The single orchestration root that imports public module seams (`widgets.ts`, `indicators.ts`, `providers.ts`).
-- `src/shared/`: Domain-agnostic foundation code (`contracts/`, `theme/`, `storage/`, `ui/`, `lib/`). `shared/` is strictly unidirectional and must never depend on modules, composition, or routing.
-- `src/app/`: Contains only Next.js routing (`layout.tsx`, `page.tsx`) and global styling (`globals.css`).
+- `src/app/`: Next.js routing shell (`layout.tsx`, `page.tsx`) and global root stylesheet (`globals.css`). Imports only from `src/composition/` and `src/shared/`.
+- `src/composition/`: The single orchestration root (`terminal.tsx`, `widgets.ts`) that wires concrete domain widgets into the workspace window manager.
+- `src/modules/`: Vertical domain slices (`workspace`, `instruments`, `market-data`, `indicators`, `chart`, `order-book`, `time-and-sales`).
+- `src/shared/`: Domain-agnostic foundation segments (`contracts/`, `theme/`, `storage/`, `lib/`). Strictly unidirectional; never imports from `modules`, `composition`, or `app`.
 
 ### 3. Replaceable Internals ("Replace Rather Than Fix")
 
-If a module's internal implementation (`model/`, `ui/`) degrades or becomes obsolete, its contents can be safely wiped and regenerated from scratch against its unchanged contract perimeter (`index.ts`, `README.md`) and black-box tests (`tests/`).
+If a module's internal implementation (`model/`, `ui/`) degrades or requires redesign, its internals can be safely regenerated from scratch against its unchanged contract perimeter (`index.ts`, `README.md`) and black-box behavioral test suite (`tests/`).
+
+## Confirmation and Enforcement
+
+- **ESLint Boundary & Syntax Rules (`eslint.config.mjs`)**:
+  - Enforces layer import policies via `eslint-plugin-boundaries`.
+  - Forbids deep imports into module internals (`@/src/modules/*/*`) across production and test files.
+  - Enforces re-export-only module entry points (`src/modules/*/index.ts`) and pure type declarations in `types.ts`.
+- **Dependency Graph Validation (`.dependency-cruiser.cjs`)**:
+  - Validates unidirectional layer flow (`app` -> `composition` -> `modules` -> `shared`) and widget isolation via `pnpm depcruise`.
+- **Dead Export Detection (`knip.json`)**:
+  - Verifies zero unused exports, types, or files across module entry points via `pnpm knip`.
 
 ## Consequences
 
 ### Positive
 
-- High cohesion and complete encapsulation per domain slice.
-- Independent evolvability and testability for widgets (`chart`, `order-book`, `time-and-sales`).
-- Clear separation between the contract perimeter (Architect/Tester) and internal implementation (Coder).
+- High cohesion and strict encapsulation keep each domain slice independently understandable and testable.
+- Widgets (`chart`, `order-book`, `time-and-sales`) evolve independently without cross-widget coupling.
+- The separation between the contract perimeter (`index.ts`, `README.md`, `tests/`) and internal implementation (`model/`, `ui/`) prevents AI coding agents from leaking implementation details.
 
 ### Negative
 
-- Requires strict automated tooling to prevent deep imports and enforce unidirectional layers.
-- Requires replacing obsolete code in `src/app/` with modular units under `src/modules/` and `src/shared/`.
+- Every public symbol must be explicitly re-exported through `src/modules/<name>/index.ts`.
+- Cross-widget communication must route through shared contracts (`src/shared/contracts/`) and composition wiring rather than direct imports.
 
 ## Rejected Alternatives
 
-- **Monorepo with pnpm workspaces / packages:** Adds excessive build tooling complexity and version management overhead for a single Next.js terminal application.
-- **Retaining horizontal folders (`app/components`, etc.):** Led to diffuse responsibilities and made feature boundary preservation unenforceable by linting rules.
+- **Monorepo with `pnpm` Workspaces / Separate Packages**: Multi-package build orchestration and version synchronization add unnecessary overhead for a single Next.js terminal application.
+- **Horizontal Technical Folders (`app/components`, `app/hooks`, `app/types`)**: Flat technical directories caused diffuse ownership and prevented mechanical boundary enforcement.

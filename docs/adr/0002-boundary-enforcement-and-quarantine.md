@@ -1,53 +1,87 @@
+---
+id: "ADR-0002"
+title: "Automated Architectural Boundary Enforcement"
+status: "accepted"
+date: "2026-11-05"
+decision-makers:
+  - "Product Owner"
+  - "Architect Agent"
+area: "Tooling & Governance"
+applies_to:
+  - "src/app"
+  - "src/composition"
+  - "src/modules/chart"
+  - "src/modules/indicators"
+  - "src/modules/instruments"
+  - "src/modules/market-data"
+  - "src/modules/order-book"
+  - "src/modules/time-and-sales"
+  - "src/modules/workspace"
+  - "src/shared"
+enforced_by:
+  - "eslint.config.mjs"
+  - ".dependency-cruiser.cjs"
+  - "knip.json"
+  - ".agents/skills/adr/tests/adr-cli.test.ts"
+supersedes: null
+superseded_by: null
+---
+
 # ADR-0002: Automated Architectural Boundary Enforcement
 
-- **Status:** Accepted
-- **Date:** 2026-10-24
-- **Deciders:** System Architect, Core Team
+## Context and Problem Statement
 
-## Context
+A primary hazard when developing modular systems with autonomous AI coding agents is architectural drift: agents can inadvertently introduce deep internal imports (`@/src/modules/chart/model/chart-store`), circular dependencies, dead exports, or cross-widget coupling if architectural rules exist only in prose documentation.
 
-A core hazard when developing modular systems with autonomous AI agents is architectural drift: agents can easily introduce deep imports (`@/src/modules/foo/model/bar`), circular dependencies, or cross-widget coupling if boundaries are only described in prompts rather than mechanically enforced.
+Given the four-layer modular topology established in [ADR-0001](./0001-modular-architecture.md), how do we mechanically guarantee that every commit and agent task adheres to layer boundaries, widget isolation, and contract hygiene?
 
-The target architecture defines strict separation between Next.js application shell/routing (`src/app/`), composition root (`src/composition/`), domain modules (`src/modules/`), and shared foundation (`src/shared/`). Mechanical tooling is necessary to prevent layer violations and maintain codebase integrity.
+## Decision Drivers
 
-## Decision
+- **Deterministic Compile- & Lint-Time Feedback**: Violations must fail fast during local editing and pre-commit verification (`pnpm check:fast`) with actionable error messages.
+- **Zero-Tolerance Dead Code Hygiene**: Refactors must not leave behind orphaned files, unused exports, or unreferenced dependencies.
+- **Defense in Depth**: Combine AST-level lint rules with full dependency-graph traversal and meta-tests that lock down gate configurations.
 
-We establish automated compile-time and lint-time boundary enforcement using three tools integrated into `pnpm check:fast` and `pnpm check`:
+## Decision Outcome
 
-1. **`eslint-plugin-boundaries`:**
-   - Enforces element classification: `app`, `composition`, `module`, and `shared`.
-   - Prevents `shared` from importing `modules`, `composition`, or `app`.
-   - Prevents `modules` from importing `composition` or `app`.
-   - Replaces deep internal imports with public module entry point enforcement.
+Chosen option: **Three-Pillar Mechanical Gate Pipeline (`eslint-plugin-boundaries` + `dependency-cruiser` + `knip`)**, integrated into `pnpm check:fast` and `pnpm check` alongside ADR lifecycle verification in `.agents/skills/adr/tests/adr-cli.test.ts`.
 
-2. **`dependency-cruiser`:**
-   - Detects circular dependencies (`no-circular`).
-   - Enforces widget isolation: `chart`, `order-book`, and `time-and-sales` cannot depend on one another or on `workspace`.
-   - Enforces workspace independence: `workspace` cannot depend directly on concrete widgets (receives widget registries via contracts).
-   - Enforces service isolation: `market-data` core streaming service cannot depend on UI widgets or `workspace`.
-   - Validates unidirectional layer flow (`app` -> `composition` -> `modules` -> `shared`).
+### 1. AST & Import Perimeter Enforcement (`eslint.config.mjs`)
 
-3. **`knip`:**
-   - Detects dead code, unused exports, unused types, and unreferenced packages with zero tolerance (`--max-issues 0`), maintaining clean public contract seams during and after multi-agent development.
+- **`eslint-plugin-boundaries`**: Classifies elements into `app`, `composition`, `module`, and `shared`, disallowing upward imports (`shared` -> `modules`/`composition`/`app`, `modules` -> `composition`/`app`) and direct `app` -> `modules` imports.
+- **`no-restricted-imports`**: Blocks deep imports into module internals (`@/src/modules/*/*`) from both production code and black-box tests (`tests/` must import exclusively from public module entry points).
+- **`no-restricted-syntax`**: Enforces pure re-export barrels in `src/modules/*/index.ts` and forbids runtime values inside `types.ts`.
 
-4. **App Shell Layer Isolation:**
-   - Code in `src/composition/**`, `src/modules/**`, and `src/shared/**` is strictly forbidden from importing anything from `src/app/**` via ESLint (`no-restricted-imports`) and `dependency-cruiser`.
-   - `src/app/` is strictly for Next.js routing and global styling (`layout.tsx`, `page.tsx`, `globals.css`). Any legacy files temporarily remaining in `src/app/` are obsolete and to be deleted as new units are implemented under `src/modules/` or `src/shared/`.
+### 2. Dependency Graph & Widget Isolation (`.dependency-cruiser.cjs`)
+
+- **Cycle Prevention (`no-circular`)**: Fails on any circular dependency across `src/`.
+- **Widget Isolation (`widget-isolation`)**: Guarantees that `chart`, `order-book`, and `time-and-sales` never depend on one another or on `workspace`.
+- **Workspace Independence (`workspace-widget-independence`)**: Prevents `workspace` from importing concrete widgets directly (consuming them strictly via injected `WidgetDefinition` contracts).
+- **Service Isolation (`market-data-service-isolation`)**: Prevents `market-data` from importing UI widgets or `workspace`.
+- **Test Perimeter (`production-not-to-test`)**: Prevents production code from importing test utilities or spec files.
+
+### 3. Dead Code & Contract Hygiene (`knip.json`)
+
+- Runs `knip --max-issues 0` with `"error"` severity across `files`, `dependencies`, `unlisted`, `unresolved`, `exports`, and `types`, rooted at `src/composition/widgets.ts`, `src/modules/*/index.ts`, and `src/shared/*/index.ts`.
+
+## Confirmation and Enforcement
+
+- **Verification Pipeline (`package.json`)**: `pnpm check:fast` executes `pnpm format:check && pnpm typecheck && pnpm lint && pnpm depcruise && pnpm knip && pnpm adr:check && pnpm test:unit`.
+- **ADR Lifecycle Governance Tests (`.agents/skills/adr/tests/adr-cli.test.ts`)**: Hermetic unit tests verify ADR scaffolding, superseding, path retargeting, module removal auto-deprecation, and README synchronization.
 
 ## Consequences
 
 ### Positive
 
-- Violations are intercepted immediately during code editing (`ESLint`) and pre-commit checks (`pnpm check:fast`).
-- Clean, unidirectional dependency graph ensures modules and shared code remain completely free of routing or legacy coupling.
-- No accidental widget coupling or cross-domain leaks.
+- Architectural violations are caught immediately during code editing and pre-commit checks before code review.
+- AI agents receive exact file-and-rule diagnostics when an import violates a module seam or layer boundary.
+- `knip --max-issues 0` keeps public module contracts free of unused exports.
 
 ### Negative
 
-- Linter and dependency graph checks add a small overhead to verification runs.
-- Strict entry points require explicit re-exports in `src/modules/<name>/index.ts`.
+- Static analysis tools (`eslint`, `depcruise`, `knip`) add a few seconds to full verification runs.
+- Adding a new architectural layer or module category requires updating `.dependency-cruiser.cjs` and `eslint.config.mjs`.
 
 ## Rejected Alternatives
 
-- **Relying solely on agent prompts:** Human and AI developers eventually make accidental deep imports without automated tooling.
-- **Treating legacy code as a permanent layer with permanent quarantine rules:** Legacy implementation is strictly obsolete and slated for deletion, not a permanent architectural layer.
+- **Prompt-Only Architectural Guidelines**: Human and AI developers inevitably introduce accidental deep imports or unused exports without automated enforcement.
+- **Single-Tool Enforcement (ESLint Only)**: ESLint operates file-by-file and cannot efficiently detect multi-hop circular dependencies or workspace-wide unused exports like `dependency-cruiser` and `knip`.

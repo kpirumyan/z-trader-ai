@@ -1,66 +1,79 @@
+---
+id: "ADR-0006"
+title: "High-Performance Canvas Charting via Lightweight Charts & Theme Integration"
+status: "accepted"
+date: "2026-10-25"
+decision-makers:
+  - "Product Owner"
+  - "Architect Agent"
+area: "Charting & Performance"
+applies_to:
+  - "src/modules/chart"
+  - "src/shared/theme"
+  - "src/shared/contracts"
+enforced_by:
+  - "src/modules/chart/tests/chart.test.tsx"
+supersedes: null
+superseded_by: null
+---
+
 # ADR-0006: High-Performance Canvas Charting via Lightweight Charts & Theme Integration
 
-- **Status:** Accepted
-- **Date:** 2026-10-25
-- **Deciders:** System Architect, Core Team
+## Context and Problem Statement
 
-## Context
+Financial trading terminals require 60 FPS interactive rendering of historical and real-time OHLCV candlestick series, volume histograms, indicator overlays, and crosshair price inspections across multiple simultaneous chart windows.
 
-Financial market terminals require high-frequency, low-latency visual rendering of market price action (candlestick OHLCV bars, volume histograms, moving averages, and crosshairs).
+Declarative SVG rendering (`<svg>` with per-candle `<rect>` and `<line>` nodes) cannot scale to production trading workloads:
 
-The prototype implementation in `app/components/chart.tsx` used declarative SVG rendering (`<svg>` with `<rect>` and `<line>` elements) for a static set of demo candles. While adequate for mockups, SVG rendering has critical limitations for an active trading terminal:
+1. **DOM Node Bloat**: Rendering 500+ candles across 4 concurrent chart windows creates thousands of DOM elements, causing layout thrashing and frame drops below 30 FPS during real-time streaming.
+2. **Viewport Kinematics**: Smooth pan, kinetic zoom, price/time axis auto-scaling, and crosshair synchronization require dedicated 2D canvas coordinate engines.
 
-1. **DOM Tree Bloat**: Each candle requires 3-5 DOM nodes (lines, rects, titles, groups). Displaying 500+ candles across 4 active terminal windows produces thousands of SVG DOM nodes, causing severe garbage collection pauses and frame rate drops below 30 FPS during real-time streaming updates.
-2. **Interactive Charting Operations**: Smooth pan, zoom, scale dragging, crosshairs, and multi-indicator overlays require extensive custom geometry calculation when built from scratch in SVG or raw Canvas.
-3. **Canvas Performance**: TradingView's `lightweight-charts` is an industry-standard, lightweight (~45KB), hardware-accelerated HTML5 Canvas library optimized specifically for high-performance financial time-series visualization.
+Which charting engine and lifecycle architecture should `src/modules/chart/` adopt to guarantee 60 FPS performance, multi-window state isolation, and seamless dark/light theme synchronization?
 
-## Decision
+## Decision Drivers
 
-We adopt **Lightweight Charts (v5)** as the official charting engine for `src/modules/chart/` with strict encapsulation and out-of-React canvas lifecycle management:
+- **60 FPS Hardware-Accelerated Rendering**: Real-time bar updates (`series.update()`) and pan/zoom interactions must execute on HTML5 2D Canvas outside React's Virtual DOM.
+- **Non-Destructive Theme Synchronization**: Switching between dark and light themes must update canvas colors in-place (`chart.applyOptions()`) without destroying the chart or losing the trader's zoom/scroll viewport.
+- **Multi-Window State Isolation**: Multiple concurrent chart windows must maintain independent symbol, timeframe, chart style, and indicator selections keyed by `windowId`.
 
-### 1. Canvas Lifecycle & Ref Isolation
+## Decision Outcome
 
-The chart canvas instance (`IChartApi`) is created and managed imperatively inside custom React hooks (`useChart`) via a stable `HTMLDivElement` container ref:
+Chosen option: **TradingView Lightweight Charts (v5) Managed Imperatively Out-of-React (`useChart`) + Keyed Multi-Window Zustand Store (`useChartStore`)**.
 
-- The canvas instance is initialized on mount and cleanly destroyed via `chart.remove()` on unmount.
-- Candle data updates (`series.setData()`, `series.update()`) flow directly to the Canvas engine without triggering React Virtual DOM diffing or subtree re-renders.
-- Dynamic resizing is handled by an isolated `ResizeObserver` observing the chart window container, calling `chart.applyOptions({ width, height })`.
+### 1. Imperative Canvas Lifecycle & Ref Isolation (`src/modules/chart/model/use-chart.ts`)
 
-### 2. Design Token & Theme Synchronization
+- The `IChartApi` instance is instantiated on a stable `HTMLDivElement` ref on mount and disposed via `chart.remove()` on unmount.
+- Real-time candle ticks from `marketStreamService.subscribeCandles()` ([ADR-0005](./0005-market-data-streaming-and-transport-separation.md)) update canvas series imperatively without triggering React component re-renders.
+- Container resizing is tracked via a dedicated `ResizeObserver` invoking `chart.applyOptions({ width, height })`.
 
-Lightweight Charts operates on explicit RGB/HEX color strings rather than CSS variables. To maintain complete consistency with [DESIGN.md](../../DESIGN.md) and [ADR-0003](./0003-css-architecture.md):
+### 2. Design Token & Theme Synchronization (`CHART_PALETTES`)
 
-- `CHART_PALETTES` in `src/modules/chart/constants.ts` defines explicit color mapping for both `dark` and `light` themes referencing normalized values of `--surface`, `--grid`, `--text-secondary`, `--market-buy`, and `--market-sell`.
-- The chart subscribes to theme changes via `useTheme()` from `@/src/shared/theme` and imperatively updates canvas styling via `chart.applyOptions(...)` without destroying or recreating the chart instance.
+Because HTML5 Canvas APIs require resolved color strings rather than CSS `var(--*)` references, `CHART_PALETTES` in `src/modules/chart/constants.ts` maps normalized token values from [`DESIGN.md`](../../DESIGN.md) (`--surface`, `--grid`, `--text-secondary`, `--market-buy`, `--market-sell`) for both `dark` and `light` themes:
 
-### 3. Multi-Window Store Isolation
+- `useChart` subscribes to `useTheme()` from `@/src/shared/theme` ([ADR-0003](./0003-css-architecture.md)) and applies updated palette options via `chart.applyOptions(...)` without recreating the canvas instance.
 
-To support multiple concurrent chart windows with independent instruments, timeframes, and indicators:
+### 3. Multi-Window Store Isolation (`src/modules/chart/model/chart-store.ts`)
 
-- The Zustand store (`chart-store.ts`) manages chart state keyed by `windowId`.
-- Windows register upon mount and automatically release their state slice upon unmount.
+- `useChartStore` partitions state slices by `windowId`, isolating timeframe (`1m`, `5m`, `15m`, `1h`, `1d`), chart type (`candlestick`, `bars`, `line`), and active overlays per window and cleaning up state on window closure.
 
-### 4. Canonical Contracts & Ingress Validation
+## Confirmation and Enforcement
 
-- The chart module consumes canonical `Candle` and `Timeframe` types exclusively from `@/src/shared/contracts`.
-- Real-time updates subscribe to the out-of-React `MarketDataStreamService` ([ADR-0005](./0005-market-data-streaming-and-transport-separation.md)) via `subscribeCandles()`.
+- **Chart Module Behavioral Tests (`src/modules/chart/tests/chart.test.tsx`)**: Verifies multi-window store isolation, timeframe/style switching, theme palette synchronization, stream subscription lifecycle, and deterministic `chart.remove()` cleanup on unmount.
 
 ## Consequences
 
 ### Positive
 
-- **Performance**: 60 FPS smooth zooming, panning, and high-frequency real-time bar updates via hardware-accelerated Canvas.
-- **Maintainability**: Standardized charting API with built-in time-scale calculations, price-scale formatting, and crosshair coordination.
-- **Encapsulation**: Clean separation between the React widget wrapper, Zustand state, and the imperative canvas lifecycle.
-- **Theme Integrity**: Synchronized light/dark theme adaptation without chart reloads or loss of user pan/zoom viewport state.
+- HTML5 Canvas rendering sustains 60 FPS panning, zooming, and tick updates with minimal memory footprint (~45KB bundle).
+- Imperative `applyOptions` theme updates preserve the user's panned/zoomed time range across theme toggles.
+- Multi-window Zustand keying allows unlimited concurrent chart windows without state collision.
 
 ### Negative
 
-- Adds `lightweight-charts` npm dependency.
-- JSDOM does not provide native HTML5 Canvas 2D context; unit tests require a mock/stub layer for `IChartApi`, complemented by Playwright E2E tests for real canvas verification.
+- JSDOM lacks a native HTML5 2D Canvas implementation, requiring canvas boundary stubs in unit tests paired with Playwright E2E tests (`tests/e2e/widget-chart.spec.ts`) for real browser rendering verification.
 
 ## Rejected Alternatives
 
-- **Retaining SVG Charting**: Unviable for production streaming; DOM overhead causes severe UI lag during high-frequency tick bursts.
-- **Custom Raw 2D Canvas Engine**: Incurs massive engineering overhead for pan/zoom kinematics, coordinate projections, time scales, and crosshair interpolation.
-- **Heavyweight Charting Libraries (Highcharts, Chart.js)**: Significantly larger bundle footprint and less tailored for financial candlestick mechanics.
+- **Declarative SVG Charting**: DOM node scaling degrades frame rates during high-frequency market streaming.
+- **Custom Raw HTML5 2D Canvas Engine**: Prohibitive engineering cost for time-scale kinematics, logarithmic/percentage price scales, and crosshair interpolation.
+- **General-Purpose Chart Libraries (Chart.js, Highcharts, ECharts)**: Larger bundle sizes and weaker native ergonomics for financial OHLCV candlesticks and market depth overlays.

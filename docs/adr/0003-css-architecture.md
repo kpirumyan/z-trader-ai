@@ -1,38 +1,64 @@
-# ADR-0003: CSS Modules, Design Tokens, and Component Styling
+---
+id: "ADR-0003"
+title: "CSS Modules, Design Tokens & Styling Standard"
+status: "accepted"
+date: "2026-10-24"
+decision-makers:
+  - "Product Owner"
+  - "Architect Agent"
+area: "UI & Styling"
+applies_to:
+  - "src/app/globals.css"
+  - "src/shared/theme"
+  - "src/shared/lib"
+  - "src/modules/chart"
+  - "src/modules/instruments"
+  - "src/modules/order-book"
+  - "src/modules/time-and-sales"
+  - "src/modules/workspace"
+enforced_by:
+  - "src/shared/theme/tests/theme.test.tsx"
+  - "src/shared/lib/tests/cn.test.ts"
+supersedes: null
+superseded_by: null
+---
 
-- **Status:** Accepted
-- **Date:** 2026-10-24
-- **Deciders:** System Architect, Core Team
+# ADR-0003: CSS Modules, Design Tokens & Styling Standard
 
-## Context
+## Context and Problem Statement
 
-Z-Trader is a high-performance financial trading terminal (real-time charts, depth of market, order routing, streaming quotes) built on Next.js 16 and React 19.
+Z-Trader is a high-density financial trading terminal built on Next.js 16 and React 19 that renders high-frequency market updates (up to 60 FPS tick bursts) across multiple concurrent windows.
 
-The initial implementation stored all component styling in a single monolithic stylesheet (`src/app/globals.css`, 635+ lines). With the transition to a modular vertical slice architecture ([ADR-0001](./0001-modular-architecture.md)), keeping all styles in a global file creates severe architectural friction:
+Storing component styles in a monolithic global stylesheet (`src/app/globals.css`) or using runtime CSS-in-JS creates severe architectural friction:
 
-1. **Broken Encapsulation:** Deleting or rewriting a vertical module (`src/modules/<name>/`) leaves dead styles behind in `globals.css`.
-2. **Naming Collisions & Global Leakage:** Global class names require artificial BEM prefixes (`.terminal-window-heading`, `.order-book-cell`) to avoid unintentional collisions across widgets.
-3. **Performance Invariants:** Financial terminals receive high-frequency tick bursts (up to 60fps streaming updates). Runtime CSS-in-JS solutions (Emotion, styled-components) cause repeated style recalculations, bundle bloat, and garbage collection pauses.
+1. **Broken Module Encapsulation**: Deleting or replacing a vertical module (`src/modules/<name>/`) leaves orphaned style rules behind in global stylesheets.
+2. **Naming Collisions**: Global CSS requires verbose BEM prefixes (`.terminal-window-heading`, `.order-book-cell`) to avoid cross-widget selector collisions.
+3. **Runtime Overhead**: Runtime CSS-in-JS libraries (Emotion, styled-components) trigger style recalculation and garbage collection pauses during high-frequency streaming updates.
 
-## Decision
+Which styling architecture should we adopt to guarantee zero runtime JS overhead, strict vertical slice encapsulation, and consistent dark/light theme token usage?
 
-We establish **CSS Modules (`*.module.css`) + CSS Custom Properties (Design Tokens)** as the official styling architecture for Z-Trader.
+## Decision Drivers
+
+- **Zero Runtime Overhead**: Styling must compile to static CSS with 0ms JavaScript execution overhead during 60 FPS market tick bursts.
+- **Vertical Slice Co-location**: Every UI component's styles must live inside its owning module so deleting or replacing a module folder cleanly removes 100% of its CSS footprint.
+- **Strict Design Token Fidelity**: All colors, surfaces, borders, and typography must reference semantic CSS custom properties defined in [`DESIGN.md`](../../DESIGN.md) rather than hardcoded hex values.
+
+## Decision Outcome
+
+Chosen option: **CSS Modules (`*.module.css`) + CSS Custom Properties (`src/shared/theme/tokens.css`) + `cn()` Class Utility (`src/shared/lib/cn.ts`)**.
 
 ### 1. Design Tokens Placement (`src/shared/theme/tokens.css`)
 
-All design tokens specified in [`DESIGN.md`](../../DESIGN.md) (canvas, surface, borders, typography, brand gold, market buy/sell colors for both light and dark themes) reside in `src/shared/theme/tokens.css`.
+All semantic design tokens specified in [`DESIGN.md`](../../DESIGN.md) (canvas, surface, surface-raised, borders, typography, brand gold, and market buy/sell colors for both dark and light themes) reside in `src/shared/theme/tokens.css`:
 
-- The theme segment owns all token definitions.
-- `src/app/globals.css` (or `src/app/layout.tsx`) imports `tokens.css` globally.
-- Components never hardcode hex colors or rogue palette values; they consume CSS variables (`var(--canvas)`, `var(--brand-gold)`).
+- `src/app/globals.css` imports `tokens.css` globally and contains only baseline HTML/body resets and root viewport shell rules.
+- Presentation components never hardcode raw hex/RGB palette values; they consume CSS custom properties (`var(--canvas)`, `var(--surface)`, `var(--brand-gold)`, `var(--market-buy)`, `var(--market-sell)`).
 
-### 2. Component Scoped Styles (`*.module.css`)
+### 2. Co-located Component Scoped Styles (`*.module.css`)
 
-All presentation components inside `src/modules/<name>/ui/` and `src/shared/<segment>/ui/` must co-locate their styling in adjacent `*.module.css` files (e.g., `theme-toggle.tsx` and `theme-toggle.module.css`).
+All presentation components inside `src/modules/<name>/ui/` and `src/shared/<segment>/` co-locate their styles in adjacent `*.module.css` files (e.g., `order-book-widget.tsx` and `order-book-widget.module.css`).
 
-#### Class Naming Convention
-
-Because CSS Modules automatically generate locally scoped, unique class hashes, class names inside `*.module.css` must use **concise semantic identifiers** instead of redundant BEM prefixes:
+Because CSS Modules automatically generate locally scoped class hashes, class names inside `*.module.css` use **concise semantic identifiers** instead of redundant BEM prefixes:
 
 ```css
 /* Good (concise semantic): */
@@ -45,46 +71,38 @@ Because CSS Modules automatically generate locally scoped, unique class hashes, 
 .theme-toggle__button { ... }
 ```
 
-### 3. Dynamic Class Names Utility (`clsx` via `src/shared/lib/cn.ts`)
+### 3. Dynamic Class Names Facade (`cn` in `src/shared/lib/cn.ts`)
 
-To avoid error-prone template string concatenations and accidental `"false"` class strings in the DOM, conditional classes are constructed via the `cn()` facade exported from `@/src/shared/lib`:
+Conditional class names are constructed via the `cn(...classes: ClassValue[])` facade exported from `@/src/shared/lib` (wrapping `clsx`), preventing error-prone string concatenation or accidental `"false"` class tokens in the DOM:
 
-- `clsx` (~230 bytes) is installed as the core dependency.
-- `src/shared/lib/cn.ts` exposes `cn(...classes: ClassValue[])` wrapping `clsx`.
-- Usage pattern:
-  ```tsx
-  import { cn } from "@/src/shared/lib";
-  import styles from "./order-book.module.css";
+```tsx
+import { cn } from "@/src/shared/lib";
+import styles from "./order-book-row.module.css";
 
-  <div className={cn(styles.row, { [styles.active]: isSelected })}>
-  ```
+<div className={cn(styles.row, { [styles.active]: isSelected })} />;
+```
 
-### 4. Incremental Migration Strategy
+## Confirmation and Enforcement
 
-Migration from `src/app/globals.css` occurs incrementally alongside the modular architecture rollout:
-
-- When a component is migrated or created in `src/shared/` or `src/modules/`, its styles are extracted into `<component>.module.css` and its legacy class block is removed from `src/app/globals.css`.
-- Upon completion of Phase 1, `src/app/globals.css` contains exclusively:
-  1. Token import (`@import "@/src/shared/theme/tokens.css"`).
-  2. Baseline HTML/body reset and font configuration.
-  3. Root viewport application shell layout (`.terminal-shell`).
-
-## Rejected Alternatives
-
-- **Runtime CSS-in-JS (Emotion, styled-components):** Incompatible with React Server Components in Next.js App Router and incurs garbage collection pauses / frame drops during high-frequency market data streaming.
-- **Tailwind CSS v4:** While popular for generic web apps, utility-first classes clutter JSX for dense terminal widgets, canvas overlays, and financial tables, and require unnecessary build configuration when native CSS Modules are zero-config in Next.js.
-- **Monolithic `globals.css` with sections:** Fails vertical module encapsulation; violates the core principle that deleting a module folder cleanly removes 100% of its footprint.
+- **Theme & Token Contract Tests (`src/shared/theme/tests/theme.test.tsx`)**: Verifies theme persistence, attribute synchronization (`data-theme`), and design token integration.
+- **Class Utility Unit Tests (`src/shared/lib/tests/cn.test.ts`)**: Verifies deterministic conditional class composition via `cn()`.
+- **Dead File Detection (`knip.json` & TypeScript)**: Ensures unused modules and broken imports fail `pnpm check:fast`.
 
 ## Consequences
 
 ### Positive
 
-- Strict vertical slice encapsulation: modules own their styles entirely.
-- Zero runtime overhead (0ms JS execution overhead for styling).
-- Native support in Next.js and React Compiler out of the box.
-- Type-safe, collision-free scoped class names.
+- Modules own their styles completely, preserving vertical slice encapsulation ([ADR-0001](./0001-modular-architecture.md)).
+- Static CSS compilation incurs zero runtime JavaScript overhead during high-frequency market streaming.
+- Native Next.js CSS Modules require zero third-party bundler plugins and work seamlessly with React 19 and React Compiler.
 
 ### Negative
 
-- Requires co-locating CSS files with components and importing `styles` objects in TSX.
-- Developers must use `cn()` for dynamic conditionals rather than ad-hoc string concatenation.
+- Each styled component requires an adjacent `*.module.css` file and explicit `styles` import in TSX.
+- HTML5 Canvas libraries that do not read CSS variables directly must synchronize with theme tokens through explicit palette mappings (see [ADR-0006](./0006-canvas-charting-and-lightweight-charts.md)).
+
+## Rejected Alternatives
+
+- **Runtime CSS-in-JS (Emotion, styled-components)**: Incompatible with React Server Components in Next.js App Router and causes garbage-collection pauses during high-frequency market tick updates.
+- **Tailwind CSS v4**: Long utility class strings reduce readability in dense financial table/canvas JSX and obscure semantic token names from `DESIGN.md`.
+- **Monolithic `src/app/globals.css`**: Global stylesheets break module encapsulation and risk class name collisions across widgets.

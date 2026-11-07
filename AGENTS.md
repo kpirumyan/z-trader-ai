@@ -9,6 +9,12 @@
 - **UI Design System & Tokens**: [DESIGN.md](DESIGN.md)
 - **Modular Codebase Rules**: [.agents/rules/codebase-layout.md](.agents/rules/codebase-layout.md)
 
+## Core Reasoning Rules
+
+- Think carefully & step-by-step.
+- Consider whether the answer may have changed in the 2 years since your knowledge cutoff.
+- If you are not confident in your answer, begin your response with "Unsure".
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 ## This is NOT the Next.js you know

@@ -1,4 +1,4 @@
-# getting-started (Getting Started Example)
+# Example
 
 This example compares GPT-6 Sol and GPT-6 Luna on two translation tasks.
 

@@ -1,0 +1,22 @@
+description: "Z-Trader Evaluations"
+prompts:
+  - "How many eyes has {{animal}}?"
+
+providers:
+  - file://providers/google-subscription.yaml
+
+defaultTest:
+  options:
+    provider:
+      id: file://providers/agy_provider.py:call_api
+      config:
+        model: "gemini-3.8-flash-high"
+
+tests:
+  - vars:
+      animal: "cat"
+    assert:
+      - type: contains
+        value: 2
+      - type: llm-rubric
+        value: "has 2 eyes."

@@ -1,0 +1,50 @@
+{
+  "skill_name": "adr",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I am planning to refactor the data flow in src/modules/chart. What active architectural decisions and constraints must I adhere to before making changes?",
+      "expected_output": "Discovers active ADRs governing src/modules/chart and synthesizes the governing constraints for the developer before modifying code",
+      "files": [],
+      "expectations": [
+        "Queries active governing ADRs using 'pnpm adr:list --module chart' or inspects the '## Governing ADRs' section in src/modules/chart/README.md",
+        "Distinguishes active ('accepted') decisions from historical ('superseded' or 'deprecated') records",
+        "Synthesizes actionable architectural constraints and invariants rather than just printing raw file paths"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "We need to adopt DuckDB as an in-memory analytical cache for historical time & sales and candle data in src/modules/market-data. Author a complete architectural decision record.",
+      "expected_output": "Synthesizes a complete MADR 4.0 decision record with deep domain justification, trade-offs, and rejected alternatives",
+      "files": [],
+      "expectations": [
+        "Articulates a clear problem statement and concrete decision drivers (e.g. vectorized columnar execution, zero-copy data transfer, memory boundaries)",
+        "Details balanced consequences (positive, negative, and neutral trade-offs) of introducing an in-memory OLAP engine",
+        "Documents at least two realistic rejected alternatives with technical justification for rejection",
+        "Follows the canonical MADR 4.0 6-section structure in strict sequence (Context and Problem Statement, Decision Drivers, Decision Outcome, Confirmation and Enforcement, Consequences, Rejected Alternatives)"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "I need to quickly update our decision in docs/adr/0000-executable-adr-governance.md. Just append a new bullet point to the Decision Outcome section directly in the markdown file.",
+      "expected_output": "Refuses to edit the body of an accepted ADR directly, explains cryptographic immutability, and instructs the user to use supersede instead",
+      "files": [],
+      "expectations": [
+        "Explicitly refuses to modify the markdown body of an accepted ADR",
+        "Cites cryptographic body immutability (SHA-256 hash locked in docs/adr/.adr-lock.json)",
+        "Directs the user to create a superseding decision via 'pnpm adr:supersede ADR-0000' instead of in-place editing"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Which active ADR defines our user authentication, session cookies, and JWT refresh token strategy?",
+      "expected_output": "States that no active ADR exists for user authentication/JWT in the repository rather than fabricating an ADR number or standard",
+      "files": [],
+      "expectations": [
+        "Explicitly clarifies that there is no active ADR governing authentication or JWT in Z-Trader",
+        "Does not hallucinate a fictional ADR ID or decision standard",
+        "Suggests running 'pnpm adr:list' to inspect all currently active decisions"
+      ]
+    }
+  ]
+}

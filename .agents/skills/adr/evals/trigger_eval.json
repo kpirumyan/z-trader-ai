@@ -1,0 +1,82 @@
+[
+  {
+    "query": "Which architectural decisions govern our order book module?",
+    "should_trigger": true
+  },
+  {
+    "query": "We need to document an architectural decision for the new WebSocket streaming protocol in market data",
+    "should_trigger": true
+  },
+  {
+    "query": "Supersede ADR-0003 with a new event-driven architecture record",
+    "should_trigger": true
+  },
+  {
+    "query": "Create an ADR for multi-window state synchronization between terminal layouts",
+    "should_trigger": true
+  },
+  {
+    "query": "Check if our ADR records and lockfiles are consistent with pnpm adr:check before committing",
+    "should_trigger": true
+  },
+  {
+    "query": "Refactor module path from src/modules/chart to src/modules/visualization and update ADR applies_to",
+    "should_trigger": true
+  },
+  {
+    "query": "Deprecate ADR-0005 because the legacy broker integration was removed from the codebase",
+    "should_trigger": true
+  },
+  {
+    "query": "List all active architectural decisions in the project",
+    "should_trigger": true
+  },
+  {
+    "query": "What are the MADR 4.0 standard sections required for proposing a new architecture?",
+    "should_trigger": true
+  },
+  {
+    "query": "Verify that docs/adr/README.md index is synchronized with all MADR markdown files",
+    "should_trigger": true
+  },
+  {
+    "query": "Fix typo in chart component render loop",
+    "should_trigger": false
+  },
+  {
+    "query": "Add a new unit test for orderbook depth calculation using vitest",
+    "should_trigger": false
+  },
+  {
+    "query": "Install tailwindcss and setup postcss config",
+    "should_trigger": false
+  },
+  {
+    "query": "Explain how Next.js 16 cache components and PPR work",
+    "should_trigger": false
+  },
+  {
+    "query": "What is the git status of the workspace?",
+    "should_trigger": false
+  },
+  {
+    "query": "Create a reusable React button component with secondary variant styling",
+    "should_trigger": false
+  },
+  {
+    "query": "Configure Vitest coverage thresholds in vitest.config.ts",
+    "should_trigger": false
+  },
+  {
+    "query": "Debug why WebSocket connection drops after 30 seconds of inactivity",
+    "should_trigger": false
+  },
+  {
+    "query": "Update package.json dependencies to latest minor versions",
+    "should_trigger": false
+  },
+  {
+    "query": "Format all TypeScript files in src/ with prettier",
+    "should_trigger": false
+  }
+]

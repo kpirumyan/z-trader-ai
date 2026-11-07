@@ -145,7 +145,7 @@ Try to explain to the model why things are important in lieu of heavy-handed MUS
 
 After writing the skill draft, come up with 2-3 realistic test prompts — the kind of thing a real user would actually say. Share them with the user: "Here are a few test cases I'd like to try. Do these look right, or do you want to add more?" Then run them.
 
-Save test cases to `evals/evals.json` (or inside your eval workspace if keeping the skill directory clean until finalized). Don't write assertions yet — just the prompts. You'll draft assertions in the next step while the runs are in progress.
+Save test cases directly to `<skill-folder>/evals/evals.json` (and if any evals such as `evals.json` or `trigger_eval.json` are drafted in the scratch workspace during creation, copy and keep them in `<skill-folder>/evals/` upon completion — never leave them only in scratch or delete them). Don't write assertions yet — just the prompts. You'll draft assertions in the next step while the runs are in progress.
 
 ```json
 {

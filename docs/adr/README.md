@@ -20,3 +20,4 @@ This directory contains the Architecture Decision Log (ADL) for Z-Trader, struct
 | [ADR-0005](./0005-market-data-streaming-and-transport-separation.md) | Out-of-React Market Data Streaming & Transport Separation                    | accepted | 2026-10-25 | Market Data & Streaming |
 | [ADR-0006](./0006-canvas-charting-and-lightweight-charts.md)         | High-Performance Canvas Charting via Lightweight Charts & Theme Integration  | accepted | 2026-10-25 | Charting & Performance  |
 | [ADR-0007](./0007-ninjatrader-cme-market-data.md)                    | CME Futures Market Data via NinjaTrader 8 Dual-Workflow Architecture         | accepted | 2026-10-30 | Market Data & Replay    |
+| [ADR-0008](./0008-langfuse-native-self-improving-agent-flywheel.md)  | Langfuse-Native Self-Improving Agent Flywheel                                | accepted | 2026-11-11 | AI & Observability      |

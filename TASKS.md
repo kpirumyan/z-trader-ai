@@ -18,22 +18,22 @@
 
 _(Архитектура согласована через /grill-me)_
 
-- [ ] **1.2.1 Dependencies**: Add official `langfuse` package to `devDependencies` in [`package.json`](./package.json).
-- [ ] **1.2.2 Core Transcript Parser (`.agents/hooks/transcript-parser.mjs`)**:
-  - [ ] Implement parsing of Antigravity `transcript_full.jsonl` lines.
-  - [ ] Map turns to Langfuse `Trace` entities grouped under `Session` (`conversationId`).
-  - [ ] Extract model responses and tokens into `generation` observations with `thinking` CoT metadata.
-  - [ ] Transform tool calls and execution outputs into `tool` spans.
-  - [ ] Implement recursive discovery and parsing of subagent transcripts (`invoke_subagent`) into `agent` spans.
+- [ ] **1.2.1 Dependencies**: Add Langfuse v4 OpenTelemetry-native packages (`@langfuse/tracing`, `@langfuse/otel`, `@opentelemetry/sdk-node`) to `devDependencies` in [`package.json`](./package.json).
+- [ ] **1.2.2 Core Transcript Parser (`.agents/hooks/transcript-parser.ts`)**:
+  - [ ] Implement parsing of Antigravity `transcript_full.jsonl` lines in native TypeScript (`.ts`).
+  - [ ] Map turns to root trace observations grouped under `sessionId = conversationId`.
+  - [ ] Extract model responses and tokens (`usageDetails`) into `{ asType: "generation" }` observations with `thinking` CoT metadata.
+  - [ ] Transform tool calls and execution outputs into `{ asType: "tool" }` observations.
+  - [ ] Implement recursive discovery and parsing of subagent transcripts (`invoke_subagent`) into `{ asType: "agent" }` observations.
 - [ ] **1.2.3 Parser Unit Tests (`.agents/hooks/tests/transcript-parser.test.ts`)**:
-  - [ ] Write Vitest test suite validating turn slicing, token summation, and tree hierarchy against fixture transcripts.
-- [ ] **1.2.4 Lifecycle Stop Hook Runner (`.agents/hooks/langfuse-stop-hook.mjs`)**:
-  - [ ] Implement stdin reader for Antigravity `Stop` hook context.
+  - [ ] Write Vitest test suite validating turn slicing, token summation, and observation tree hierarchy (`generation`, `tool`, `agent`) against fixture transcripts.
+- [ ] **1.2.4 Lifecycle Stop Hook Runner (`.agents/hooks/langfuse-stop-hook.ts`)**:
+  - [ ] Implement stdin reader for Antigravity `Stop` hook context (executed directly via Node.js v24 native `.ts` support).
   - [ ] Implement cursor management (`path.dirname(transcriptPath)/.langfuse-cursor.json`).
   - [ ] Implement soft fail-open with 5s timeout and local spool buffer (`.pending-export.json`).
-  - [ ] Implement Langfuse SDK client initialization and batch submission.
+  - [ ] Implement OpenTelemetry `NodeSDK` + `LangfuseSpanProcessor` (`@langfuse/otel`) initialization, attribute propagation (`propagateAttributes`), and typed observation emission (`startObservation(..., { asType })`).
 - [ ] **1.2.5 Context & Git Anchoring**:
-  - [ ] Calculate `release` identifier (`gitShortSha-agentsHash`).
+  - [ ] Calculate `release` / `version` identifier (`gitShortSha-agentsHash`).
   - [ ] Auto-tag touched modules (`src/modules/*`) and invoked skills (`.agents/skills/*`).
   - [ ] Attach Git metadata (full SHA, branch, `isDirty`).
 - [ ] **1.2.6 Verification**:

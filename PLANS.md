@@ -14,23 +14,22 @@
   - Removed obsolete `evals/` directory and updated [`AGENTS.md`](./AGENTS.md) references to unify on Langfuse.
 
 - **1.2 Build Antigravity Transcript Exporter (`.agents/hooks/`)** _(Architecture Agreed via /grill-me)_:
-  - **Dependencies**: Official `@langfuse/langfuse` (package `langfuse`) in `devDependencies` for native typing, batching, and observation models.
-  - **Modular Architecture (Variant 3 - Dual Module)**:
-    - `transcript-parser.mjs`: Pure parsing engine reading `transcript_full.jsonl` (and nested subagent transcripts via `invoke_subagent`), extracting token telemetry, reasoning CoT (`thinking`), and transforming steps into a Langfuse observation hierarchy.
-    - `langfuse-stop-hook.mjs`: Thin lifecycle hook runner reading stdin from Antigravity, managing cursor state, handling the spool retry buffer, and submitting batches via the Langfuse SDK.
+  - **Dependencies**: Official Langfuse v4 OpenTelemetry-native SDK packages (`@langfuse/tracing`, `@langfuse/otel`, `@opentelemetry/sdk-node`) in `devDependencies` (not the legacy `langfuse` v3 package).
+  - **Modular Architecture (Variant 3 - Dual Module in Native TypeScript `.ts`)**:
+    - `transcript-parser.ts`: Strongly-typed pure parsing engine reading `transcript_full.jsonl` (and nested subagent transcripts via `invoke_subagent`), extracting token telemetry, reasoning CoT (`thinking`), and transforming steps into a structured observation tree.
+    - `langfuse-stop-hook.ts`: Thin lifecycle hook runner (executed directly via Node.js v24 native TypeScript execution) reading stdin from Antigravity, managing cursor state, handling the spool retry buffer, and exporting spans via `LangfuseSpanProcessor` (`@langfuse/otel`), `propagateAttributes`, and `startObservation(..., { asType })` (`@langfuse/tracing`).
     - `tests/transcript-parser.test.ts`: Isolated Vitest unit tests verifying step parsing, token accounting, and tree hierarchy.
   - **State & Cursor Management**:
     - Cursor saved in Antigravity session directory (`path.dirname(transcriptPath)/.langfuse-cursor.json`).
     - Complies with `no-temp-files-in-workspace` (zero repo pollution).
-  - **Observation Hierarchy**:
-    - `Session` = `conversationId`.
-    - `Trace` = One trace per Turn (`${conversationId}-turn-${turnIndex}`).
-    - `Generation` = Model responses with token usage (`input_tokens`, `output_tokens`) and CoT reasoning in `metadata.thinking`.
-    - `Tool` spans = Tool invocations with arguments and results.
-    - `Agent` spans = Subagent invocations with recursive step linking.
+  - **Observation Hierarchy (Langfuse v4 `@langfuse/tracing` Best Practices)**:
+    - Trace-level correlation via `propagateAttributes({ sessionId: conversationId, version, tags, metadata, traceName })` and root observation (`startObservation` / `startActiveObservation`) per Turn (`${conversationId}-turn-${turnIndex}`).
+    - `Generation` (`{ asType: "generation" }`): Model responses with `model`, `usageDetails` (`input`, `output`, `cache_read_input_tokens`), and CoT reasoning in `metadata.thinking`.
+    - `Tool` (`{ asType: "tool" }`): Tool invocations with arguments (`input`), results (`output`), and error status (`level`, `statusMessage`).
+    - `Agent` (`{ asType: "agent" }`): Subagent invocations (`invoke_subagent`) with recursive child observation linking (`agentSpan.startObservation(...)`).
   - **Resilience & Fail-Open**:
     - 5-second timeout on the `Stop` hook.
-    - Soft fail-open: On network failure or timeout, logs warning to stderr, saves unexported batch into `.pending-export.json` next to the cursor, and exits with code 0 to never block interactive agent turns.
+    - Soft fail-open: On network failure or timeout during `LangfuseSpanProcessor.forceFlush()` / `shutdown()`, logs warning to stderr, saves unexported batch into `.pending-export.json` next to the cursor, and exits with code 0 to never block interactive agent turns.
   - **Context & Git Anchoring**:
     - `version` / `release`: `${gitShortSha}-${agentsHash}` (SHA of current commit + SHA256 of `.agents/` customizations).
     - `tags`: Touched modules (`src/modules/*`) and invoked skills (`.agents/skills/*`) extracted from tool calls.
@@ -43,7 +42,7 @@
     - `user_correction`: Captured when subsequent user turn signals rollbacks or corrections.
 
 - **1.4 Wire Lifecycle Hook & CLI Sync**:
-  - Register `langfuse-stop-hook.mjs` in `.agents/hooks.json` under the `Stop` lifecycle event.
+  - Register `langfuse-stop-hook.ts` in `.agents/hooks.json` under the `Stop` lifecycle event.
   - Add `pnpm langfuse:sync` in [`package.json`](./package.json) for manual / dry-run synchronization.
   - Perform trace self-audit via `langfuse-cli` to verify trace schema compliance.
 

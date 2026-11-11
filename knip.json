@@ -1,6 +1,11 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "entry": ["src/composition/widgets.ts", "src/modules/*/index.ts", "src/shared/*/index.ts"],
+  "entry": [
+    ".agents/hooks/langfuse/langfuse-stop-hook.ts",
+    "src/composition/widgets.ts",
+    "src/modules/*/index.ts",
+    "src/shared/*/index.ts"
+  ],
   "ignoreDependencies": ["agent-browser"],
   "rules": {
     "files": "error",

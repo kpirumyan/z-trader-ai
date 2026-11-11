@@ -41,6 +41,9 @@
     "zustand": "^5.0.16"
   },
   "devDependencies": {
+    "@langfuse/otel": "^6.1.1",
+    "@langfuse/tracing": "^6.1.1",
+    "@opentelemetry/sdk-node": "^0.301.1",
     "@playwright/test": "^1.64.1",
     "@stylistic/eslint-plugin": "^5.10.0",
     "@testing-library/dom": "^10.4.2",

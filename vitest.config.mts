@@ -7,6 +7,7 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     include: [
+      ".agents/hooks/**/tests/**/*.test.{ts,tsx}",
       ".agents/skills/*/tests/**/*.test.{ts,tsx}",
       "src/modules/*/tests/**/*.test.{ts,tsx}",
       "src/shared/**/tests/**/*.test.{ts,tsx}",

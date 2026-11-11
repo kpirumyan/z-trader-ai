@@ -1,6 +1,7 @@
 allowBuilds:
   unrs-resolver: true
   agent-browser: true
+  protobufjs: false
 minimumReleaseAgeExclude:
   - "@next/env@16.4.3"
   - "@next/eslint-plugin-next@16.4.3"

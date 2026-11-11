@@ -9,7 +9,7 @@
 - **State Management**: Zustand (modular, domain-scoped stores)
 - **Testing**: Vitest (unit & integration testing) and Playwright (end-to-end browser automation)
 - **Architectural Boundaries & Hygiene**: `dependency-cruiser` & `eslint-plugin-boundaries` (architectural boundary governance), Knip (unused dependency & dead code elimination)
-- **AI Infrastructure**: Langfuse (tracing & observability) and Promptfoo (evaluations & automated prompt testing)
+- **AI Infrastructure**: Langfuse (tracing, dataset curation, experiments & observability)
 
 ## Autonomous Zero-Code Development
 
@@ -17,7 +17,7 @@ Z-Trader is engineered entirely by AI agents without manual code authoring. Engi
 
 - **Autonomous Execution**: Agents deliver end-to-end tasks against strict ADRs and modular perimeters.
 - **Deep Tracing**: Langfuse captures complete reasoning trajectories, tool invocations, and LLM telemetry.
-- **Automated Evals**: Vitest, Playwright, and Promptfoo enforce quality gates and catch regressions.
+- **Automated Evals**: Vitest, Playwright, and Langfuse Experiments enforce quality gates and catch regressions.
 - **Distilled Memory**: Edge cases, failure modes, and architectural decisions persist into rules, skills, and ADRs.
 - **Compounding Flywheel**: Evaluation feedback and trace insights continuously refine agent context, compounding accuracy and velocity.
 

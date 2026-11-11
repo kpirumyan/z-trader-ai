@@ -7,7 +7,7 @@
 
 ### Phase 1: Observability & Automated Signal Capture
 
-- [ ] **1.1 Retire Legacy Promptfoo Scaffolding**: Remove `evals/` directory and update [`AGENTS.md`](./AGENTS.md) references to reflect the single-platform Langfuse stack.
+- [x] **1.1 Retire Legacy Promptfoo Scaffolding**: Remove `evals/` directory and update [`AGENTS.md`](./AGENTS.md) references to reflect the single-platform Langfuse stack.
 - [ ] **1.2 Build Antigravity Transcript Exporter (`.agents/hooks/`)**: Implement incremental exporter reading `transcript_full.jsonl` (plus nested subagent transcripts) from cursor state and emitting `Session` / `Trace` / `Generation` / `Tool` / `Agent` observations with `version` (Git SHA + `.agents/` hash) and touched `src/modules/*` tags.
 - [ ] **1.3 Implement Passive Gate & Feedback Scorer**: Extract `tool_error_count`, `gate_first_try_pass`, `gate_retry_count` (from `pnpm check:fast`, `vitest`, `adr:check`, `eslint`, `typecheck` runs), and `user_correction` signals into Langfuse Scores.
 - [ ] **1.4 Wire Lifecycle Hook & CLI Sync**: Register the exporter in `.agents/hooks.json` (`Stop` event, fail-open with short timeout), add `pnpm langfuse:sync` script in [`package.json`](./package.json), and execute end-to-end trace self-audit via `langfuse-cli`.

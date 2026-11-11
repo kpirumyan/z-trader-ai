@@ -1,7 +1,6 @@
 import type { Timeframe } from "@/src/shared/contracts";
 
 export const DEFAULT_TIMEFRAME: Timeframe = "1m";
-
 export const TIMEFRAMES: readonly Timeframe[] = ["1m", "5m", "15m", "1h", "1d"] as const;
 
 export const DEMO_FEED_INTERVALS = {

@@ -14,7 +14,7 @@
     "typecheck": "next typegen && tsc --noEmit",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix --max-warnings 0",
-    "depcruise": "depcruise src --config .dependency-cruiser.cjs",
+    "depcruise": "depcruise src .agents/tracing --config .dependency-cruiser.cjs",
     "knip": "knip --max-issues 0",
     "adr:list": "node .agents/skills/adr/scripts/adr-cli.mjs list",
     "adr:new": "node .agents/skills/adr/scripts/adr-cli.mjs new",

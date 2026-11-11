@@ -1,177 +1,24 @@
-import fs from "node:fs";
-import path from "node:path";
+import { parseJsonlSteps } from "./jsonl-reader.ts";
+import {
+  deriveSubagentObservationName,
+  extractSubagentConversationId,
+} from "./subagent-resolver.ts";
+import { collectTagsFromValue } from "./tagger.ts";
+import { extractGenericTimingAndBody, parseIsoTimestamp } from "./timing-extractor.ts";
+import { deserializeToolArgs } from "./tool-deserializer.ts";
 
-interface RawToolCall {
-  id?: string;
-  name: string;
-  args?: Record<string, unknown>;
-}
-
-interface RawTranscriptStep {
-  step_index: number;
-  source?: string;
-  type: string;
-  status?: string;
-  created_at?: string;
-  content?: string;
-  thinking?: string;
-  tool_calls?: RawToolCall[];
-  input_tokens?: number;
-  cache_read_tokens?: number;
-  output_tokens?: number;
-  error?: string;
-}
-
-interface TokenUsageSummary {
-  input: number;
-  output: number;
-  cacheReadInputTokens: number;
-  total: number;
-}
-
-interface AssistantToolCallOutput {
-  id: string;
-  type: "function";
-  function: {
-    name: string;
-    arguments: string;
-  };
-}
-
-interface ParsedGenerationObservation {
-  type: "generation";
-  name: "llm-generation";
-  stepIndex: number;
-  model: string;
-  startTime: Date;
-  endTime: Date;
-  input: Array<{ role: string; content: string }>;
-  output: {
-    role: "assistant";
-    content: string | null;
-    thinking?: string;
-    tool_calls?: AssistantToolCallOutput[];
-  };
-  usageDetails: {
-    input: number;
-    output: number;
-    cache_read_input_tokens?: number;
-    total: number;
-  };
-  metadata: Record<string, unknown>;
-  level?: "DEFAULT" | "WARNING" | "ERROR";
-  statusMessage?: string;
-}
-
-interface ParsedToolObservation {
-  type: "tool";
-  name: string;
-  stepIndex: number;
-  startTime: Date;
-  endTime: Date;
-  input: Record<string, unknown>;
-  output: string;
-  level: "DEFAULT" | "ERROR";
-  statusMessage?: string;
-  metadata: Record<string, unknown>;
-}
-
-export interface ParsedAgentObservation {
-  type: "agent";
-  name: string;
-  stepIndex: number;
-  subagentConversationId?: string;
-  role?: string;
-  subagentType?: string;
-  startTime: Date;
-  endTime: Date;
-  input: Record<string, unknown>;
-  output: string;
-  level: "DEFAULT" | "ERROR";
-  statusMessage?: string;
-  children: ParsedChildObservation[];
-  usageSummary: TokenUsageSummary;
-  metadata: Record<string, unknown>;
-}
-
-export type ParsedChildObservation =
-  | ParsedGenerationObservation
-  | ParsedToolObservation
-  | ParsedAgentObservation;
-
-export interface ParsedTurnTrace {
-  turnIndex: number;
-  traceSeed: string;
-  traceName: "agent-turn";
-  sessionId: string;
-  startStepIndex: number;
-  endStepIndex: number;
-  startTime: Date;
-  endTime: Date;
-  input: string;
-  output: string;
-  children: ParsedChildObservation[];
-  usageSummary: TokenUsageSummary;
-  tags: string[];
-  metadata: Record<string, unknown>;
-}
-
-interface ParseTranscriptOptions {
-  conversationId: string;
-  modelName?: string;
-  afterStepIndex?: number;
-  resolveSubagentTranscript?: (subagentConversationId: string) => string | null;
-  visitedConversationIds?: Set<string>;
-}
-
-interface ExtractedUserRequest {
-  prompt: string;
-  additionalMetadata?: string;
-  userSettingsChange?: string;
-}
-
-const UUID_REGEX = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
-const CREATED_AT_HEADER_REGEX = /^Created At:\s*([^\r\n]+)\r?\nCompleted At:\s*([^\r\n]+)\r?\n?/;
-const MODULE_PATH_REGEX = /(?:^|\/)src\/modules\/([a-zA-Z0-9_-]+)(?:\/|$)/g;
-const SKILL_PATH_REGEX = /(?:^|\/)(?:\.agents\/)?skills\/([a-zA-Z0-9_-]+)(?:\/|$)/g;
-
-export function resolveFullTranscriptPath(transcriptPath: string): string {
-  const dir = path.dirname(transcriptPath);
-  const fullCandidate = path.join(dir, "transcript_full.jsonl");
-
-  if (fs.existsSync(fullCandidate)) {
-    return fullCandidate;
-  }
-
-  return transcriptPath;
-}
-
-export function createFilesystemSubagentResolver(
-  parentTranscriptPath: string,
-): (subagentConversationId: string) => string | null {
-  // Parent transcript lives at <brainDir>/<conversationId>/.system_generated/logs/transcript_full.jsonl
-  const logsDir = path.dirname(parentTranscriptPath);
-  const systemGeneratedDir = path.dirname(logsDir);
-  const conversationDir = path.dirname(systemGeneratedDir);
-  const brainDir = path.dirname(conversationDir);
-
-  return (subagentConversationId: string): string | null => {
-    const candidateLogsDir = path.join(brainDir, subagentConversationId, ".system_generated", "logs");
-    const fullPath = path.join(candidateLogsDir, "transcript_full.jsonl");
-
-    if (fs.existsSync(fullPath)) {
-      return fs.readFileSync(fullPath, "utf8");
-    }
-
-    const compactPath = path.join(candidateLogsDir, "transcript.jsonl");
-
-    if (fs.existsSync(compactPath)) {
-      return fs.readFileSync(compactPath, "utf8");
-    }
-
-    return null;
-  };
-}
+import type {
+  AssistantToolCallOutput,
+  ExtractedUserRequest,
+  ParsedAgentObservation,
+  ParsedChildObservation,
+  ParsedGenerationObservation,
+  ParsedToolObservation,
+  ParsedTurnTrace,
+  ParseTranscriptOptions,
+  RawTranscriptStep,
+  TokenUsageSummary,
+} from "../types.ts";
 
 export function extractUserRequest(rawContent: string): ExtractedUserRequest {
   const userRequestMatch = rawContent.match(/<USER_REQUEST>\s*([\s\S]*?)\s*<\/USER_REQUEST>/);
@@ -194,194 +41,6 @@ export function extractUserRequest(rawContent: string): ExtractedUserRequest {
   }
 
   return result;
-}
-
-export function deserializeToolArgs(
-  rawArgs: Record<string, unknown> | undefined,
-): Record<string, unknown> {
-  if (!rawArgs) {
-    return {};
-  }
-
-  const deserialized: Record<string, unknown> = {};
-
-  for (const [key, value] of Object.entries(rawArgs)) {
-    if (typeof value !== "string") {
-      deserialized[key] = value;
-      continue;
-    }
-
-    const trimmed = value.trim();
-    const looksJsonEncoded =
-      (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
-      (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
-      (trimmed.startsWith("[") && trimmed.endsWith("]")) ||
-      trimmed === "true" ||
-      trimmed === "false" ||
-      trimmed === "null" ||
-      /^-?\d+(?:\.\d+)?$/.test(trimmed);
-
-    if (looksJsonEncoded) {
-      try {
-        deserialized[key] = JSON.parse(trimmed) as unknown;
-        continue;
-      } catch {
-        // Fallback to raw string when JSON parsing fails
-      }
-    }
-
-    deserialized[key] = value;
-  }
-
-  return deserialized;
-}
-
-function parseIsoTimestamp(raw: string | undefined, fallback: Date): Date {
-  if (!raw) {
-    return fallback;
-  }
-
-  const parsed = new Date(raw);
-
-  if (Number.isNaN(parsed.getTime())) {
-    return fallback;
-  }
-
-  return parsed;
-}
-
-function extractGenericTimingAndBody(
-  rawContent: string | undefined,
-  stepCreatedAt: Date,
-): { startTime: Date; endTime: Date; cleanBody: string } {
-  if (!rawContent) {
-    return {
-      startTime: stepCreatedAt,
-      endTime: stepCreatedAt,
-      cleanBody: "",
-    };
-  }
-
-  const match = rawContent.match(CREATED_AT_HEADER_REGEX);
-
-  if (!match) {
-    return {
-      startTime: stepCreatedAt,
-      endTime: stepCreatedAt,
-      cleanBody: rawContent.trim(),
-    };
-  }
-
-  const startTime = parseIsoTimestamp(match[1]?.trim(), stepCreatedAt);
-  const rawEndTime = parseIsoTimestamp(match[2]?.trim(), startTime);
-  const endTime = rawEndTime.getTime() >= startTime.getTime() ? rawEndTime : startTime;
-  const cleanBody = rawContent.slice(match[0].length).trim();
-
-  return {
-    startTime,
-    endTime,
-    cleanBody,
-  };
-}
-
-function deriveSubagentObservationName(deserializedArgs: Record<string, unknown>): string {
-  const rawRole =
-    typeof deserializedArgs.Role === "string" && deserializedArgs.Role.trim()
-      ? deserializedArgs.Role.trim()
-      : typeof deserializedArgs.TypeName === "string" && deserializedArgs.TypeName.trim()
-        ? deserializedArgs.TypeName.trim()
-        : "worker";
-
-  const slug = rawRole
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-
-  return `subagent:${slug || "worker"}`;
-}
-
-function extractSubagentConversationId(
-  deserializedArgs: Record<string, unknown>,
-  genericContent: string,
-): string | undefined {
-  if (typeof deserializedArgs.ConversationId === "string") {
-    const argMatch = deserializedArgs.ConversationId.match(UUID_REGEX);
-
-    if (argMatch) {
-      return argMatch[0].toLowerCase();
-    }
-  }
-
-  const labeledMatch = genericContent.match(
-    /conversationId[:\s"=]+([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i,
-  );
-
-  if (labeledMatch && labeledMatch[1]) {
-    return labeledMatch[1].toLowerCase();
-  }
-
-  const anyUuidMatch = genericContent.match(UUID_REGEX);
-
-  return anyUuidMatch ? anyUuidMatch[0].toLowerCase() : undefined;
-}
-
-function collectTagsFromValue(value: unknown, tagSet: Set<string>): void {
-  if (typeof value === "string") {
-    const normalized = value.replace(/\\/g, "/");
-
-    for (const match of normalized.matchAll(MODULE_PATH_REGEX)) {
-      if (match[1]) {
-        tagSet.add(`module:${match[1]}`);
-      }
-    }
-
-    for (const match of normalized.matchAll(SKILL_PATH_REGEX)) {
-      if (match[1]) {
-        tagSet.add(`skill:${match[1]}`);
-      }
-    }
-
-    return;
-  }
-
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      collectTagsFromValue(item, tagSet);
-    }
-
-    return;
-  }
-
-  if (value && typeof value === "object") {
-    for (const nested of Object.values(value)) {
-      collectTagsFromValue(nested, tagSet);
-    }
-  }
-}
-
-function parseJsonlSteps(jsonlContent: string): RawTranscriptStep[] {
-  const lines = jsonlContent.split(/\r?\n/);
-  const steps: RawTranscriptStep[] = [];
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-
-    if (!trimmed) {
-      continue;
-    }
-
-    try {
-      const parsed = JSON.parse(trimmed) as RawTranscriptStep;
-
-      if (typeof parsed.step_index === "number" && typeof parsed.type === "string") {
-        steps.push(parsed);
-      }
-    } catch {
-      // Skip malformed or incomplete trailing JSONL lines
-    }
-  }
-
-  return steps.sort((a, b) => a.step_index - b.step_index);
 }
 
 interface ParsedStepSequenceResult {
@@ -452,7 +111,6 @@ function parseStepSequence(
       lookahead++;
     }
 
-    // Determine generation endTime from first tool start or next step timestamp
     let genEndTime = genStartTime;
 
     if (matchingGenerics.length > 0) {
@@ -527,7 +185,6 @@ function parseStepSequence(
 
     children.push(genObservation);
 
-    // Emit sibling tool or subagent observations for each tool call
     for (let tcIdx = 0; tcIdx < rawToolCalls.length; tcIdx++) {
       const tc = rawToolCalls[tcIdx]!;
       const genericResult = matchingGenerics[tcIdx];
@@ -541,8 +198,7 @@ function parseStepSequence(
         fallbackStepTime,
       );
       const isError = genericResult?.status === "ERROR" || Boolean(genericResult?.error);
-      const statusMessage =
-        genericResult?.error ?? (isError ? cleanBody.slice(0, 200) : undefined);
+      const statusMessage = genericResult?.error ?? (isError ? cleanBody.slice(0, 200) : undefined);
 
       if (isError) {
         errorCount++;
@@ -679,7 +335,6 @@ export function parseTranscriptTurns(
 
   visited.add(options.conversationId.toLowerCase());
 
-  // Group steps into turns starting at each USER_INPUT step
   const turnSlices: RawTranscriptStep[][] = [];
   let currentSlice: RawTranscriptStep[] = [];
 

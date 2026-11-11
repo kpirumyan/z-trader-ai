@@ -45,7 +45,6 @@ export {
 } from "./constants";
 
 export { useWorkspaceStore } from "./model/workspace-store";
-
 export { NewMenuPopover } from "./ui/new-menu-popover";
 export { StatusBar } from "./ui/status-bar";
 export { TerminalShell } from "./ui/terminal-shell";

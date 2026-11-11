@@ -10,6 +10,7 @@ area: "AI & Observability"
 applies_to:
   - ".agents/skills/langfuse"
   - ".agents/hooks"
+  - ".agents/tracing"
   - ".agents/memory"
   - ".agents/rules"
   - "AGENTS.md"

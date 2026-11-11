@@ -20,5 +20,4 @@ export {
 } from "./constants";
 
 export { useChartStore } from "./model/chart-store";
-
 export { ChartWidget, chartWidgetDefinition } from "./ui/chart-widget";

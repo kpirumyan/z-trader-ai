@@ -108,7 +108,7 @@ module.exports = {
       severity: "error",
       comment: "Production code must not import from test files or test suites.",
       from: {
-        path: "^src",
+        path: "^(src|\\.agents/tracing)",
         pathNot: "tests?/",
       },
       to: {

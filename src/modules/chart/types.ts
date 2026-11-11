@@ -1,7 +1,6 @@
 import type { Candle, Timeframe, WidgetDefinition, WidgetProps } from "@/src/shared/contracts";
 
 export type ChartType = "candlestick" | "bars" | "line";
-
 export type ChartIndicatorType = "volume" | "sma" | "ema";
 
 export interface ChartConfig {
@@ -55,7 +54,5 @@ interface ChartStoreActions {
 }
 
 export type ChartStore = ChartStoreState & ChartStoreActions;
-
 export type ChartWidgetProps = WidgetProps;
-
 export type ChartWidgetDefinition = WidgetDefinition;

@@ -6,9 +6,7 @@ export const instrumentSchema = z.object({
 });
 
 export const windowKindSchema = z.enum(["chart", "orderBook", "timeAndSales"]);
-
 export const orderSideSchema = z.enum(["buy", "sell"]);
-
 export const timeframeSchema = z.enum(["1m", "5m", "15m", "1h", "1d"]);
 
 export const candleSchema = z

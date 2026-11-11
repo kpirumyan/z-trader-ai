@@ -50,5 +50,4 @@ export interface TimeAndSalesStoreActions {
 }
 
 export type TimeAndSalesStore = TimeAndSalesStoreState & TimeAndSalesStoreActions;
-
 export type TimeAndSalesWidgetProps = WidgetProps;

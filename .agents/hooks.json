@@ -4,7 +4,7 @@
     "Stop": [
       {
         "type": "command",
-        "command": "node --no-warnings --experimental-strip-types hooks/langfuse/langfuse-stop-hook.ts",
+        "command": "node --no-warnings --experimental-strip-types hooks/langfuse-stop.ts",
         "timeout": 15
       }
     ]

@@ -122,6 +122,9 @@ const eslintConfig = defineConfig([
         { blankLine: "always", prev: ["case", "default"], next: "*" },
         { blankLine: "always", prev: "import", next: "*" },
         { blankLine: "any", prev: "import", next: "import" },
+        { blankLine: "always", prev: "*", next: "multiline-export" },
+        { blankLine: "always", prev: "multiline-export", next: "*" },
+        { blankLine: "never", prev: "singleline-export", next: "singleline-export" },
       ],
       "boundaries/dependencies": [
         "error",
@@ -170,7 +173,7 @@ const eslintConfig = defineConfig([
     },
   },
   {
-    files: ["src/**/types.ts", "src/**/types/**/*.{ts,tsx}"],
+    files: ["src/**/types.ts", "src/**/types/**/*.{ts,tsx}", ".agents/tracing/types.ts"],
     rules: {
       "no-restricted-syntax": [
         "error",

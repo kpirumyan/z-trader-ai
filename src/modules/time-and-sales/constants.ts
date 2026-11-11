@@ -2,7 +2,6 @@ import type { FilterPresetOption, TradeBufferLimit, TradeSizeFilter } from "./ty
 
 export const TIME_AND_SALES_WIDGET_KIND = "timeAndSales" as const;
 export const TIME_AND_SALES_WIDGET_TITLE = "Time & Sales" as const;
-
 export const DEFAULT_TRADE_BUFFER_LIMIT: TradeBufferLimit = 100;
 export const TRADE_BUFFER_LIMIT_OPTIONS: readonly TradeBufferLimit[] = [50, 100, 250] as const;
 

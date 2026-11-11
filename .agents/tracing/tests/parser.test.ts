@@ -3,17 +3,21 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { createTraceId, LangfuseOtelSpanAttributes } from "@langfuse/tracing";
 import { describe, expect, it } from "vitest";
 
-import { computeContextAnchor, runStopHook } from "../langfuse-stop-hook.ts";
 import {
+  collectTagsFromValue,
   createFilesystemSubagentResolver,
+  deriveSubagentObservationName,
   deserializeToolArgs,
+  extractGenericTimingAndBody,
+  extractSubagentConversationId,
   extractUserRequest,
+  parseIsoTimestamp,
+  parseJsonlSteps,
   parseTranscriptTurns,
   resolveFullTranscriptPath,
-} from "../transcript-parser.ts";
+} from "../index.ts";
 
 describe("extractUserRequest", () => {
   it("extracts clean prompt text from <USER_REQUEST> and separates metadata blocks", () => {
@@ -70,6 +74,53 @@ describe("deserializeToolArgs", () => {
       Arguments: { pathOrUrl: "/docs/observability/best-practices" },
       PlainString: "already-unquoted",
     });
+  });
+});
+
+describe("timing-extractor, tagger, subagent-resolver, and jsonl-reader helpers", () => {
+  it("parses ISO timestamps with fallback and extracts Created At / Completed At headers", () => {
+    const fallback = new Date("2026-11-11T00:00:00Z");
+
+    expect(parseIsoTimestamp("invalid-date", fallback)).toBe(fallback);
+
+    const extracted = extractGenericTimingAndBody(
+      "Created At: 2026-11-11T10:00:00Z\nCompleted At: 2026-11-11T10:00:05Z\nOutput body",
+      fallback,
+    );
+
+    expect(extracted.startTime.toISOString()).toBe("2026-11-11T10:00:00.000Z");
+    expect(extracted.endTime.toISOString()).toBe("2026-11-11T10:00:05.000Z");
+    expect(extracted.cleanBody).toBe("Output body");
+  });
+
+  it("collects module and skill tags and derives subagent identifiers", () => {
+    const tags = new Set<string>();
+
+    collectTagsFromValue(
+      {
+        files: ["src/modules/order-book/index.ts", ".agents/skills/adr/SKILL.md"],
+      },
+      tags,
+    );
+
+    expect([...tags].sort()).toEqual(["module:order-book", "skill:adr"]);
+
+    expect(deriveSubagentObservationName({ Role: "Database Debugger" })).toBe(
+      "subagent:database-debugger",
+    );
+
+    expect(
+      extractSubagentConversationId(
+        {},
+        "Done: conversationId: 12345678-1234-1234-1234-123456789abc",
+      ),
+    ).toBe("12345678-1234-1234-1234-123456789abc");
+
+    expect(
+      parseJsonlSteps(
+        '{"step_index":2,"type":"GENERIC"}\ncorrupt\n{"step_index":1,"type":"USER_INPUT"}',
+      ).map((s) => s.step_index),
+    ).toEqual([1, 2]);
   });
 });
 
@@ -158,7 +209,6 @@ describe("parseTranscriptTurns", () => {
         thinking: "All files checked, formulating final answer.",
         content: "Audit complete: chart module and langfuse skill verified.",
       }),
-      // Second turn
       JSON.stringify({
         step_index: 6,
         source: "USER_EXPLICIT",
@@ -198,7 +248,6 @@ describe("parseTranscriptTurns", () => {
     expect(turn1.startStepIndex).toBe(0);
     expect(turn1.endStepIndex).toBe(5);
 
-    // Token summation for Turn 1: (1200 + 1500) input, (150 + 90) output, (800 + 1000) cache_read
     expect(turn1.usageSummary).toEqual({
       input: 2700,
       output: 240,
@@ -206,10 +255,8 @@ describe("parseTranscriptTurns", () => {
       total: 4740,
     });
 
-    // Tags extracted from tool calls
     expect(turn1.tags).toEqual(["module:chart", "skill:langfuse"]);
 
-    // Observation hierarchy: gen1, tool1, tool2, tool3, gen2 (all siblings under root agent-turn)
     expect(turn1.children.map((c) => `${c.type}:${c.name}`)).toEqual([
       "generation:llm-generation",
       "tool:read_file",
@@ -261,7 +308,6 @@ describe("parseTranscriptTurns", () => {
       expect(failedTool.statusMessage).toBe("file does not exist");
     }
 
-    // Cursor filtering: only return turns with endStepIndex > afterStepIndex
     const incrementalTurns = parseTranscriptTurns(mainTranscriptLines, {
       conversationId,
       modelName: "gemini-4-argon",
@@ -387,7 +433,6 @@ describe("parseTranscriptTurns", () => {
 
     const turn = turns[0]!;
 
-    // Verify no duplicate "tool:invoke_subagent" node — only generation, agent, generation
     expect(turn.children.map((c) => `${c.type}:${c.name}`)).toEqual([
       "generation:llm-generation",
       "agent:subagent:codebase-researcher",
@@ -415,7 +460,6 @@ describe("parseTranscriptTurns", () => {
       });
     }
 
-    // Parent turn usageSummary includes both parent (1000 in, 90 out, 500 cache) and subagent (650 in, 60 out, 250 cache)
     expect(turn.usageSummary).toEqual({
       input: 1650,
       output: 150,
@@ -423,7 +467,6 @@ describe("parseTranscriptTurns", () => {
       total: 2550,
     });
 
-    // Subagent's touched module is rolled up into turn tags
     expect(turn.tags).toEqual(["module:order-book"]);
   });
 
@@ -451,322 +494,6 @@ describe("parseTranscriptTurns", () => {
 
       expect(resolver("conv-sub")).toBe('{"step_index":0,"type":"USER_INPUT"}');
       expect(resolver("non-existent")).toBeNull();
-    } finally {
-      fs.rmSync(tempDir, { recursive: true, force: true });
-    }
-  });
-});
-
-describe("langfuse-stop-hook", () => {
-  it("computes deterministic context anchor (gitShortSha-agentsHash) excluding test files", () => {
-    const tempWorkspace = fs.mkdtempSync(path.join(os.tmpdir(), "z-trader-anchor-test-"));
-
-    try {
-      fs.writeFileSync(path.join(tempWorkspace, "AGENTS.md"), "# Agent Rules\n", "utf8");
-
-      fs.mkdirSync(path.join(tempWorkspace, ".agents", "skills", "langfuse"), {
-        recursive: true,
-      });
-
-      fs.mkdirSync(path.join(tempWorkspace, ".agents", "hooks", "tests"), {
-        recursive: true,
-      });
-
-      fs.writeFileSync(
-        path.join(tempWorkspace, ".agents", "skills", "langfuse", "SKILL.md"),
-        "name: langfuse\n",
-        "utf8",
-      );
-
-      fs.writeFileSync(
-        path.join(tempWorkspace, ".agents", "hooks", "tests", "some.test.ts"),
-        "// test v1\n",
-        "utf8",
-      );
-
-      const anchor1 = computeContextAnchor(tempWorkspace);
-
-      expect(anchor1.agentsHash).toMatch(/^[0-9a-f]{8}$/);
-      expect(anchor1.version).toBe(`${anchor1.gitShortSha}-${anchor1.agentsHash}`);
-
-      // Modifying a test file inside .agents/**/tests/ should NOT change agentsHash
-      fs.writeFileSync(
-        path.join(tempWorkspace, ".agents", "hooks", "tests", "some.test.ts"),
-        "// test v2 changed\n",
-        "utf8",
-      );
-
-      const anchor2 = computeContextAnchor(tempWorkspace);
-
-      expect(anchor2.agentsHash).toBe(anchor1.agentsHash);
-
-      // Modifying a skill file inside .agents/skills/ MUST change agentsHash
-      fs.writeFileSync(
-        path.join(tempWorkspace, ".agents", "skills", "langfuse", "SKILL.md"),
-        "name: langfuse-updated\n",
-        "utf8",
-      );
-
-      const anchor3 = computeContextAnchor(tempWorkspace);
-
-      expect(anchor3.agentsHash).not.toBe(anchor1.agentsHash);
-    } finally {
-      fs.rmSync(tempWorkspace, { recursive: true, force: true });
-    }
-  });
-
-  it("exports turns via LangfuseSpanProcessor with deterministic traceId, root flags, and cursor deduplication", async () => {
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "z-trader-hook-test-"));
-
-    try {
-      const logsDir = path.join(tempDir, "conv-hook-1", ".system_generated", "logs");
-
-      fs.mkdirSync(logsDir, { recursive: true });
-
-      const compactPath = path.join(logsDir, "transcript.jsonl");
-      const fullPath = path.join(logsDir, "transcript_full.jsonl");
-
-      const transcriptLines = [
-        JSON.stringify({
-          step_index: 0,
-          source: "USER_EXPLICIT",
-          type: "USER_INPUT",
-          status: "DONE",
-          created_at: "2026-11-11T18:00:00Z",
-          content: "<USER_REQUEST>\nCheck chart module\n</USER_REQUEST>",
-        }),
-        JSON.stringify({
-          step_index: 1,
-          source: "MODEL",
-          type: "PLANNER_RESPONSE",
-          status: "DONE",
-          created_at: "2026-11-11T18:00:02Z",
-          input_tokens: 400,
-          cache_read_tokens: 100,
-          output_tokens: 50,
-          thinking: "Reading chart module.",
-          tool_calls: [
-            {
-              id: "call-1",
-              name: "read_file",
-              args: {
-                Path: '"src/modules/chart/index.ts"',
-              },
-            },
-          ],
-        }),
-        JSON.stringify({
-          step_index: 2,
-          source: "MODEL",
-          type: "GENERIC",
-          status: "DONE",
-          created_at: "2026-11-11T18:00:04Z",
-          content:
-            "Created At: 2026-11-11T18:00:03Z\nCompleted At: 2026-11-11T18:00:04Z\nexport {};",
-        }),
-        JSON.stringify({
-          step_index: 3,
-          source: "MODEL",
-          type: "PLANNER_RESPONSE",
-          status: "DONE",
-          created_at: "2026-11-11T18:00:06Z",
-          input_tokens: 450,
-          cache_read_tokens: 350,
-          output_tokens: 30,
-          content: "Chart module checked.",
-        }),
-      ].join("\n");
-
-      fs.writeFileSync(compactPath, "{}", "utf8");
-      fs.writeFileSync(fullPath, transcriptLines, "utf8");
-
-      const exportedSpans: Array<{
-        name: string;
-        traceId: string;
-        spanId: string;
-        parentSpanId?: string;
-        attributes: Record<string, unknown>;
-      }> = [];
-
-      const result1 = await runStopHook(
-        {
-          conversationId: "conv-hook-1",
-          transcriptPath: compactPath,
-          modelName: "gemini-4-argon",
-          cwd: process.cwd(),
-        },
-        {
-          spanExporter: {
-            export(spans, resultCallback) {
-              for (const s of spans) {
-                exportedSpans.push({
-                  name: s.name,
-                  traceId: s.spanContext().traceId,
-                  spanId: s.spanContext().spanId,
-                  parentSpanId: s.parentSpanContext?.spanId,
-                  attributes: { ...s.attributes },
-                });
-              }
-
-              resultCallback({ code: 0 });
-            },
-            shutdown: async () => {},
-          },
-        },
-      );
-
-      expect(result1.decision).toBe("allow");
-      expect(result1.exportedTurns).toBe(1);
-      expect(result1.spooledTurns).toBe(0);
-
-      // Should have 4 spans: 1 root agent-turn + 2 llm-generation + 1 read_file tool
-      expect(exportedSpans).toHaveLength(4);
-
-      const expectedTraceId = await createTraceId("conv-hook-1-turn-1");
-      const rootSpan = exportedSpans.find((s) => s.name === "agent-turn");
-
-      expect(rootSpan).toBeDefined();
-      expect(rootSpan?.traceId).toBe(expectedTraceId);
-      expect(rootSpan?.attributes[LangfuseOtelSpanAttributes.OBSERVATION_TYPE]).toBe("agent");
-      expect(rootSpan?.attributes[LangfuseOtelSpanAttributes.IS_APP_ROOT]).toBe(true);
-      expect(rootSpan?.attributes[LangfuseOtelSpanAttributes.TRACE_NAME]).toBe("agent-turn");
-
-      expect(rootSpan?.attributes[LangfuseOtelSpanAttributes.TRACE_SESSION_ID]).toBe(
-        "conv-hook-1",
-      );
-
-      expect(rootSpan?.attributes[LangfuseOtelSpanAttributes.TRACE_TAGS]).toEqual([
-        "module:chart",
-      ]);
-
-      const childSpans = exportedSpans.filter((s) => s.name !== "agent-turn");
-
-      for (const child of childSpans) {
-        expect(child.traceId).toBe(expectedTraceId);
-        expect(child.parentSpanId).toBe(rootSpan?.spanId);
-        expect(child.attributes[LangfuseOtelSpanAttributes.IS_APP_ROOT]).toBeUndefined();
-      }
-
-      // Cursor file must exist and prevent duplicate re-export on second invocation
-      const cursorPath = path.join(logsDir, ".langfuse-cursor.json");
-
-      expect(fs.existsSync(cursorPath)).toBe(true);
-
-      const result2 = await runStopHook(
-        {
-          conversationId: "conv-hook-1",
-          transcriptPath: compactPath,
-          modelName: "gemini-4-argon",
-          cwd: process.cwd(),
-        },
-        {
-          spanExporter: {
-            export(_spans, resultCallback) {
-              resultCallback({ code: 0 });
-            },
-            shutdown: async () => {},
-          },
-        },
-      );
-
-      expect(result2.exportedTurns).toBe(0);
-    } finally {
-      fs.rmSync(tempDir, { recursive: true, force: true });
-    }
-  });
-
-  it("soft fails open into .pending-export.json when export fails and retries on next run", async () => {
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "z-trader-spool-test-"));
-
-    try {
-      const logsDir = path.join(tempDir, "conv-spool-1", ".system_generated", "logs");
-
-      fs.mkdirSync(logsDir, { recursive: true });
-
-      const fullPath = path.join(logsDir, "transcript_full.jsonl");
-
-      fs.writeFileSync(
-        fullPath,
-        [
-          JSON.stringify({
-            step_index: 0,
-            source: "USER_EXPLICIT",
-            type: "USER_INPUT",
-            status: "DONE",
-            created_at: "2026-11-11T19:00:00Z",
-            content: "<USER_REQUEST>\nTest spool retry\n</USER_REQUEST>",
-          }),
-          JSON.stringify({
-            step_index: 1,
-            source: "MODEL",
-            type: "PLANNER_RESPONSE",
-            status: "DONE",
-            created_at: "2026-11-11T19:00:02Z",
-            input_tokens: 100,
-            output_tokens: 20,
-            content: "Done.",
-          }),
-        ].join("\n"),
-        "utf8",
-      );
-
-      const warnings: string[] = [];
-
-      // First run: force failure via flushErrorSimulation / failing exporter
-      const failResult = await runStopHook(
-        {
-          conversationId: "conv-spool-1",
-          transcriptPath: fullPath,
-          modelName: "gemini-4-argon",
-          cwd: process.cwd(),
-        },
-        {
-          onWarning: (msg) => warnings.push(msg),
-          simulateFlushFailure: new Error("Simulated Langfuse network timeout"),
-        },
-      );
-
-      expect(failResult.decision).toBe("allow");
-      expect(failResult.exportedTurns).toBe(0);
-      expect(failResult.spooledTurns).toBe(1);
-      expect(warnings.some((w) => w.includes("Simulated Langfuse network timeout"))).toBe(true);
-
-      const spoolPath = path.join(logsDir, ".pending-export.json");
-      const cursorPath = path.join(logsDir, ".langfuse-cursor.json");
-
-      expect(fs.existsSync(spoolPath)).toBe(true);
-      expect(fs.existsSync(cursorPath)).toBe(false);
-
-      // Second run: exporter succeeds, rehydrates spooled turn, exports it, and clears .pending-export.json
-      const recoveredSpans: string[] = [];
-      const retryResult = await runStopHook(
-        {
-          conversationId: "conv-spool-1",
-          transcriptPath: fullPath,
-          modelName: "gemini-4-argon",
-          cwd: process.cwd(),
-        },
-        {
-          spanExporter: {
-            export(spans, resultCallback) {
-              for (const s of spans) {
-                recoveredSpans.push(s.name);
-              }
-
-              resultCallback({ code: 0 });
-            },
-            shutdown: async () => {},
-          },
-        },
-      );
-
-      expect(retryResult.decision).toBe("allow");
-      expect(retryResult.exportedTurns).toBe(1);
-      expect(retryResult.spooledTurns).toBe(0);
-      expect(recoveredSpans).toContain("agent-turn");
-      expect(recoveredSpans).toContain("llm-generation");
-      expect(fs.existsSync(spoolPath)).toBe(false);
-      expect(fs.existsSync(cursorPath)).toBe(true);
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }

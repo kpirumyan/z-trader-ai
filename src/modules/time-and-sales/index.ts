@@ -23,7 +23,5 @@ export {
 } from "./constants";
 
 export { useTimeAndSalesStore } from "./model/time-and-sales-store";
-
 export { TimeAndSalesWidget } from "./ui/time-and-sales-widget";
-
 export { timeAndSalesWidgetDefinition } from "./ui/time-and-sales-widget-definition";

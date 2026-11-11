@@ -18,7 +18,5 @@ export {
 } from "./constants";
 
 export { useOrderBookStore } from "./model/order-book-store";
-
 export { OrderBookWidget } from "./ui/order-book-widget";
-
 export { orderBookWidgetDefinition } from "./ui/order-book-widget-definition";

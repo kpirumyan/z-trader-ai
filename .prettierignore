@@ -6,5 +6,7 @@ test-results
 playwright-report
 node_modules
 pnpm-lock.yaml
-.agents
+.agents/*
+!.agents/tracing
+!.agents/hooks
 .codex

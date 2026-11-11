@@ -1,0 +1,12 @@
+{
+  "langfuse-export": {
+    "enabled": true,
+    "Stop": [
+      {
+        "type": "command",
+        "command": "node --no-warnings --experimental-strip-types hooks/langfuse/langfuse-stop-hook.ts",
+        "timeout": 15
+      }
+    ]
+  }
+}

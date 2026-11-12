@@ -282,6 +282,44 @@ describe("parseTranscriptTurns", () => {
       expect(gen1.metadata.thinking).toBe("Reading chart module and langfuse skill first.");
       expect(gen1.output.thinking).toBe("Reading chart module and langfuse skill first.");
       expect(gen1.output.tool_calls).toHaveLength(3);
+
+      expect(gen1.input).toEqual([
+        { role: "user", content: "Audit chart module and langfuse skill" },
+      ]);
+    }
+
+    const gen2 = turn1.children[4]!;
+
+    expect(gen2.type).toBe("generation");
+
+    if (gen2.type === "generation") {
+      expect(gen2.input).toHaveLength(5);
+
+      expect(gen2.input[0]).toEqual({
+        role: "user",
+        content: "Audit chart module and langfuse skill",
+      });
+
+      expect(gen2.input[1]?.role).toBe("assistant");
+      expect(gen2.input[1]?.tool_calls).toHaveLength(3);
+
+      expect(gen2.input[2]).toEqual({
+        role: "tool",
+        tool_call_id: "call_1_0",
+        content: "Showing lines 1-2 of 2\n1: export const Chart = {};",
+      });
+
+      expect(gen2.input[3]).toEqual({
+        role: "tool",
+        tool_call_id: "call_1_1",
+        content: "Showing lines 1-1 of 1\n1: # Langfuse Skill",
+      });
+
+      expect(gen2.input[4]).toEqual({
+        role: "tool",
+        tool_call_id: "call_1_2",
+        content: "file does not exist",
+      });
     }
 
     const tool1 = turn1.children[1]!;
@@ -308,6 +346,25 @@ describe("parseTranscriptTurns", () => {
       expect(failedTool.statusMessage).toBe("file does not exist");
     }
 
+    const turn2 = turns[1]!;
+    const turn2Gen = turn2.children[0]!;
+
+    expect(turn2Gen.type).toBe("generation");
+
+    if (turn2Gen.type === "generation") {
+      expect(turn2Gen.input).toHaveLength(7);
+
+      expect(turn2Gen.input[5]).toEqual({
+        role: "assistant",
+        content: "Audit complete: chart module and langfuse skill verified.",
+      });
+
+      expect(turn2Gen.input[6]).toEqual({
+        role: "user",
+        content: "Now check order-book",
+      });
+    }
+
     const incrementalTurns = parseTranscriptTurns(mainTranscriptLines, {
       conversationId,
       modelName: "gemini-4-argon",
@@ -317,6 +374,19 @@ describe("parseTranscriptTurns", () => {
     expect(incrementalTurns).toHaveLength(1);
     expect(incrementalTurns[0]!.turnIndex).toBe(2);
     expect(incrementalTurns[0]!.traceSeed).toBe(`${conversationId}-turn-2`);
+
+    const incGen = incrementalTurns[0]!.children[0]!;
+
+    expect(incGen.type).toBe("generation");
+
+    if (incGen.type === "generation") {
+      expect(incGen.input).toHaveLength(7);
+
+      expect(incGen.input[6]).toEqual({
+        role: "user",
+        content: "Now check order-book",
+      });
+    }
   });
 
   it("recursively parses invoke_subagent into a role-named agent observation without duplicate tool span", () => {
@@ -496,6 +566,63 @@ describe("parseTranscriptTurns", () => {
       expect(resolver("non-existent")).toBeNull();
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("truncates huge tool outputs exceeding 30,000 characters in conversation history", () => {
+    const hugeOutput = "A".repeat(40000);
+    const lines = [
+      JSON.stringify({
+        step_index: 0,
+        source: "USER_EXPLICIT",
+        type: "USER_INPUT",
+        status: "DONE",
+        created_at: "2026-11-11T18:00:00Z",
+        content: "<USER_REQUEST>\nPrint large output\n</USER_REQUEST>",
+      }),
+      JSON.stringify({
+        step_index: 1,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-11T18:00:01Z",
+        tool_calls: [{ name: "run_command", args: { CommandLine: "echo large" } }],
+      }),
+      JSON.stringify({
+        step_index: 2,
+        source: "MODEL",
+        type: "GENERIC",
+        status: "DONE",
+        created_at: "2026-11-11T18:00:03Z",
+        content: `Created At: 2026-11-11T18:00:02Z\nCompleted At: 2026-11-11T18:00:03Z\n${hugeOutput}`,
+      }),
+      JSON.stringify({
+        step_index: 3,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-11T18:00:05Z",
+        content: "Done processing large output.",
+      }),
+    ].join("\n");
+
+    const turns = parseTranscriptTurns(lines, {
+      conversationId: "conv-large",
+    });
+
+    expect(turns).toHaveLength(1);
+
+    const turn = turns[0]!;
+    const gen2 = turn.children[2]!;
+
+    expect(gen2.type).toBe("generation");
+
+    if (gen2.type === "generation") {
+      const toolMsg = gen2.input.find((m) => m.role === "tool");
+
+      expect(toolMsg).toBeDefined();
+      expect(toolMsg?.content?.length).toBeLessThan(35000);
+      expect(toolMsg?.content).toContain("... [truncated for observation history]");
     }
   });
 });

@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "langfuse-docs": {
-      "url": "https://langfuse.com/api/mcp"
+      "serverUrl": "https://langfuse.com/api/mcp"
     }
   }
 }

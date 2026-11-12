@@ -38,6 +38,15 @@ export interface AssistantToolCallOutput {
   };
 }
 
+export type ChatRole = "system" | "user" | "assistant" | "tool";
+
+export interface ChatMessage {
+  role: ChatRole;
+  content: string | null;
+  tool_calls?: AssistantToolCallOutput[];
+  tool_call_id?: string;
+}
+
 export interface ParsedGenerationObservation {
   type: "generation";
   name: "llm-generation";
@@ -45,7 +54,7 @@ export interface ParsedGenerationObservation {
   model: string;
   startTime: Date;
   endTime: Date;
-  input: Array<{ role: string; content: string }>;
+  input: ChatMessage[];
   output: {
     role: "assistant";
     content: string | null;

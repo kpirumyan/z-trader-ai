@@ -36,6 +36,8 @@ export {
 
 export type {
   AssistantToolCallOutput,
+  ChatMessage,
+  ChatRole,
   ContextAnchor,
   ExtractedUserRequest,
   LangfuseCursorState,

@@ -9,6 +9,7 @@ import { deserializeToolArgs } from "./tool-deserializer.ts";
 
 import type {
   AssistantToolCallOutput,
+  ChatMessage,
   ExtractedUserRequest,
   ParsedAgentObservation,
   ParsedChildObservation,
@@ -51,6 +52,7 @@ interface ParsedStepSequenceResult {
   generationCount: number;
   toolCount: number;
   errorCount: number;
+  history: ChatMessage[];
 }
 
 function parseStepSequence(
@@ -58,6 +60,7 @@ function parseStepSequence(
   promptText: string,
   options: ParseTranscriptOptions,
   visited: Set<string>,
+  initialHistory: ChatMessage[] = [],
 ): ParsedStepSequenceResult {
   const children: ParsedChildObservation[] = [];
   const usageSummary: TokenUsageSummary = {
@@ -73,6 +76,12 @@ function parseStepSequence(
   let generationCount = 0;
   let toolCount = 0;
   let errorCount = 0;
+
+  const history: ChatMessage[] = [...initialHistory];
+
+  if (promptText) {
+    history.push({ role: "user", content: promptText });
+  }
 
   let i = 0;
 
@@ -164,7 +173,7 @@ function parseStepSequence(
       model: modelName,
       startTime: genStartTime,
       endTime: genEndTime,
-      input: [{ role: "user", content: promptText }],
+      input: [...history],
       output: {
         role: "assistant",
         content: contentText,
@@ -184,6 +193,14 @@ function parseStepSequence(
     };
 
     children.push(genObservation);
+
+    const assistantHistoryMsg: ChatMessage = {
+      role: "assistant",
+      content: contentText ?? (assistantToolCalls.length > 0 ? null : ""),
+      ...(assistantToolCalls.length > 0 ? { tool_calls: assistantToolCalls } : {}),
+    };
+
+    history.push(assistantHistoryMsg);
 
     for (let tcIdx = 0; tcIdx < rawToolCalls.length; tcIdx++) {
       const tc = rawToolCalls[tcIdx]!;
@@ -205,6 +222,22 @@ function parseStepSequence(
       }
 
       const resultStepIndex = genericResult?.step_index ?? step.step_index;
+
+      if (genericResult) {
+        const rawToolOutput = isError ? (statusMessage ?? cleanBody) : cleanBody;
+        const safeToolOutput =
+          rawToolOutput.length > 30_000
+            ? `${rawToolOutput.slice(0, 30_000)}\n... [truncated for observation history]`
+            : rawToolOutput;
+
+        const toolCallId = assistantToolCalls[tcIdx]?.id ?? `call_${step.step_index}_${tcIdx}`;
+
+        history.push({
+          role: "tool",
+          tool_call_id: toolCallId,
+          content: safeToolOutput,
+        });
+      }
 
       if (tc.name === "invoke_subagent") {
         const subagentName = deriveSubagentObservationName(deserializedArgs);
@@ -318,6 +351,7 @@ function parseStepSequence(
     generationCount,
     toolCount,
     errorCount,
+    history,
   };
 }
 
@@ -352,6 +386,7 @@ export function parseTranscriptTurns(
   }
 
   const parsedTurns: ParsedTurnTrace[] = [];
+  let cumulativeSessionHistory: ChatMessage[] = [];
 
   for (let idx = 0; idx < turnSlices.length; idx++) {
     const slice = turnSlices[idx]!;
@@ -361,15 +396,23 @@ export function parseTranscriptTurns(
     const startStepIndex = firstStep.step_index;
     const endStepIndex = lastStep.step_index;
 
-    if (options.afterStepIndex !== undefined && endStepIndex <= options.afterStepIndex) {
-      continue;
-    }
-
     const userInputStep = slice.find((s) => s.type === "USER_INPUT");
     const extractedInput = extractUserRequest(userInputStep?.content ?? "");
     const startTime = parseIsoTimestamp(firstStep.created_at, new Date(0));
 
-    const sequence = parseStepSequence(slice, extractedInput.prompt, options, visited);
+    const sequence = parseStepSequence(
+      slice,
+      extractedInput.prompt,
+      options,
+      visited,
+      cumulativeSessionHistory,
+    );
+
+    cumulativeSessionHistory = sequence.history;
+
+    if (options.afterStepIndex !== undefined && endStepIndex <= options.afterStepIndex) {
+      continue;
+    }
 
     let endTime = parseIsoTimestamp(lastStep.created_at, startTime);
 

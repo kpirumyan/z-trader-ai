@@ -27,6 +27,7 @@ export {
   deserializeToolArgs,
   extractGenericTimingAndBody,
   extractSubagentConversationId,
+  extractSystemMessageContent,
   extractUserRequest,
   parseIsoTimestamp,
   parseJsonlSteps,

@@ -44,6 +44,14 @@ export function extractUserRequest(rawContent: string): ExtractedUserRequest {
   return result;
 }
 
+const SYSTEM_MESSAGE_TAG_REGEX = /(?:^|\n)\s*<SYSTEM_MESSAGE>\s*([\s\S]*?)\s*<\/SYSTEM_MESSAGE>/;
+
+export function extractSystemMessageContent(rawContent: string): string {
+  const match = rawContent.match(SYSTEM_MESSAGE_TAG_REGEX);
+
+  return match ? match[1]!.trim() : rawContent.trim();
+}
+
 interface ParsedStepSequenceResult {
   children: ParsedChildObservation[];
   usageSummary: TokenUsageSummary;
@@ -52,6 +60,7 @@ interface ParsedStepSequenceResult {
   generationCount: number;
   toolCount: number;
   errorCount: number;
+  systemMessageCount: number;
   history: ChatMessage[];
 }
 
@@ -76,6 +85,7 @@ function parseStepSequence(
   let generationCount = 0;
   let toolCount = 0;
   let errorCount = 0;
+  let systemMessageCount = 0;
 
   const history: ChatMessage[] = [...initialHistory];
 
@@ -87,6 +97,27 @@ function parseStepSequence(
 
   while (i < steps.length) {
     const step = steps[i]!;
+
+    if (step.type === "SYSTEM_MESSAGE") {
+      systemMessageCount++;
+
+      const systemContent = extractSystemMessageContent(step.content ?? "");
+
+      if (systemContent) {
+        const safeSystemOutput =
+          systemContent.length > 30_000
+            ? `${systemContent.slice(0, 30_000)}\n... [truncated for observation history]`
+            : systemContent;
+
+        history.push({
+          role: "system",
+          content: safeSystemOutput,
+        });
+      }
+
+      i++;
+      continue;
+    }
 
     if (step.type !== "PLANNER_RESPONSE") {
       i++;
@@ -351,6 +382,7 @@ function parseStepSequence(
     generationCount,
     toolCount,
     errorCount,
+    systemMessageCount,
     history,
   };
 }
@@ -435,6 +467,7 @@ export function parseTranscriptTurns(
       generationCount: sequence.generationCount,
       toolCount: sequence.toolCount,
       errorCount: sequence.errorCount,
+      systemMessageCount: sequence.systemMessageCount,
     };
 
     if (extractedInput.additionalMetadata) {

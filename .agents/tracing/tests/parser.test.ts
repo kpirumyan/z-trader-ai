@@ -12,6 +12,7 @@ import {
   deserializeToolArgs,
   extractGenericTimingAndBody,
   extractSubagentConversationId,
+  extractSystemMessageContent,
   extractUserRequest,
   parseIsoTimestamp,
   parseJsonlSteps,
@@ -50,6 +51,30 @@ describe("extractUserRequest", () => {
     expect(extracted.prompt).toBe("Plain user message");
     expect(extracted.additionalMetadata).toBeUndefined();
     expect(extracted.userSettingsChange).toBeUndefined();
+  });
+});
+
+describe("extractSystemMessageContent", () => {
+  it("extracts inner content from <SYSTEM_MESSAGE> blocks excluding preamble text", () => {
+    const raw = [
+      "The following is a <SYSTEM_MESSAGE> not actually sent by the user. It is provided by the system as important information to pay attention to.",
+      "",
+      "<SYSTEM_MESSAGE>",
+      "[Message] timestamp=2026-11-12T21:47:03Z sender=system priority=MESSAGE_PRIORITY_LOW content=[Notice] Server restarted.",
+      "</SYSTEM_MESSAGE>",
+    ].join("\n");
+
+    const content = extractSystemMessageContent(raw);
+
+    expect(content).toBe(
+      "[Message] timestamp=2026-11-12T21:47:03Z sender=system priority=MESSAGE_PRIORITY_LOW content=[Notice] Server restarted.",
+    );
+  });
+
+  it("returns trimmed raw content when <SYSTEM_MESSAGE> wrapper is absent", () => {
+    const content = extractSystemMessageContent("  System notification: task resumed.  ");
+
+    expect(content).toBe("System notification: task resumed.");
   });
 });
 
@@ -623,6 +648,172 @@ describe("parseTranscriptTurns", () => {
       expect(toolMsg).toBeDefined();
       expect(toolMsg?.content?.length).toBeLessThan(35000);
       expect(toolMsg?.content).toContain("... [truncated for observation history]");
+    }
+  });
+
+  it("records SYSTEM_MESSAGE steps as role: system messages in generation history", () => {
+    const lines = [
+      JSON.stringify({
+        step_index: 0,
+        source: "USER_EXPLICIT",
+        type: "USER_INPUT",
+        status: "DONE",
+        created_at: "2026-11-12T10:00:00Z",
+        content: "<USER_REQUEST>\nCheck status\n</USER_REQUEST>",
+      }),
+      JSON.stringify({
+        step_index: 1,
+        source: "SYSTEM",
+        type: "SYSTEM_MESSAGE",
+        status: "DONE",
+        created_at: "2026-11-12T10:00:01Z",
+        content:
+          "The following is a <SYSTEM_MESSAGE> not actually sent by the user.\n\n<SYSTEM_MESSAGE>\n[Notice] System rebooted.\n</SYSTEM_MESSAGE>",
+      }),
+      JSON.stringify({
+        step_index: 2,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-12T10:00:02Z",
+        input_tokens: 100,
+        output_tokens: 20,
+        tool_calls: [{ name: "run_command", args: { CommandLine: "echo test" } }],
+      }),
+      JSON.stringify({
+        step_index: 3,
+        source: "MODEL",
+        type: "GENERIC",
+        status: "DONE",
+        created_at: "2026-11-12T10:00:04Z",
+        content:
+          "Created At: 2026-11-12T10:00:03Z\nCompleted At: 2026-11-12T10:00:04Z\ntest output",
+      }),
+      JSON.stringify({
+        step_index: 4,
+        source: "SYSTEM",
+        type: "SYSTEM_MESSAGE",
+        status: "DONE",
+        created_at: "2026-11-12T10:00:05Z",
+        content:
+          "The following is a <SYSTEM_MESSAGE> not actually sent by the user.\n\n<SYSTEM_MESSAGE>\n[BROWSER_HOST_FACTS] visited_origins: none\n</SYSTEM_MESSAGE>",
+      }),
+      JSON.stringify({
+        step_index: 5,
+        source: "SYSTEM",
+        type: "SYSTEM_MESSAGE",
+        status: "DONE",
+        created_at: "2026-11-12T10:00:06Z",
+        content:
+          "The following is a <SYSTEM_MESSAGE> not actually sent by the user.\n\n<SYSTEM_MESSAGE>\n[Subagent] task done.\n</SYSTEM_MESSAGE>",
+      }),
+      JSON.stringify({
+        step_index: 6,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-12T10:00:07Z",
+        input_tokens: 200,
+        output_tokens: 30,
+        content: "All clear.",
+      }),
+    ].join("\n");
+
+    const turns = parseTranscriptTurns(lines, {
+      conversationId: "conv-system-msg",
+      modelName: "gemini-3.8-flash",
+    });
+
+    expect(turns).toHaveLength(1);
+
+    const turn = turns[0]!;
+
+    expect(turn.metadata.systemMessageCount).toBe(3);
+
+    const gen1 = turn.children[0]!;
+
+    expect(gen1.type).toBe("generation");
+
+    if (gen1.type === "generation") {
+      expect(gen1.input).toEqual([
+        { role: "user", content: "Check status" },
+        { role: "system", content: "[Notice] System rebooted." },
+      ]);
+    }
+
+    const gen2 = turn.children[2]!;
+
+    expect(gen2.type).toBe("generation");
+
+    if (gen2.type === "generation") {
+      expect(gen2.input).toEqual([
+        { role: "user", content: "Check status" },
+        { role: "system", content: "[Notice] System rebooted." },
+        {
+          role: "assistant",
+          content: null,
+          tool_calls: [
+            {
+              id: "call_2_0",
+              type: "function",
+              function: {
+                name: "run_command",
+                arguments: JSON.stringify({ CommandLine: "echo test" }),
+              },
+            },
+          ],
+        },
+        { role: "tool", tool_call_id: "call_2_0", content: "test output" },
+        { role: "system", content: "[BROWSER_HOST_FACTS] visited_origins: none" },
+        { role: "system", content: "[Subagent] task done." },
+      ]);
+    }
+  });
+
+  it("truncates oversized SYSTEM_MESSAGE content exceeding 30,000 characters", () => {
+    const hugeMsg = "X".repeat(40000);
+    const lines = [
+      JSON.stringify({
+        step_index: 0,
+        source: "USER_EXPLICIT",
+        type: "USER_INPUT",
+        status: "DONE",
+        created_at: "2026-11-12T10:00:00Z",
+        content: "Hello",
+      }),
+      JSON.stringify({
+        step_index: 1,
+        source: "SYSTEM",
+        type: "SYSTEM_MESSAGE",
+        status: "DONE",
+        created_at: "2026-11-12T10:00:01Z",
+        content: `<SYSTEM_MESSAGE>\n${hugeMsg}\n</SYSTEM_MESSAGE>`,
+      }),
+      JSON.stringify({
+        step_index: 2,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-12T10:00:02Z",
+        content: "Received.",
+      }),
+    ].join("\n");
+
+    const turns = parseTranscriptTurns(lines, {
+      conversationId: "conv-huge-system",
+    });
+
+    const turn = turns[0]!;
+    const gen = turn.children[0]!;
+
+    expect(gen.type).toBe("generation");
+
+    if (gen.type === "generation") {
+      const sysMsg = gen.input.find((m) => m.role === "system");
+
+      expect(sysMsg).toBeDefined();
+      expect(sysMsg?.content?.length).toBeLessThan(35000);
+      expect(sysMsg?.content).toContain("... [truncated for observation history]");
     }
   });
 });

@@ -9,4 +9,8 @@ export {
   extractSubagentConversationId,
 } from "./subagent-resolver.ts";
 
-export { extractUserRequest, parseTranscriptTurns } from "./turn-builder.ts";
+export {
+  extractSystemMessageContent,
+  extractUserRequest,
+  parseTranscriptTurns,
+} from "./turn-builder.ts";

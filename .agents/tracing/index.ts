@@ -21,6 +21,7 @@ export {
 export { createTurnTraceId, emitChildObservations, emitRootObservation } from "./observations.ts";
 
 export {
+  buildSyntheticToolCallId,
   collectTagsFromValue,
   createFilesystemSubagentResolver,
   deriveSubagentObservationName,

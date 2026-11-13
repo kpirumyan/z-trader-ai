@@ -76,6 +76,7 @@ export interface ParsedToolObservation {
   type: "tool";
   name: string;
   stepIndex: number;
+  toolCallId: string;
   startTime: Date;
   endTime: Date;
   input: Record<string, unknown>;
@@ -89,6 +90,7 @@ export interface ParsedAgentObservation {
   type: "agent";
   name: string;
   stepIndex: number;
+  toolCallId?: string;
   subagentConversationId?: string;
   role?: string;
   subagentType?: string;

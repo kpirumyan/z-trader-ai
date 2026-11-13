@@ -142,6 +142,14 @@ describe("exporter: end-to-end Langfuse OTel export", () => {
         expect(child.attributes[LangfuseOtelSpanAttributes.IS_APP_ROOT]).toBeUndefined();
       }
 
+      const toolSpan = childSpans.find((s) => s.name === "read_file");
+
+      expect(toolSpan).toBeDefined();
+      expect(toolSpan?.attributes[LangfuseOtelSpanAttributes.OBSERVATION_TYPE]).toBe("tool");
+      expect(toolSpan?.attributes["gen_ai.tool.name"]).toBe("read_file");
+      expect(toolSpan?.attributes["gen_ai.tool.call.id"]).toBe("call-1");
+      expect(toolSpan?.attributes["langfuse.observation.metadata.toolCallId"]).toBe('"call-1"');
+
       const cursorPath = path.join(logsDir, ".langfuse-cursor.json");
 
       expect(fs.existsSync(cursorPath)).toBe(true);

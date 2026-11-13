@@ -52,6 +52,20 @@ export function extractSystemMessageContent(rawContent: string): string {
   return match ? match[1]!.trim() : rawContent.trim();
 }
 
+export function buildSyntheticToolCallId(
+  conversationId: string,
+  stepIndex: number,
+  toolIndex: number,
+): string {
+  const sanitized = conversationId.trim();
+  const uuidPrefixMatch = sanitized.match(/^[0-9a-fA-F]{8}(?=-)/);
+  const cleanConv = uuidPrefixMatch
+    ? uuidPrefixMatch[0].toLowerCase()
+    : sanitized.replace(/[^a-zA-Z0-9]/g, "").slice(0, 12) || "agent";
+
+  return `call_${cleanConv}_s${stepIndex}_${toolIndex}`;
+}
+
 interface ParsedStepSequenceResult {
   children: ParsedChildObservation[];
   usageSummary: TokenUsageSummary;
@@ -172,9 +186,12 @@ function parseStepSequence(
 
     const assistantToolCalls: AssistantToolCallOutput[] = rawToolCalls.map((tc, idx) => {
       const deserialized = deserializeToolArgs(tc.args);
+      const rawId = tc.id?.trim();
+      const toolCallId =
+        rawId || buildSyntheticToolCallId(options.conversationId, step.step_index, idx);
 
       return {
-        id: tc.id ?? `call_${step.step_index}_${idx}`,
+        id: toolCallId,
         type: "function",
         function: {
           name: tc.name,
@@ -261,7 +278,10 @@ function parseStepSequence(
             ? `${rawToolOutput.slice(0, 30_000)}\n... [truncated for observation history]`
             : rawToolOutput;
 
-        const toolCallId = assistantToolCalls[tcIdx]?.id ?? `call_${step.step_index}_${tcIdx}`;
+        const toolCallId =
+          assistantToolCalls[tcIdx]?.id ??
+          (tc.id?.trim() ||
+            buildSyntheticToolCallId(options.conversationId, step.step_index, tcIdx));
 
         history.push({
           role: "tool",
@@ -323,10 +343,16 @@ function parseStepSequence(
           }
         }
 
+        const toolCallId =
+          assistantToolCalls[tcIdx]?.id ??
+          (tc.id?.trim() ||
+            buildSyntheticToolCallId(options.conversationId, step.step_index, tcIdx));
+
         const agentObs: ParsedAgentObservation = {
           type: "agent",
           name: subagentName,
           stepIndex: resultStepIndex,
+          toolCallId,
           ...(subagentId ? { subagentConversationId: subagentId } : {}),
           ...(typeof deserializedArgs.Role === "string" ? { role: deserializedArgs.Role } : {}),
           ...(typeof deserializedArgs.TypeName === "string"
@@ -343,6 +369,7 @@ function parseStepSequence(
           metadata: {
             stepIndex: resultStepIndex,
             toolCallIndex: tcIdx,
+            toolCallId,
             ...(subagentId ? { subagentConversationId: subagentId } : {}),
           },
         };
@@ -351,10 +378,16 @@ function parseStepSequence(
       } else {
         toolCount++;
 
+        const toolCallId =
+          assistantToolCalls[tcIdx]?.id ??
+          (tc.id?.trim() ||
+            buildSyntheticToolCallId(options.conversationId, step.step_index, tcIdx));
+
         const toolObs: ParsedToolObservation = {
           type: "tool",
           name: tc.name,
           stepIndex: resultStepIndex,
+          toolCallId,
           startTime,
           endTime,
           input: deserializedArgs,
@@ -364,6 +397,7 @@ function parseStepSequence(
           metadata: {
             stepIndex: resultStepIndex,
             toolCallIndex: tcIdx,
+            toolCallId,
           },
         };
 

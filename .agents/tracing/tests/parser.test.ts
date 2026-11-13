@@ -6,6 +6,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  buildSyntheticToolCallId,
   collectTagsFromValue,
   createFilesystemSubagentResolver,
   deriveSubagentObservationName,
@@ -99,6 +100,29 @@ describe("deserializeToolArgs", () => {
       Arguments: { pathOrUrl: "/docs/observability/best-practices" },
       PlainString: "already-unquoted",
     });
+  });
+});
+
+describe("buildSyntheticToolCallId", () => {
+  it("generates deterministic, collision-free tool call IDs scoped by conversation slug, step index, and tool index", () => {
+    // UUID conversation ID uses first 8 hex characters
+    expect(buildSyntheticToolCallId("5c98cb8c-04dd-48fe-9a4c-3856bf8c2863", 1, 0)).toBe(
+      "call_5c98cb8c_s1_0",
+    );
+
+    expect(buildSyntheticToolCallId("5c98cb8c-04dd-48fe-9a4c-3856bf8c2863", 1, 1)).toBe(
+      "call_5c98cb8c_s1_1",
+    );
+
+    // Subagent with distinct UUID has completely different ID prefix even on step 1 tool 0
+    expect(buildSyntheticToolCallId("9ddfebd8-12ae-4c62-a4d5-f022c9a8519d", 1, 0)).toBe(
+      "call_9ddfebd8_s1_0",
+    );
+
+    // Custom named conversations
+    expect(buildSyntheticToolCallId("conv-hook-1", 1, 0)).toBe("call_convhook1_s1_0");
+    expect(buildSyntheticToolCallId("conv-system-msg", 2, 0)).toBe("call_convsystemms_s2_0");
+    expect(buildSyntheticToolCallId("", 1, 0)).toBe("call_agent_s1_0");
   });
 });
 
@@ -330,19 +354,19 @@ describe("parseTranscriptTurns", () => {
 
       expect(gen2.input[2]).toEqual({
         role: "tool",
-        tool_call_id: "call_1_0",
+        tool_call_id: "call_5c98cb8c_s1_0",
         content: "Showing lines 1-2 of 2\n1: export const Chart = {};",
       });
 
       expect(gen2.input[3]).toEqual({
         role: "tool",
-        tool_call_id: "call_1_1",
+        tool_call_id: "call_5c98cb8c_s1_1",
         content: "Showing lines 1-1 of 1\n1: # Langfuse Skill",
       });
 
       expect(gen2.input[4]).toEqual({
         role: "tool",
-        tool_call_id: "call_1_2",
+        tool_call_id: "call_5c98cb8c_s1_2",
         content: "file does not exist",
       });
     }
@@ -352,6 +376,9 @@ describe("parseTranscriptTurns", () => {
     expect(tool1.type).toBe("tool");
 
     if (tool1.type === "tool") {
+      expect(tool1.toolCallId).toBe("call_5c98cb8c_s1_0");
+      expect(tool1.metadata.toolCallId).toBe("call_5c98cb8c_s1_0");
+
       expect(tool1.input).toEqual({
         Path: "c:\\DATA\\Development\\js\\z-trader-ai\\src\\modules\\chart\\index.ts",
       });
@@ -540,12 +567,23 @@ describe("parseTranscriptTurns", () => {
 
     if (agentObs.type === "agent") {
       expect(agentObs.subagentConversationId).toBe(subagentId);
+      expect(agentObs.toolCallId).toBe("call_5c98cb8c_s1_0");
+      expect(agentObs.metadata.toolCallId).toBe("call_5c98cb8c_s1_0");
 
       expect(agentObs.children.map((c) => `${c.type}:${c.name}`)).toEqual([
         "generation:llm-generation",
         "tool:read_file",
         "generation:llm-generation",
       ]);
+
+      const subagentTool = agentObs.children[1]!;
+
+      expect(subagentTool.type).toBe("tool");
+
+      if (subagentTool.type === "tool") {
+        expect(subagentTool.toolCallId).toBe("call_11111111_s1_0");
+        expect(subagentTool.metadata.toolCallId).toBe("call_11111111_s1_0");
+      }
 
       expect(agentObs.usageSummary).toEqual({
         input: 650,
@@ -754,7 +792,7 @@ describe("parseTranscriptTurns", () => {
           content: null,
           tool_calls: [
             {
-              id: "call_2_0",
+              id: "call_convsystemms_s2_0",
               type: "function",
               function: {
                 name: "run_command",
@@ -763,7 +801,7 @@ describe("parseTranscriptTurns", () => {
             },
           ],
         },
-        { role: "tool", tool_call_id: "call_2_0", content: "test output" },
+        { role: "tool", tool_call_id: "call_convsystemms_s2_0", content: "test output" },
         { role: "system", content: "[BROWSER_HOST_FACTS] visited_origins: none" },
         { role: "system", content: "[Subagent] task done." },
       ]);

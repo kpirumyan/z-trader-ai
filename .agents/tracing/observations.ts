@@ -46,7 +46,10 @@ export function emitChildObservations(
           output: child.output,
           level: child.level,
           statusMessage: child.statusMessage,
-          metadata: child.metadata,
+          metadata: {
+            ...child.metadata,
+            ...(child.toolCallId ? { toolCallId: child.toolCallId } : {}),
+          },
         },
         {
           asType: "tool",
@@ -54,6 +57,12 @@ export function emitChildObservations(
           parentSpanContext,
         },
       );
+
+      if (child.toolCallId) {
+        toolObs.otelSpan.setAttribute("gen_ai.tool.call.id", child.toolCallId);
+      }
+
+      toolObs.otelSpan.setAttribute("gen_ai.tool.name", child.name);
 
       toolObs.end(child.endTime);
     } else if (child.type === "agent") {
@@ -66,6 +75,7 @@ export function emitChildObservations(
           statusMessage: child.statusMessage,
           metadata: {
             ...child.metadata,
+            ...(child.toolCallId ? { toolCallId: child.toolCallId } : {}),
             usageSummary: child.usageSummary,
           },
         },
@@ -75,6 +85,10 @@ export function emitChildObservations(
           parentSpanContext,
         },
       );
+
+      if (child.toolCallId) {
+        subagentObs.otelSpan.setAttribute("gen_ai.tool.call.id", child.toolCallId);
+      }
 
       emitChildObservations(child.children, subagentObs.otelSpan.spanContext());
       subagentObs.end(child.endTime);

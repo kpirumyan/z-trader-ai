@@ -10,6 +10,7 @@ export {
 } from "./subagent-resolver.ts";
 
 export {
+  buildSyntheticToolCallId,
   extractSystemMessageContent,
   extractUserRequest,
   parseTranscriptTurns,

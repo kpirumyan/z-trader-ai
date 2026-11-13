@@ -854,4 +854,121 @@ describe("parseTranscriptTurns", () => {
       expect(sysMsg?.content).toContain("... [truncated for observation history]");
     }
   });
+
+  it("enforces strict monotonic +1ms offset when timestamps collide between instantaneous tools and subsequent generations", () => {
+    const lines = [
+      JSON.stringify({
+        step_index: 0,
+        source: "USER_EXPLICIT",
+        type: "USER_INPUT",
+        status: "DONE",
+        created_at: "2026-11-12T14:26:59Z",
+        content: "<USER_REQUEST>\ncheck docs\n</USER_REQUEST>",
+      }),
+      JSON.stringify({
+        step_index: 1,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-12T14:26:59Z",
+        input_tokens: 100,
+        output_tokens: 20,
+        tool_calls: [
+          {
+            name: "read_file",
+            args: { Path: '"doc.json"' },
+          },
+        ],
+      }),
+      JSON.stringify({
+        step_index: 2,
+        source: "MODEL",
+        type: "GENERIC",
+        status: "DONE",
+        created_at: "2026-11-12T14:27:02Z",
+        content:
+          'Created At: 2026-11-12T14:27:02Z\nCompleted At: 2026-11-12T14:27:02Z\n{ "schema": true }',
+      }),
+      JSON.stringify({
+        step_index: 3,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-12T14:27:02Z",
+        input_tokens: 150,
+        output_tokens: 30,
+        tool_calls: [
+          {
+            name: "call_mcp_tool",
+            args: { ToolName: '"search"' },
+          },
+        ],
+      }),
+      JSON.stringify({
+        step_index: 4,
+        source: "MODEL",
+        type: "GENERIC",
+        status: "DONE",
+        created_at: "2026-11-12T14:28:08Z",
+        content:
+          "Created At: 2026-11-12T14:27:04Z\nCompleted At: 2026-11-12T14:28:08Z\nResults found",
+      }),
+      JSON.stringify({
+        step_index: 5,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-12T14:28:08Z",
+        input_tokens: 200,
+        output_tokens: 50,
+        content: "Here is the answer.",
+      }),
+    ].join("\n");
+
+    const turns = parseTranscriptTurns(lines, {
+      conversationId: "conv-monotonic-shift",
+    });
+
+    expect(turns).toHaveLength(1);
+
+    const children = turns[0]!.children;
+
+    expect(children).toHaveLength(5);
+
+    expect(children.map((c) => `${c.type}:${c.name}`)).toEqual([
+      "generation:llm-generation",
+      "tool:read_file",
+      "generation:llm-generation",
+      "tool:call_mcp_tool",
+      "generation:llm-generation",
+    ]);
+
+    const gen1 = children[0]!;
+    const tool1 = children[1]!;
+    const gen2 = children[2]!;
+    const tool2 = children[3]!;
+    const gen3 = children[4]!;
+
+    expect(gen1.startTime.toISOString()).toBe("2026-11-12T14:26:59.000Z");
+    expect(gen1.endTime.toISOString()).toBe("2026-11-12T14:27:02.000Z");
+
+    expect(tool1.startTime.toISOString()).toBe("2026-11-12T14:27:02.000Z");
+    expect(tool1.endTime.toISOString()).toBe("2026-11-12T14:27:02.000Z");
+
+    // Monotonic shift: gen2 starts 1ms after tool1 so it never collides or sorts before tool1 in Langfuse
+    expect(gen2.startTime.toISOString()).toBe("2026-11-12T14:27:02.001Z");
+    expect(gen2.endTime.toISOString()).toBe("2026-11-12T14:27:04.000Z");
+
+    expect(tool2.startTime.toISOString()).toBe("2026-11-12T14:27:04.000Z");
+    expect(tool2.endTime.toISOString()).toBe("2026-11-12T14:28:08.000Z");
+
+    expect(gen3.startTime.toISOString()).toBe("2026-11-12T14:28:08.000Z");
+
+    // Every consecutive observation must have strictly ascending start time
+    for (let k = 0; k < children.length - 1; k++) {
+      expect(children[k + 1]!.startTime.getTime()).toBeGreaterThan(
+        children[k]!.startTime.getTime(),
+      );
+    }
+  });
 });

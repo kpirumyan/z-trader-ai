@@ -108,6 +108,8 @@ function parseStepSequence(
   }
 
   let i = 0;
+  let lastStartMs = -1;
+  let lastEndMs = 0;
 
   while (i < steps.length) {
     const step = steps[i]!;
@@ -140,7 +142,18 @@ function parseStepSequence(
 
     generationCount++;
 
-    const genStartTime = parseIsoTimestamp(step.created_at, new Date(0));
+    const rawGenStartTime = parseIsoTimestamp(step.created_at, new Date(0));
+    let genStartMs = rawGenStartTime.getTime();
+
+    if (lastEndMs > 0 && genStartMs < lastEndMs) {
+      genStartMs = lastEndMs;
+    }
+
+    if (genStartMs <= lastStartMs) {
+      genStartMs = lastStartMs + 1;
+    }
+
+    const genStartTime = new Date(genStartMs);
     const inputTokens = step.input_tokens ?? 0;
     const outputTokens = step.output_tokens ?? 0;
     const cacheReadTokens = step.cache_read_tokens ?? 0;
@@ -165,7 +178,7 @@ function parseStepSequence(
       lookahead++;
     }
 
-    let genEndTime = genStartTime;
+    let rawGenEndTime = genStartTime;
 
     if (matchingGenerics.length > 0) {
       const firstTiming = extractGenericTimingAndBody(
@@ -174,15 +187,21 @@ function parseStepSequence(
       );
 
       if (firstTiming.startTime.getTime() >= genStartTime.getTime()) {
-        genEndTime = firstTiming.startTime;
+        rawGenEndTime = firstTiming.startTime;
       }
     } else if (i + 1 < steps.length) {
       const nextTime = parseIsoTimestamp(steps[i + 1]!.created_at, genStartTime);
 
       if (nextTime.getTime() >= genStartTime.getTime()) {
-        genEndTime = nextTime;
+        rawGenEndTime = nextTime;
       }
     }
+
+    const genEndMs = Math.max(rawGenEndTime.getTime(), genStartMs);
+    const genEndTime = new Date(genEndMs);
+
+    lastStartMs = genStartMs;
+    lastEndMs = genEndMs;
 
     const assistantToolCalls: AssistantToolCallOutput[] = rawToolCalls.map((tc, idx) => {
       const deserialized = deserializeToolArgs(tc.args);
@@ -258,10 +277,26 @@ function parseStepSequence(
       collectTagsFromValue(deserializedArgs, tags);
 
       const fallbackStepTime = parseIsoTimestamp(genericResult?.created_at, genEndTime);
-      const { startTime, endTime, cleanBody } = extractGenericTimingAndBody(
-        genericResult?.content,
-        fallbackStepTime,
-      );
+      const {
+        startTime: rawToolStart,
+        endTime: rawToolEnd,
+        cleanBody,
+      } = extractGenericTimingAndBody(genericResult?.content, fallbackStepTime);
+
+      const duration = Math.max(0, rawToolEnd.getTime() - rawToolStart.getTime());
+      let toolStartMs = Math.max(rawToolStart.getTime(), genEndMs);
+
+      if (toolStartMs <= lastStartMs) {
+        toolStartMs = lastStartMs + 1;
+      }
+
+      const toolEndMs = Math.max(toolStartMs + duration, toolStartMs);
+      const startTime = new Date(toolStartMs);
+      const endTime = new Date(toolEndMs);
+
+      lastStartMs = toolStartMs;
+      lastEndMs = Math.max(lastEndMs, toolEndMs);
+
       const isError = genericResult?.status === "ERROR" || Boolean(genericResult?.error);
       const statusMessage = genericResult?.error ?? (isError ? cleanBody.slice(0, 200) : undefined);
 

@@ -2,7 +2,7 @@ import { LangfuseSpanProcessor } from "@langfuse/otel";
 import { setLangfuseTracerProvider } from "@langfuse/tracing";
 import { NodeSDK } from "@opentelemetry/sdk-node";
 
-import type { SpanExporterLike, TracerProviderLike } from "./types.ts";
+import type { SkillReference, SpanExporterLike, TracerProviderLike } from "./types.ts";
 
 export const DEFAULT_TIMEOUT_MS = 4500;
 
@@ -24,6 +24,7 @@ export function startTracingSession(options: {
   release: string;
   dryRun: boolean;
   spanExporter?: SpanExporterLike;
+  availableSkills?: SkillReference[];
 }): TracingSession {
   const exporter = options.spanExporter ?? (options.dryRun ? createNoopSpanExporter() : undefined);
   const processor = new LangfuseSpanProcessor({
@@ -34,6 +35,9 @@ export function startTracingSession(options: {
     baseUrl: process.env.LANGFUSE_BASE_URL ?? process.env.LANGFUSE_HOST,
     release: options.release,
     environment: process.env.LANGFUSE_TRACING_ENVIRONMENT ?? "development",
+    ...(options.availableSkills && options.availableSkills.length > 0
+      ? { skills: { available: options.availableSkills } }
+      : {}),
     mediaUploadEnabled: false,
     timeout: 4,
   });

@@ -1,9 +1,10 @@
+import { classifySystemMessageName, classifyToolCall } from "./classifier.ts";
 import { parseJsonlSteps } from "./jsonl-reader.ts";
 import {
   deriveSubagentObservationName,
   extractSubagentConversationId,
 } from "./subagent-resolver.ts";
-import { collectTagsFromValue } from "./tagger.ts";
+import { collectModuleTagsFromToolArgs } from "./tagger.ts";
 import { extractGenericTimingAndBody, parseIsoTimestamp } from "./timing-extractor.ts";
 import { deserializeToolArgs } from "./tool-deserializer.ts";
 
@@ -11,8 +12,10 @@ import type {
   AssistantToolCallOutput,
   ChatMessage,
   ExtractedUserRequest,
+  ObservationCounts,
   ParsedAgentObservation,
   ParsedChildObservation,
+  ParsedEventObservation,
   ParsedGenerationObservation,
   ParsedToolObservation,
   ParsedTurnTrace,
@@ -75,6 +78,7 @@ interface ParsedStepSequenceResult {
   toolCount: number;
   errorCount: number;
   systemMessageCount: number;
+  observationCounts: ObservationCounts;
   history: ChatMessage[];
 }
 
@@ -91,6 +95,15 @@ function parseStepSequence(
     output: 0,
     cacheReadInputTokens: 0,
     total: 0,
+  };
+  const observationCounts: ObservationCounts = {
+    generation: 0,
+    agent: 0,
+    retriever: 0,
+    evaluator: 0,
+    guardrail: 0,
+    tool: 0,
+    event: 0,
   };
   const tags = new Set<string>();
   const modelName = options.modelName?.trim() || "antigravity-model";
@@ -129,6 +142,42 @@ function parseStepSequence(
           role: "system",
           content: safeSystemOutput,
         });
+
+        const rawEventTime = parseIsoTimestamp(step.created_at, new Date(lastEndMs || 0));
+        let eventStartMs = rawEventTime.getTime();
+
+        if (lastEndMs > 0 && eventStartMs < lastEndMs) {
+          eventStartMs = lastEndMs;
+        }
+
+        if (eventStartMs <= lastStartMs) {
+          eventStartMs = lastStartMs + 1;
+        }
+
+        lastStartMs = eventStartMs;
+        lastEndMs = Math.max(lastEndMs, eventStartMs);
+
+        const eventTime = new Date(eventStartMs);
+        const source = step.source ?? "SYSTEM";
+        const eventObs: ParsedEventObservation = {
+          type: "event",
+          name: classifySystemMessageName(systemContent),
+          stepIndex: step.step_index,
+          startTime: eventTime,
+          endTime: eventTime,
+          input: {
+            source,
+            message: safeSystemOutput,
+          },
+          level: "DEFAULT",
+          metadata: {
+            stepIndex: step.step_index,
+            source,
+          },
+        };
+
+        children.push(eventObs);
+        observationCounts.event++;
       }
 
       i++;
@@ -141,6 +190,7 @@ function parseStepSequence(
     }
 
     generationCount++;
+    observationCounts.generation++;
 
     const rawGenStartTime = parseIsoTimestamp(step.created_at, new Date(0));
     let genStartMs = rawGenStartTime.getTime();
@@ -274,7 +324,7 @@ function parseStepSequence(
       const genericResult = matchingGenerics[tcIdx];
       const deserializedArgs = deserializeToolArgs(tc.args);
 
-      collectTagsFromValue(deserializedArgs, tags);
+      collectModuleTagsFromToolArgs(deserializedArgs, tags);
 
       const fallbackStepTime = parseIsoTimestamp(genericResult?.created_at, genEndTime);
       const {
@@ -326,6 +376,8 @@ function parseStepSequence(
       }
 
       if (tc.name === "invoke_subagent") {
+        observationCounts.agent++;
+
         const subagentName = deriveSubagentObservationName(deserializedArgs);
         const subagentId = extractSubagentConversationId(deserializedArgs, cleanBody);
         let subagentChildren: ParsedChildObservation[] = [];
@@ -413,19 +465,24 @@ function parseStepSequence(
       } else {
         toolCount++;
 
+        const classification = classifyToolCall(tc.name, deserializedArgs);
+
+        observationCounts[classification.type]++;
+
         const toolCallId =
           assistantToolCalls[tcIdx]?.id ??
           (tc.id?.trim() ||
             buildSyntheticToolCallId(options.conversationId, step.step_index, tcIdx));
 
         const toolObs: ParsedToolObservation = {
-          type: "tool",
-          name: tc.name,
+          type: classification.type,
+          name: classification.observationName,
+          rawToolName: tc.name,
           stepIndex: resultStepIndex,
           toolCallId,
           startTime,
           endTime,
-          input: deserializedArgs,
+          input: classification.normalizedInput ?? deserializedArgs,
           output: cleanBody,
           level: isError ? "ERROR" : "DEFAULT",
           ...(statusMessage ? { statusMessage } : {}),
@@ -433,6 +490,13 @@ function parseStepSequence(
             stepIndex: resultStepIndex,
             toolCallIndex: tcIdx,
             toolCallId,
+            rawToolName: tc.name,
+            ...(classification.skillMatch
+              ? {
+                  skillName: classification.skillMatch.skillName,
+                  skillPath: classification.skillMatch.relativePath,
+                }
+              : {}),
           },
         };
 
@@ -452,6 +516,7 @@ function parseStepSequence(
     toolCount,
     errorCount,
     systemMessageCount,
+    observationCounts,
     history,
   };
 }
@@ -537,6 +602,7 @@ export function parseTranscriptTurns(
       toolCount: sequence.toolCount,
       errorCount: sequence.errorCount,
       systemMessageCount: sequence.systemMessageCount,
+      observationCounts: sequence.observationCounts,
     };
 
     if (extractedInput.additionalMetadata) {

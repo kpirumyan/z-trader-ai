@@ -10,6 +10,7 @@ import {
   createNoopSpanExporter,
   createTurnTraceId,
   DEFAULT_TIMEOUT_MS,
+  discoverAvailableSkills,
   runStopHook,
 } from "../index.ts";
 
@@ -145,7 +146,7 @@ describe("exporter: end-to-end Langfuse OTel export", () => {
       const toolSpan = childSpans.find((s) => s.name === "read_file");
 
       expect(toolSpan).toBeDefined();
-      expect(toolSpan?.attributes[LangfuseOtelSpanAttributes.OBSERVATION_TYPE]).toBe("tool");
+      expect(toolSpan?.attributes[LangfuseOtelSpanAttributes.OBSERVATION_TYPE]).toBe("retriever");
       expect(toolSpan?.attributes["gen_ai.tool.name"]).toBe("read_file");
       expect(toolSpan?.attributes["gen_ai.tool.call.id"]).toBe("call-1");
       expect(toolSpan?.attributes["langfuse.observation.metadata.toolCallId"]).toBe('"call-1"');
@@ -186,6 +187,245 @@ describe("exporter: end-to-end Langfuse OTel export", () => {
       });
 
       expect(directTraceId).toBe(expectedTraceId);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("emits semantic observation types (event, retriever, evaluator, guardrail, tool) and attaches discovered skills", async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "z-trader-semantic-test-"));
+
+    try {
+      const projectSkillsDir = path.join(tempDir, "project-skills");
+      const userSkillsDir = path.join(tempDir, "user-skills");
+
+      fs.mkdirSync(path.join(projectSkillsDir, "adr"), { recursive: true });
+      fs.mkdirSync(path.join(userSkillsDir, "adr"), { recursive: true });
+      fs.mkdirSync(path.join(userSkillsDir, "vitest"), { recursive: true });
+
+      fs.writeFileSync(
+        path.join(projectSkillsDir, "adr", "SKILL.md"),
+        "---\nname: adr\ndescription: Project ADR governance skill.\n---\n# Project ADR",
+        "utf8",
+      );
+
+      fs.writeFileSync(
+        path.join(userSkillsDir, "adr", "SKILL.md"),
+        "---\nname: adr\ndescription: User ADR fallback.\n---\n# User ADR",
+        "utf8",
+      );
+
+      fs.writeFileSync(
+        path.join(userSkillsDir, "vitest", "SKILL.md"),
+        "---\nname: vitest\ndescription: Vitest testing standards.\n---\n# Vitest",
+        "utf8",
+      );
+
+      fs.writeFileSync(
+        path.join(projectSkillsDir, "langfuse-skills.lock"),
+        JSON.stringify({
+          lockVersion: 1,
+          skills: [{ name: "adr", version: 2, path: "adr" }],
+        }),
+        "utf8",
+      );
+
+      fs.writeFileSync(
+        path.join(userSkillsDir, "langfuse-skills.lock"),
+        JSON.stringify({
+          lockVersion: 1,
+          skills: [{ name: "adr", version: 1, path: "adr" }],
+        }),
+        "utf8",
+      );
+
+      const discovered = await discoverAvailableSkills([projectSkillsDir, userSkillsDir]);
+
+      expect(discovered).toEqual([{ name: "adr", version: 2 }, { name: "vitest" }]);
+
+      const logsDir = path.join(tempDir, "conv-semantic", ".system_generated", "logs");
+
+      fs.mkdirSync(logsDir, { recursive: true });
+
+      const compactPath = path.join(logsDir, "transcript.jsonl");
+      const lines = [
+        JSON.stringify({
+          step_index: 0,
+          source: "USER_EXPLICIT",
+          type: "USER_INPUT",
+          status: "DONE",
+          created_at: "2026-11-12T10:00:00Z",
+          content: "<USER_REQUEST>\nVerify chart module\n</USER_REQUEST>",
+        }),
+        JSON.stringify({
+          step_index: 1,
+          source: "SYSTEM",
+          type: "SYSTEM_MESSAGE",
+          status: "DONE",
+          created_at: "2026-11-12T10:00:01Z",
+          content: "<SYSTEM_MESSAGE>\n[Notice] Context ready.\n</SYSTEM_MESSAGE>",
+        }),
+        JSON.stringify({
+          step_index: 2,
+          source: "MODEL",
+          type: "PLANNER_RESPONSE",
+          status: "DONE",
+          created_at: "2026-11-12T10:00:02Z",
+          input_tokens: 100,
+          output_tokens: 40,
+          tool_calls: [
+            {
+              id: "c-skill",
+              name: "read_file",
+              args: { Path: "C:/Users/Karen/.gemini/config/skills/vitest/SKILL.md" },
+            },
+            {
+              id: "c-read",
+              name: "read_file",
+              args: { Path: "src/modules/chart/index.ts" },
+            },
+            {
+              id: "c-guard",
+              name: "run_command",
+              args: { CommandLine: "pnpm lint" },
+            },
+            {
+              id: "c-eval",
+              name: "run_command",
+              args: { CommandLine: "pnpm test:unit" },
+            },
+            {
+              id: "c-tool",
+              name: "write_to_file",
+              args: { TargetFile: "src/modules/chart/index.ts", CodeContent: "// ok" },
+            },
+          ],
+        }),
+        JSON.stringify({
+          step_index: 3,
+          source: "MODEL",
+          type: "GENERIC",
+          status: "DONE",
+          created_at: "2026-11-12T10:00:03Z",
+          content: "# Vitest",
+        }),
+        JSON.stringify({
+          step_index: 4,
+          source: "MODEL",
+          type: "GENERIC",
+          status: "DONE",
+          created_at: "2026-11-12T10:00:04Z",
+          content: "export const Chart = {};",
+        }),
+        JSON.stringify({
+          step_index: 5,
+          source: "MODEL",
+          type: "GENERIC",
+          status: "DONE",
+          created_at: "2026-11-12T10:00:05Z",
+          content: "lint ok",
+        }),
+        JSON.stringify({
+          step_index: 6,
+          source: "MODEL",
+          type: "GENERIC",
+          status: "DONE",
+          created_at: "2026-11-12T10:00:06Z",
+          content: "tests ok",
+        }),
+        JSON.stringify({
+          step_index: 7,
+          source: "MODEL",
+          type: "GENERIC",
+          status: "DONE",
+          created_at: "2026-11-12T10:00:07Z",
+          content: "written",
+        }),
+        JSON.stringify({
+          step_index: 8,
+          source: "MODEL",
+          type: "PLANNER_RESPONSE",
+          status: "DONE",
+          created_at: "2026-11-12T10:00:08Z",
+          input_tokens: 120,
+          output_tokens: 20,
+          content: "Done.",
+        }),
+      ].join("\n");
+
+      fs.writeFileSync(compactPath, lines, "utf8");
+
+      const exportedSpans: Array<{
+        name: string;
+        attributes: Record<string, unknown>;
+      }> = [];
+
+      const result = await runStopHook(
+        {
+          conversationId: "conv-semantic",
+          transcriptPath: compactPath,
+          modelName: "gemini-4-argon",
+          cwd: tempDir,
+        },
+        {
+          skillDirs: [projectSkillsDir, userSkillsDir],
+          spanExporter: {
+            export(spans, resultCallback) {
+              for (const s of spans) {
+                exportedSpans.push({
+                  name: s.name,
+                  attributes: { ...s.attributes },
+                });
+              }
+
+              resultCallback({ code: 0 });
+            },
+            shutdown: async () => {},
+          },
+        },
+      );
+
+      expect(result.exportedTurns).toBe(1);
+
+      const byName = new Map(exportedSpans.map((s) => [s.name, s]));
+
+      expect(
+        byName.get("system:notice")?.attributes[LangfuseOtelSpanAttributes.OBSERVATION_TYPE],
+      ).toBe("event");
+
+      expect(
+        byName.get("skill_read")?.attributes[LangfuseOtelSpanAttributes.OBSERVATION_TYPE],
+      ).toBe("tool");
+
+      expect(byName.get("skill_read")?.attributes["gen_ai.tool.name"]).toBe("read_file");
+
+      expect(byName.get("read_file")?.attributes[LangfuseOtelSpanAttributes.OBSERVATION_TYPE]).toBe(
+        "retriever",
+      );
+
+      expect(
+        byName.get("run_command:lint")?.attributes[LangfuseOtelSpanAttributes.OBSERVATION_TYPE],
+      ).toBe("guardrail");
+
+      expect(byName.get("run_command:lint")?.attributes["gen_ai.tool.name"]).toBe("run_command");
+
+      expect(
+        byName.get("run_command:test:unit")?.attributes[
+          LangfuseOtelSpanAttributes.OBSERVATION_TYPE
+        ],
+      ).toBe("evaluator");
+
+      expect(
+        byName.get("write_to_file")?.attributes[LangfuseOtelSpanAttributes.OBSERVATION_TYPE],
+      ).toBe("tool");
+
+      const rootSpan = byName.get("agent-turn");
+
+      expect(rootSpan?.attributes[LangfuseOtelSpanAttributes.OBSERVATION_TYPE]).toBe("agent");
+
+      expect(rootSpan?.attributes["langfuse.observation.skills_available"]).toBe(
+        JSON.stringify([{ name: "adr", version: 2 }, { name: "vitest" }]),
+      );
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }

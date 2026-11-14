@@ -1,4 +1,5 @@
 export { runStopHook } from "./exporter.ts";
+export { discoverAvailableSkills, resolveDefaultSkillDirs } from "./skills.ts";
 export { computeContextAnchor } from "./versioning.ts";
 
 export {
@@ -22,6 +23,9 @@ export { createTurnTraceId, emitChildObservations, emitRootObservation } from ".
 
 export {
   buildSyntheticToolCallId,
+  classifySystemMessageName,
+  classifyToolCall,
+  collectModuleTagsFromToolArgs,
   collectTagsFromValue,
   createFilesystemSubagentResolver,
   deriveSubagentObservationName,
@@ -30,6 +34,7 @@ export {
   extractSubagentConversationId,
   extractSystemMessageContent,
   extractUserRequest,
+  matchSkillFilePath,
   parseIsoTimestamp,
   parseJsonlSteps,
   parseTranscriptTurns,
@@ -43,9 +48,11 @@ export type {
   ContextAnchor,
   ExtractedUserRequest,
   LangfuseCursorState,
+  ObservationCounts,
   ParentSpanContextLike,
   ParsedAgentObservation,
   ParsedChildObservation,
+  ParsedEventObservation,
   ParsedGenerationObservation,
   ParsedToolObservation,
   ParsedTurnTrace,
@@ -56,8 +63,12 @@ export type {
   ReleaseContext,
   RunStopHookOptions,
   RunStopHookResult,
+  SkillFileMatch,
+  SkillReference,
   SpanExporterLike,
   StopHookInput,
   TokenUsageSummary,
+  ToolClassificationResult,
+  ToolObservationType,
   TracerProviderLike,
 } from "./types.ts";

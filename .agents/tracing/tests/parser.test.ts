@@ -7,6 +7,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildSyntheticToolCallId,
+  classifySystemMessageName,
+  classifyToolCall,
+  collectModuleTagsFromToolArgs,
   collectTagsFromValue,
   createFilesystemSubagentResolver,
   deriveSubagentObservationName,
@@ -15,6 +18,7 @@ import {
   extractSubagentConversationId,
   extractSystemMessageContent,
   extractUserRequest,
+  matchSkillFilePath,
   parseIsoTimestamp,
   parseJsonlSteps,
   parseTranscriptTurns,
@@ -142,7 +146,7 @@ describe("timing-extractor, tagger, subagent-resolver, and jsonl-reader helpers"
     expect(extracted.cleanBody).toBe("Output body");
   });
 
-  it("collects module and skill tags and derives subagent identifiers", () => {
+  it("collects module tags strictly from path/command args and derives subagent identifiers", () => {
     const tags = new Set<string>();
 
     collectTagsFromValue(
@@ -152,7 +156,21 @@ describe("timing-extractor, tagger, subagent-resolver, and jsonl-reader helpers"
       tags,
     );
 
-    expect([...tags].sort()).toEqual(["module:order-book", "skill:adr"]);
+    expect([...tags].sort()).toEqual(["module:order-book"]);
+
+    const argTags = new Set<string>();
+
+    collectModuleTagsFromToolArgs(
+      {
+        Path: "c:\\DATA\\Development\\js\\z-trader-ai\\src\\modules\\chart\\index.ts",
+        CommandLine: "pnpm test:unit src/modules/orders/orders.test.ts",
+        Content: "Mentions src/modules/fake-prose/index.ts in docs",
+        Prompt: "Ignore src/modules/another-prose/index.ts",
+      },
+      argTags,
+    );
+
+    expect([...argTags].sort()).toEqual(["module:chart", "module:orders"]);
 
     expect(deriveSubagentObservationName({ Role: "Database Debugger" })).toBe(
       "subagent:database-debugger",
@@ -304,13 +322,23 @@ describe("parseTranscriptTurns", () => {
       total: 4740,
     });
 
-    expect(turn1.tags).toEqual(["module:chart", "skill:langfuse"]);
+    expect(turn1.tags).toEqual(["module:chart"]);
+
+    expect(turn1.metadata.observationCounts).toEqual({
+      generation: 2,
+      agent: 0,
+      retriever: 2,
+      evaluator: 0,
+      guardrail: 0,
+      tool: 1,
+      event: 0,
+    });
 
     expect(turn1.children.map((c) => `${c.type}:${c.name}`)).toEqual([
       "generation:llm-generation",
-      "tool:read_file",
-      "tool:read_file",
-      "tool:read_file",
+      "retriever:read_file",
+      "tool:skill_read",
+      "retriever:read_file",
       "generation:llm-generation",
     ]);
 
@@ -373,9 +401,10 @@ describe("parseTranscriptTurns", () => {
 
     const tool1 = turn1.children[1]!;
 
-    expect(tool1.type).toBe("tool");
+    expect(tool1.type).toBe("retriever");
 
-    if (tool1.type === "tool") {
+    if (tool1.type === "retriever") {
+      expect(tool1.rawToolName).toBe("read_file");
       expect(tool1.toolCallId).toBe("call_5c98cb8c_s1_0");
       expect(tool1.metadata.toolCallId).toBe("call_5c98cb8c_s1_0");
 
@@ -389,11 +418,29 @@ describe("parseTranscriptTurns", () => {
       expect(tool1.endTime.toISOString()).toBe("2026-11-11T16:46:50.000Z");
     }
 
+    const skillTool = turn1.children[2]!;
+
+    expect(skillTool.type).toBe("tool");
+
+    if (skillTool.type === "tool") {
+      expect(skillTool.name).toBe("skill_read");
+      expect(skillTool.rawToolName).toBe("read_file");
+
+      expect(skillTool.input).toEqual({
+        Path: "c:\\DATA\\Development\\js\\z-trader-ai\\.agents\\skills\\langfuse\\SKILL.md",
+        skillName: "langfuse",
+        path: "SKILL.md",
+      });
+
+      expect(skillTool.metadata.skillName).toBe("langfuse");
+      expect(skillTool.metadata.skillPath).toBe("SKILL.md");
+    }
+
     const failedTool = turn1.children[3]!;
 
-    expect(failedTool.type).toBe("tool");
+    expect(failedTool.type).toBe("retriever");
 
-    if (failedTool.type === "tool") {
+    if (failedTool.type === "retriever") {
       expect(failedTool.level).toBe("ERROR");
       expect(failedTool.statusMessage).toBe("file does not exist");
     }
@@ -572,15 +619,16 @@ describe("parseTranscriptTurns", () => {
 
       expect(agentObs.children.map((c) => `${c.type}:${c.name}`)).toEqual([
         "generation:llm-generation",
-        "tool:read_file",
+        "retriever:read_file",
         "generation:llm-generation",
       ]);
 
       const subagentTool = agentObs.children[1]!;
 
-      expect(subagentTool.type).toBe("tool");
+      expect(subagentTool.type).toBe("retriever");
 
-      if (subagentTool.type === "tool") {
+      if (subagentTool.type === "retriever") {
+        expect(subagentTool.rawToolName).toBe("read_file");
         expect(subagentTool.toolCallId).toBe("call_11111111_s1_0");
         expect(subagentTool.metadata.toolCallId).toBe("call_11111111_s1_0");
       }
@@ -768,7 +816,37 @@ describe("parseTranscriptTurns", () => {
 
     expect(turn.metadata.systemMessageCount).toBe(3);
 
-    const gen1 = turn.children[0]!;
+    expect(turn.metadata.observationCounts).toEqual({
+      generation: 2,
+      agent: 0,
+      retriever: 0,
+      evaluator: 0,
+      guardrail: 0,
+      tool: 1,
+      event: 3,
+    });
+
+    expect(turn.children.map((c) => `${c.type}:${c.name}`)).toEqual([
+      "event:system:notice",
+      "generation:llm-generation",
+      "tool:run_command",
+      "event:system:browser-facts",
+      "event:system:subagent",
+      "generation:llm-generation",
+    ]);
+
+    const noticeEvent = turn.children[0]!;
+
+    expect(noticeEvent.type).toBe("event");
+
+    if (noticeEvent.type === "event") {
+      expect(noticeEvent.input).toEqual({
+        source: "SYSTEM",
+        message: "[Notice] System rebooted.",
+      });
+    }
+
+    const gen1 = turn.children[1]!;
 
     expect(gen1.type).toBe("generation");
 
@@ -779,7 +857,7 @@ describe("parseTranscriptTurns", () => {
       ]);
     }
 
-    const gen2 = turn.children[2]!;
+    const gen2 = turn.children[5]!;
 
     expect(gen2.type).toBe("generation");
 
@@ -842,8 +920,10 @@ describe("parseTranscriptTurns", () => {
     });
 
     const turn = turns[0]!;
-    const gen = turn.children[0]!;
+    const evt = turn.children[0]!;
+    const gen = turn.children[1]!;
 
+    expect(evt.type).toBe("event");
     expect(gen.type).toBe("generation");
 
     if (gen.type === "generation") {
@@ -937,9 +1017,9 @@ describe("parseTranscriptTurns", () => {
 
     expect(children.map((c) => `${c.type}:${c.name}`)).toEqual([
       "generation:llm-generation",
-      "tool:read_file",
+      "retriever:read_file",
       "generation:llm-generation",
-      "tool:call_mcp_tool",
+      "retriever:mcp:search",
       "generation:llm-generation",
     ]);
 
@@ -970,5 +1050,145 @@ describe("parseTranscriptTurns", () => {
         children[k]!.startTime.getTime(),
       );
     }
+  });
+});
+
+describe("semantic observation classification", () => {
+  it("classifies retriever tools and skill reads across project, config, and builtin paths", () => {
+    expect(classifyToolCall("grep_search", { Query: "OrderBook" })).toEqual({
+      type: "retriever",
+      observationName: "grep_search",
+    });
+
+    expect(classifyToolCall("search_web", { query: "langfuse otel" })).toEqual({
+      type: "retriever",
+      observationName: "search_web",
+    });
+
+    expect(
+      classifyToolCall("read_file", {
+        Path: "C:\\Users\\Karen\\.gemini\\config\\skills\\tdd\\SKILL.md",
+      }),
+    ).toEqual({
+      type: "tool",
+      observationName: "skill_read",
+      normalizedInput: {
+        Path: "C:\\Users\\Karen\\.gemini\\config\\skills\\tdd\\SKILL.md",
+        skillName: "tdd",
+        path: "SKILL.md",
+      },
+      skillMatch: {
+        skillName: "tdd",
+        relativePath: "SKILL.md",
+      },
+    });
+
+    expect(
+      classifyToolCall("view_file", {
+        AbsolutePath: "C:/Users/Karen/.gemini/antigravity/builtin/skills/plugin/SKILL.md",
+      }),
+    ).toMatchObject({
+      type: "tool",
+      observationName: "skill_read",
+      skillMatch: {
+        skillName: "plugin",
+        relativePath: "SKILL.md",
+      },
+    });
+
+    expect(matchSkillFilePath("src/modules/chart/index.ts")).toBeNull();
+  });
+
+  it("classifies run_command strictly into evaluator, guardrail, or tool", () => {
+    expect(classifyToolCall("run_command", { CommandLine: "pnpm test:unit" })).toEqual({
+      type: "evaluator",
+      observationName: "run_command:test:unit",
+    });
+
+    expect(classifyToolCall("run_command", { CommandLine: "pnpm check:fast" })).toEqual({
+      type: "evaluator",
+      observationName: "run_command:check:fast",
+    });
+
+    expect(
+      classifyToolCall("run_command", { CommandLine: "npx vitest run tests/app.test.ts" }),
+    ).toEqual({
+      type: "evaluator",
+      observationName: "run_command:vitest",
+    });
+
+    expect(classifyToolCall("run_command", { CommandLine: "pnpm lint" })).toEqual({
+      type: "guardrail",
+      observationName: "run_command:lint",
+    });
+
+    expect(classifyToolCall("run_command", { CommandLine: "pnpm depcruise" })).toEqual({
+      type: "guardrail",
+      observationName: "run_command:depcruise",
+    });
+
+    expect(classifyToolCall("run_command", { CommandLine: "pnpm typecheck && pnpm knip" })).toEqual(
+      {
+        type: "guardrail",
+        observationName: "run_command:guardrail-checks",
+      },
+    );
+
+    // Evaluator wins over guardrail in pure verification chains
+    expect(
+      classifyToolCall("run_command", { CommandLine: "pnpm typecheck && pnpm test:unit" }),
+    ).toEqual({
+      type: "evaluator",
+      observationName: "run_command:test:unit",
+    });
+
+    // Any mutating or unknown command in a chain forces the entire command to remain tool
+    expect(
+      classifyToolCall("run_command", { CommandLine: "pnpm lint:fix && pnpm test:unit" }),
+    ).toEqual({
+      type: "tool",
+      observationName: "run_command",
+    });
+
+    expect(
+      classifyToolCall("run_command", { CommandLine: "rg -n Chart src && pnpm typecheck" }),
+    ).toEqual({
+      type: "tool",
+      observationName: "run_command",
+    });
+
+    expect(classifyToolCall("run_command", { CommandLine: "eslint --fix src/index.ts" })).toEqual({
+      type: "tool",
+      observationName: "run_command",
+    });
+  });
+
+  it("classifies MCP tool calls and SYSTEM_MESSAGE event names with low cardinality", () => {
+    expect(
+      classifyToolCall("call_mcp_tool", {
+        ServerName: "langfuse-docs",
+        ToolName: "searchLangfuseDocs",
+      }),
+    ).toEqual({
+      type: "retriever",
+      observationName: "mcp:langfuse-docs:searchLangfuseDocs",
+    });
+
+    expect(
+      classifyToolCall("call_mcp_tool", {
+        ServerName: "langfuse-docs",
+        ToolName: "submitFeedback",
+      }),
+    ).toEqual({
+      type: "tool",
+      observationName: "mcp:langfuse-docs:submitFeedback",
+    });
+
+    expect(classifySystemMessageName("[BROWSER_HOST_FACTS] foo")).toBe("system:browser-facts");
+    expect(classifySystemMessageName("[Subagent] finished")).toBe("system:subagent");
+    expect(classifySystemMessageName("[Message] hi")).toBe("system:message");
+    expect(classifySystemMessageName("[Notice] ok")).toBe("system:notice");
+    expect(classifySystemMessageName("[Timer] fired")).toBe("system:timer");
+    expect(classifySystemMessageName("Arbitrary system payload")).toBe("system:event");
   });
 });

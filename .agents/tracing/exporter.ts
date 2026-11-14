@@ -14,6 +14,7 @@ import {
   parseTranscriptTurns,
   resolveFullTranscriptPath,
 } from "./parser/index.ts";
+import { discoverAvailableSkills, resolveDefaultSkillDirs } from "./skills.ts";
 import {
   mergeTurnsForExport,
   readCursorState,
@@ -123,6 +124,9 @@ export async function runStopHook(
     };
   }
 
+  const skillDirs = options.skillDirs ?? resolveDefaultSkillDirs(workspaceRoot);
+  const availableSkills = await discoverAvailableSkills(skillDirs);
+
   const summary: RunStopHookResult["summary"] = [];
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   let session: TracingSession | undefined;
@@ -132,6 +136,7 @@ export async function runStopHook(
       release: contextAnchor.version,
       dryRun,
       spanExporter: options.spanExporter,
+      availableSkills,
     });
 
     for (const turn of turnsToExport) {

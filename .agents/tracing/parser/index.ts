@@ -1,7 +1,8 @@
 export { resolveFullTranscriptPath, parseJsonlSteps } from "./jsonl-reader.ts";
 export { extractGenericTimingAndBody, parseIsoTimestamp } from "./timing-extractor.ts";
 export { deserializeToolArgs } from "./tool-deserializer.ts";
-export { collectTagsFromValue } from "./tagger.ts";
+export { collectModuleTagsFromToolArgs, collectTagsFromValue } from "./tagger.ts";
+export { classifySystemMessageName, classifyToolCall, matchSkillFilePath } from "./classifier.ts";
 
 export {
   createFilesystemSubagentResolver,

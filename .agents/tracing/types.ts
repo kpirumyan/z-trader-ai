@@ -1,5 +1,9 @@
 import type { LangfuseSpanProcessor } from "@langfuse/otel";
-import type { setLangfuseTracerProvider, startObservation } from "@langfuse/tracing";
+import type {
+  SkillReference,
+  setLangfuseTracerProvider,
+  startObservation,
+} from "@langfuse/tracing";
 
 export interface RawToolCall {
   id?: string;
@@ -29,6 +33,16 @@ export interface TokenUsageSummary {
   total: number;
 }
 
+export interface ObservationCounts {
+  generation: number;
+  agent: number;
+  retriever: number;
+  evaluator: number;
+  guardrail: number;
+  tool: number;
+  event: number;
+}
+
 export interface AssistantToolCallOutput {
   id: string;
   type: "function";
@@ -45,6 +59,20 @@ export interface ChatMessage {
   content: string | null;
   tool_calls?: AssistantToolCallOutput[];
   tool_call_id?: string;
+}
+
+export type ToolObservationType = "tool" | "retriever" | "evaluator" | "guardrail";
+
+export interface SkillFileMatch {
+  skillName: string;
+  relativePath: string;
+}
+
+export interface ToolClassificationResult {
+  type: ToolObservationType;
+  observationName: string;
+  normalizedInput?: Record<string, unknown>;
+  skillMatch?: SkillFileMatch;
 }
 
 export interface ParsedGenerationObservation {
@@ -73,8 +101,9 @@ export interface ParsedGenerationObservation {
 }
 
 export interface ParsedToolObservation {
-  type: "tool";
+  type: ToolObservationType;
   name: string;
+  rawToolName?: string;
   stepIndex: number;
   toolCallId: string;
   startTime: Date;
@@ -83,6 +112,17 @@ export interface ParsedToolObservation {
   output: string;
   level: "DEFAULT" | "ERROR";
   statusMessage?: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface ParsedEventObservation {
+  type: "event";
+  name: string;
+  stepIndex: number;
+  startTime: Date;
+  endTime: Date;
+  input: Record<string, unknown>;
+  level: "DEFAULT";
   metadata: Record<string, unknown>;
 }
 
@@ -106,7 +146,10 @@ export interface ParsedAgentObservation {
 }
 
 export type ParsedChildObservation =
-  ParsedGenerationObservation | ParsedToolObservation | ParsedAgentObservation;
+  | ParsedGenerationObservation
+  | ParsedToolObservation
+  | ParsedAgentObservation
+  | ParsedEventObservation;
 
 export interface ParsedTurnTrace {
   turnIndex: number;
@@ -184,6 +227,7 @@ export interface RunStopHookOptions {
   persistCursorInDryRun?: boolean;
   timeoutMs?: number;
   spanExporter?: SpanExporterLike;
+  skillDirs?: string[];
   simulateFlushFailure?: Error;
   onWarning?: (message: string) => void;
 }
@@ -202,3 +246,5 @@ export interface RunStopHookResult {
     totalTokens: number;
   }>;
 }
+
+export type { SkillReference };

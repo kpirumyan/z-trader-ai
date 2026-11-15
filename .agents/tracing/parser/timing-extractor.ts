@@ -26,20 +26,33 @@ export function extractGenericTimingAndBody(
     };
   }
 
-  const match = rawContent.match(CREATED_AT_HEADER_REGEX);
+  let body = rawContent;
+  let firstStartTime: Date | null = null;
+  let lastEndTime: Date | null = null;
 
-  if (!match) {
-    return {
-      startTime: stepCreatedAt,
-      endTime: stepCreatedAt,
-      cleanBody: rawContent.trim(),
-    };
+  while (true) {
+    const match = body.match(CREATED_AT_HEADER_REGEX);
+
+    if (!match) {
+      break;
+    }
+
+    const currentStart = parseIsoTimestamp(match[1]?.trim(), stepCreatedAt);
+    const rawEnd = parseIsoTimestamp(match[2]?.trim(), currentStart);
+    const currentEnd = rawEnd.getTime() >= currentStart.getTime() ? rawEnd : currentStart;
+
+    if (!firstStartTime) {
+      firstStartTime = currentStart;
+    }
+
+    lastEndTime = currentEnd;
+    body = body.slice(match[0].length);
   }
 
-  const startTime = parseIsoTimestamp(match[1]?.trim(), stepCreatedAt);
-  const rawEndTime = parseIsoTimestamp(match[2]?.trim(), startTime);
-  const endTime = rawEndTime.getTime() >= startTime.getTime() ? rawEndTime : startTime;
-  const cleanBody = rawContent.slice(match[0].length).trim();
+  const startTime = firstStartTime ?? stepCreatedAt;
+  const rawLastEnd = lastEndTime ?? startTime;
+  const endTime = rawLastEnd.getTime() >= startTime.getTime() ? rawLastEnd : startTime;
+  const cleanBody = body.trim();
 
   return {
     startTime,

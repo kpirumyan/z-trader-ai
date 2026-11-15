@@ -34,9 +34,21 @@ const READ_ONLY_MCP_TOOL_NAMES = new Set([
 
 const READ_ONLY_MCP_PREFIX_REGEX = /^(?:get|list|search|read|fetch|find|lookup|query)(?:[A-Z_]|$)/;
 
+const SUBCOMMAND_CLIS = new Set(["git", "docker", "kubectl", "gh", "cargo", "go"]);
+
+const VALUE_FLAG_BEFORE_SUBCOMMAND = new Set([
+  "-C",
+  "-c",
+  "-n",
+  "--git-dir",
+  "--work-tree",
+  "--context",
+  "--namespace",
+]);
+
 type CommandSegmentClassification =
   | { kind: "ignore" }
-  | { kind: "tool" }
+  | { kind: "tool"; label: string }
   | { kind: "evaluator"; label: string }
   | { kind: "guardrail"; label: string };
 
@@ -150,6 +162,60 @@ function stripLeadingEnvAndExecWrappers(segment: string): string {
   return remaining.trim();
 }
 
+function extractFirstSubcommand(tokens: string[]): string | undefined {
+  for (let i = 1; i < tokens.length; i++) {
+    const token = tokens[i]!.replace(/^["']|["']$/g, "");
+
+    if (!token) {
+      continue;
+    }
+
+    if (VALUE_FLAG_BEFORE_SUBCOMMAND.has(token)) {
+      i++;
+      continue;
+    }
+
+    if (token.startsWith("-")) {
+      continue;
+    }
+
+    if (/^[a-zA-Z][a-zA-Z0-9_-]{0,31}$/.test(token)) {
+      return token.toLowerCase();
+    }
+
+    return undefined;
+  }
+
+  return undefined;
+}
+
+function deriveGeneralCommandLabel(normalizedSegment: string): string {
+  const tokens = normalizedSegment.trim().split(/\s+/).filter(Boolean);
+
+  if (tokens.length === 0) {
+    return "run_command";
+  }
+
+  const rawCmd = tokens[0]!.replace(/^["']|["']$/g, "");
+  const baseName = rawCmd.split(/[\\/]/).pop() ?? rawCmd;
+  const binary = baseName
+    .replace(/\.(?:exe|cmd|bat|ps1)$/i, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9:._-]/g, "");
+
+  if (!binary) {
+    return "run_command";
+  }
+
+  if (SUBCOMMAND_CLIS.has(binary)) {
+    const subcommand = extractFirstSubcommand(tokens);
+
+    return subcommand ? `${binary}:${subcommand}` : binary;
+  }
+
+  return binary;
+}
+
 function classifyPackageScript(scriptName: string): CommandSegmentClassification | null {
   switch (scriptName) {
     case "check:fast":
@@ -221,7 +287,7 @@ function classifyCommandSegment(rawSegment: string): CommandSegmentClassificatio
       }
 
       // Explicit package scripts like lint:fix, format, adr:new, install, build are tools
-      return { kind: "tool" };
+      return { kind: "tool", label: scriptName };
     }
   }
 
@@ -253,7 +319,7 @@ function classifyCommandSegment(rawSegment: string): CommandSegmentClassificatio
 
   if (/^eslint(?:\s|$)/i.test(normalized)) {
     if (/(?:^|\s)--fix(?:-dry-run)?(?:\s|$|=)/i.test(normalized)) {
-      return { kind: "tool" };
+      return { kind: "tool", label: "eslint" };
     }
 
     return { kind: "guardrail", label: "eslint" };
@@ -274,7 +340,7 @@ function classifyCommandSegment(rawSegment: string): CommandSegmentClassificatio
     return { kind: "guardrail", label: "prettier:check" };
   }
 
-  return { kind: "tool" };
+  return { kind: "tool", label: deriveGeneralCommandLabel(normalized) };
 }
 
 function classifyRunCommand(args: Record<string, unknown>): ToolClassificationResult {
@@ -286,10 +352,33 @@ function classifyRunCommand(args: Record<string, unknown>): ToolClassificationRe
 
   const segments = splitShellSegments(commandLine)
     .map((segment) => classifyCommandSegment(segment))
-    .filter((classified) => classified.kind !== "ignore");
+    .filter(
+      (classified): classified is Exclude<CommandSegmentClassification, { kind: "ignore" }> =>
+        classified.kind !== "ignore",
+    );
 
-  if (segments.length === 0 || segments.some((s) => s.kind === "tool")) {
+  if (segments.length === 0) {
     return { type: "tool", observationName: "run_command" };
+  }
+
+  if (segments.some((s) => s.kind === "tool")) {
+    const distinctLabels = Array.from(
+      new Set(segments.map((s) => s.label).filter((label) => label && label !== "run_command")),
+    );
+
+    if (distinctLabels.length === 0) {
+      return { type: "tool", observationName: "run_command" };
+    }
+
+    const summaryLabel =
+      distinctLabels.length <= 2
+        ? distinctLabels.join("+")
+        : `${distinctLabels.slice(0, 2).join("+")}+multi`;
+
+    return {
+      type: "tool",
+      observationName: `run_command:${summaryLabel}`,
+    };
   }
 
   const evaluators = segments.filter(

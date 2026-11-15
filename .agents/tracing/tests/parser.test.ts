@@ -144,6 +144,15 @@ describe("timing-extractor, tagger, subagent-resolver, and jsonl-reader helpers"
     expect(extracted.startTime.toISOString()).toBe("2026-11-11T10:00:00.000Z");
     expect(extracted.endTime.toISOString()).toBe("2026-11-11T10:00:05.000Z");
     expect(extracted.cleanBody).toBe("Output body");
+
+    const multiHeader = extractGenericTimingAndBody(
+      "Created At: 2026-11-11T10:00:00Z\nCompleted At: 2026-11-11T10:00:02Z\nCreated At: 2026-11-11T10:00:02Z\nCompleted At: 2026-11-11T10:00:05Z\nCommand failed to run: deny .env",
+      fallback,
+    );
+
+    expect(multiHeader.startTime.toISOString()).toBe("2026-11-11T10:00:00.000Z");
+    expect(multiHeader.endTime.toISOString()).toBe("2026-11-11T10:00:05.000Z");
+    expect(multiHeader.cleanBody).toBe("Command failed to run: deny .env");
   });
 
   it("collects module tags strictly from path/command args and derives subagent identifiers", () => {
@@ -187,7 +196,7 @@ describe("timing-extractor, tagger, subagent-resolver, and jsonl-reader helpers"
       parseJsonlSteps(
         '{"step_index":2,"type":"GENERIC"}\ncorrupt\n{"step_index":1,"type":"USER_INPUT"}',
       ).map((s) => s.step_index),
-    ).toEqual([1, 2]);
+    ).toEqual([2, 1]);
   });
 });
 
@@ -360,6 +369,12 @@ describe("parseTranscriptTurns", () => {
       expect(gen1.output.thinking).toBe("Reading chart module and langfuse skill first.");
       expect(gen1.output.tool_calls).toHaveLength(3);
 
+      expect(gen1.output.tool_calls?.map((tc) => tc.function.name)).toEqual([
+        "read_file",
+        "read_file",
+        "read_file",
+      ]);
+
       expect(gen1.input).toEqual([
         { role: "user", content: "Audit chart module and langfuse skill" },
       ]);
@@ -485,6 +500,144 @@ describe("parseTranscriptTurns", () => {
         role: "user",
         content: "Now check order-book",
       });
+    }
+  });
+
+  it("preserves execution sequence across retried turns with identical step indexes and pairs tool outputs", () => {
+    const raw = [
+      JSON.stringify({
+        step_index: 12,
+        source: "USER_EXPLICIT",
+        type: "USER_INPUT",
+        status: "DONE",
+        created_at: "2026-11-14T17:26:13Z",
+        content: "<USER_REQUEST>\ngit status\n</USER_REQUEST>",
+      }),
+      JSON.stringify({
+        step_index: 12,
+        source: "USER_EXPLICIT",
+        type: "USER_INPUT",
+        status: "DONE",
+        created_at: "2026-11-14T17:26:32Z",
+        content: "<USER_REQUEST>\ngit status\n</USER_REQUEST>",
+      }),
+      JSON.stringify({
+        step_index: 13,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-14T17:26:32Z",
+        tool_calls: [{ name: "run_command", args: { CommandLine: "git status" } }],
+      }),
+      JSON.stringify({
+        step_index: 14,
+        source: "MODEL",
+        type: "GENERIC",
+        status: "DONE",
+        created_at: "2026-11-14T17:26:37Z",
+        content:
+          "Created At: 2026-11-14T21:26:37+04:00\nCompleted At: 2026-11-14T21:26:37+04:00\nCommand failed to run: sandbox configuration error: deny .env: non-absolute file path.",
+      }),
+      JSON.stringify({
+        step_index: 15,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-14T17:26:37Z",
+        tool_calls: [
+          { name: "run_command", args: { BypassSandbox: true, CommandLine: "git status" } },
+        ],
+      }),
+      JSON.stringify({
+        step_index: 16,
+        source: "MODEL",
+        type: "GENERIC",
+        status: "DONE",
+        created_at: "2026-11-14T17:26:39Z",
+        content:
+          "Created At: 2026-11-14T21:26:39+04:00\nCompleted At: 2026-11-14T21:26:40+04:00\nOn branch main\nnothing to commit",
+      }),
+      JSON.stringify({
+        step_index: 17,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-14T17:26:40Z",
+        content: "Branch is clean.",
+      }),
+      JSON.stringify({
+        step_index: 12,
+        source: "USER_EXPLICIT",
+        type: "USER_INPUT",
+        status: "DONE",
+        created_at: "2026-11-14T17:55:14Z",
+        content: "<USER_REQUEST>\ngit status\n</USER_REQUEST>",
+      }),
+      JSON.stringify({
+        step_index: 13,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-14T17:55:14Z",
+        tool_calls: [{ name: "run_command", args: { CommandLine: "git status" } }],
+      }),
+      JSON.stringify({
+        step_index: 14,
+        source: "MODEL",
+        type: "GENERIC",
+        status: "DONE",
+        created_at: "2026-11-14T17:55:16Z",
+        content: "Command failed to run: sandbox configuration error",
+      }),
+      JSON.stringify({
+        step_index: 15,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-14T17:55:17Z",
+        content: "Done retry.",
+      }),
+    ].join("\n");
+
+    const turns = parseTranscriptTurns(raw, {
+      conversationId: "test-retry-conv",
+      modelName: "test-model",
+    });
+
+    expect(turns).toHaveLength(2);
+
+    const firstTurn = turns[0]!;
+
+    expect(firstTurn.children).toHaveLength(5);
+
+    const firstTool = firstTurn.children[1]!;
+
+    expect(firstTool.type).toBe("tool");
+
+    if (firstTool.type === "tool") {
+      expect(firstTool.output).toBe(
+        "Command failed to run: sandbox configuration error: deny .env: non-absolute file path.",
+      );
+    }
+
+    const secondTool = firstTurn.children[3]!;
+
+    expect(secondTool.type).toBe("tool");
+
+    if (secondTool.type === "tool") {
+      expect(secondTool.output).toBe("On branch main\nnothing to commit");
+    }
+
+    const secondTurn = turns[1]!;
+
+    expect(secondTurn.children).toHaveLength(3);
+
+    const retryTool = secondTurn.children[1]!;
+
+    expect(retryTool.type).toBe("tool");
+
+    if (retryTool.type === "tool") {
+      expect(retryTool.output).toBe("Command failed to run: sandbox configuration error");
     }
   });
 
@@ -829,7 +982,7 @@ describe("parseTranscriptTurns", () => {
     expect(turn.children.map((c) => `${c.type}:${c.name}`)).toEqual([
       "event:system:notice",
       "generation:llm-generation",
-      "tool:run_command",
+      "tool:run_command:echo",
       "event:system:browser-facts",
       "event:system:subagent",
       "generation:llm-generation",
@@ -1143,21 +1296,32 @@ describe("semantic observation classification", () => {
     });
 
     // Any mutating or unknown command in a chain forces the entire command to remain tool
+    // while keeping a low-cardinality command label for UI visibility
     expect(
       classifyToolCall("run_command", { CommandLine: "pnpm lint:fix && pnpm test:unit" }),
     ).toEqual({
       type: "tool",
-      observationName: "run_command",
+      observationName: "run_command:lint:fix+test:unit",
     });
 
     expect(
       classifyToolCall("run_command", { CommandLine: "rg -n Chart src && pnpm typecheck" }),
     ).toEqual({
       type: "tool",
-      observationName: "run_command",
+      observationName: "run_command:rg+typecheck",
     });
 
     expect(classifyToolCall("run_command", { CommandLine: "eslint --fix src/index.ts" })).toEqual({
+      type: "tool",
+      observationName: "run_command:eslint",
+    });
+
+    expect(classifyToolCall("run_command", { CommandLine: "git status" })).toEqual({
+      type: "tool",
+      observationName: "run_command:git:status",
+    });
+
+    expect(classifyToolCall("run_command", {})).toEqual({
       type: "tool",
       observationName: "run_command",
     });

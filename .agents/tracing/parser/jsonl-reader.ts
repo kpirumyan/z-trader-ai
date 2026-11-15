@@ -36,5 +36,5 @@ export function parseJsonlSteps(jsonlContent: string): RawTranscriptStep[] {
     }
   }
 
-  return steps.sort((a, b) => a.step_index - b.step_index);
+  return steps;
 }

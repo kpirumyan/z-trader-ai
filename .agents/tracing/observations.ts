@@ -134,7 +134,9 @@ export function emitChildObservations(
         toolObs.otelSpan.setAttribute("gen_ai.tool.call.id", child.toolCallId);
       }
 
-      toolObs.otelSpan.setAttribute("gen_ai.tool.name", child.rawToolName ?? child.name);
+      // Langfuse OTLP ingestion prioritizes gen_ai.tool.name over span.name when naming
+      // observations; keep rawToolName in observation metadata so the classified name survives.
+      toolObs.otelSpan.setAttribute("gen_ai.tool.name", child.name);
 
       toolObs.end(child.endTime);
     }

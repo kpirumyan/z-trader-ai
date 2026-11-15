@@ -253,21 +253,35 @@ function parseStepSequence(
     lastStartMs = genStartMs;
     lastEndMs = genEndMs;
 
-    const assistantToolCalls: AssistantToolCallOutput[] = rawToolCalls.map((tc, idx) => {
-      const deserialized = deserializeToolArgs(tc.args);
+    const preparedToolCalls = rawToolCalls.map((tc, idx) => {
+      const deserializedArgs = deserializeToolArgs(tc.args);
       const rawId = tc.id?.trim();
       const toolCallId =
         rawId || buildSyntheticToolCallId(options.conversationId, step.step_index, idx);
+      const isSubagent = tc.name === "invoke_subagent";
+      const classification = isSubagent ? null : classifyToolCall(tc.name, deserializedArgs);
+      const resolvedName = isSubagent
+        ? deriveSubagentObservationName(deserializedArgs)
+        : classification!.observationName;
 
       return {
-        id: toolCallId,
-        type: "function",
-        function: {
-          name: tc.name,
-          arguments: JSON.stringify(deserialized),
-        },
+        tc,
+        deserializedArgs,
+        toolCallId,
+        isSubagent,
+        classification,
+        resolvedName,
       };
     });
+
+    const assistantToolCalls: AssistantToolCallOutput[] = preparedToolCalls.map((item) => ({
+      id: item.toolCallId,
+      type: "function",
+      function: {
+        name: item.tc.name,
+        arguments: JSON.stringify(item.deserializedArgs),
+      },
+    }));
 
     const contentText = step.content?.trim() ? step.content.trim() : null;
 
@@ -319,10 +333,10 @@ function parseStepSequence(
 
     history.push(assistantHistoryMsg);
 
-    for (let tcIdx = 0; tcIdx < rawToolCalls.length; tcIdx++) {
-      const tc = rawToolCalls[tcIdx]!;
+    for (let tcIdx = 0; tcIdx < preparedToolCalls.length; tcIdx++) {
+      const { tc, deserializedArgs, toolCallId, isSubagent, classification, resolvedName } =
+        preparedToolCalls[tcIdx]!;
       const genericResult = matchingGenerics[tcIdx];
-      const deserializedArgs = deserializeToolArgs(tc.args);
 
       collectModuleTagsFromToolArgs(deserializedArgs, tags);
 
@@ -363,11 +377,6 @@ function parseStepSequence(
             ? `${rawToolOutput.slice(0, 30_000)}\n... [truncated for observation history]`
             : rawToolOutput;
 
-        const toolCallId =
-          assistantToolCalls[tcIdx]?.id ??
-          (tc.id?.trim() ||
-            buildSyntheticToolCallId(options.conversationId, step.step_index, tcIdx));
-
         history.push({
           role: "tool",
           tool_call_id: toolCallId,
@@ -375,10 +384,9 @@ function parseStepSequence(
         });
       }
 
-      if (tc.name === "invoke_subagent") {
+      if (isSubagent) {
         observationCounts.agent++;
 
-        const subagentName = deriveSubagentObservationName(deserializedArgs);
         const subagentId = extractSubagentConversationId(deserializedArgs, cleanBody);
         let subagentChildren: ParsedChildObservation[] = [];
         let subagentUsage: TokenUsageSummary = {
@@ -430,14 +438,9 @@ function parseStepSequence(
           }
         }
 
-        const toolCallId =
-          assistantToolCalls[tcIdx]?.id ??
-          (tc.id?.trim() ||
-            buildSyntheticToolCallId(options.conversationId, step.step_index, tcIdx));
-
         const agentObs: ParsedAgentObservation = {
           type: "agent",
-          name: subagentName,
+          name: resolvedName,
           stepIndex: resultStepIndex,
           toolCallId,
           ...(subagentId ? { subagentConversationId: subagentId } : {}),
@@ -465,24 +468,19 @@ function parseStepSequence(
       } else {
         toolCount++;
 
-        const classification = classifyToolCall(tc.name, deserializedArgs);
+        const resolvedClassification = classification!;
 
-        observationCounts[classification.type]++;
-
-        const toolCallId =
-          assistantToolCalls[tcIdx]?.id ??
-          (tc.id?.trim() ||
-            buildSyntheticToolCallId(options.conversationId, step.step_index, tcIdx));
+        observationCounts[resolvedClassification.type]++;
 
         const toolObs: ParsedToolObservation = {
-          type: classification.type,
-          name: classification.observationName,
+          type: resolvedClassification.type,
+          name: resolvedClassification.observationName,
           rawToolName: tc.name,
           stepIndex: resultStepIndex,
           toolCallId,
           startTime,
           endTime,
-          input: classification.normalizedInput ?? deserializedArgs,
+          input: resolvedClassification.normalizedInput ?? deserializedArgs,
           output: cleanBody,
           level: isError ? "ERROR" : "DEFAULT",
           ...(statusMessage ? { statusMessage } : {}),
@@ -491,10 +489,10 @@ function parseStepSequence(
             toolCallIndex: tcIdx,
             toolCallId,
             rawToolName: tc.name,
-            ...(classification.skillMatch
+            ...(resolvedClassification.skillMatch
               ? {
-                  skillName: classification.skillMatch.skillName,
-                  skillPath: classification.skillMatch.relativePath,
+                  skillName: resolvedClassification.skillMatch.skillName,
+                  skillPath: resolvedClassification.skillMatch.relativePath,
                 }
               : {}),
           },
@@ -540,6 +538,14 @@ export function parseTranscriptTurns(
 
   for (const step of steps) {
     if (step.type === "USER_INPUT" && currentSlice.length > 0) {
+      if (
+        currentSlice.every((s) => s.type === "USER_INPUT") &&
+        currentSlice[0]!.step_index === step.step_index
+      ) {
+        currentSlice = [step];
+        continue;
+      }
+
       turnSlices.push(currentSlice);
       currentSlice = [step];
     } else {

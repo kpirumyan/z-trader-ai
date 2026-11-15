@@ -295,6 +295,15 @@ describe("exporter: end-to-end Langfuse OTel export", () => {
               args: { CommandLine: "pnpm test:unit" },
             },
             {
+              id: "c-mcp",
+              name: "call_mcp_tool",
+              args: {
+                ServerName: "langfuse-docs",
+                ToolName: "getLangfuseDocsPage",
+                Arguments: '{"pathOrUrl":"/docs"}',
+              },
+            },
+            {
               id: "c-tool",
               name: "write_to_file",
               args: { TargetFile: "src/modules/chart/index.ts", CodeContent: "// ok" },
@@ -339,14 +348,22 @@ describe("exporter: end-to-end Langfuse OTel export", () => {
           type: "GENERIC",
           status: "DONE",
           created_at: "2026-11-12T10:00:07Z",
-          content: "written",
+          content: "docs content",
         }),
         JSON.stringify({
           step_index: 8,
           source: "MODEL",
-          type: "PLANNER_RESPONSE",
+          type: "GENERIC",
           status: "DONE",
           created_at: "2026-11-12T10:00:08Z",
+          content: "written",
+        }),
+        JSON.stringify({
+          step_index: 9,
+          source: "MODEL",
+          type: "PLANNER_RESPONSE",
+          status: "DONE",
+          created_at: "2026-11-12T10:00:09Z",
           input_tokens: 120,
           output_tokens: 20,
           content: "Done.",
@@ -397,17 +414,47 @@ describe("exporter: end-to-end Langfuse OTel export", () => {
         byName.get("skill_read")?.attributes[LangfuseOtelSpanAttributes.OBSERVATION_TYPE],
       ).toBe("tool");
 
-      expect(byName.get("skill_read")?.attributes["gen_ai.tool.name"]).toBe("read_file");
+      expect(byName.get("skill_read")?.attributes["gen_ai.tool.name"]).toBe("skill_read");
+
+      expect(
+        byName.get("skill_read")?.attributes["langfuse.observation.metadata.rawToolName"],
+      ).toBe('"read_file"');
+
+      expect(byName.get("skill_read")?.attributes["langfuse.observation.metadata.skillName"]).toBe(
+        '"vitest"',
+      );
 
       expect(byName.get("read_file")?.attributes[LangfuseOtelSpanAttributes.OBSERVATION_TYPE]).toBe(
         "retriever",
       );
 
       expect(
+        byName.get("mcp:langfuse-docs:getLangfuseDocsPage")?.attributes[
+          LangfuseOtelSpanAttributes.OBSERVATION_TYPE
+        ],
+      ).toBe("retriever");
+
+      expect(
+        byName.get("mcp:langfuse-docs:getLangfuseDocsPage")?.attributes["gen_ai.tool.name"],
+      ).toBe("mcp:langfuse-docs:getLangfuseDocsPage");
+
+      expect(
+        byName.get("mcp:langfuse-docs:getLangfuseDocsPage")?.attributes[
+          "langfuse.observation.metadata.rawToolName"
+        ],
+      ).toBe('"call_mcp_tool"');
+
+      expect(
         byName.get("run_command:lint")?.attributes[LangfuseOtelSpanAttributes.OBSERVATION_TYPE],
       ).toBe("guardrail");
 
-      expect(byName.get("run_command:lint")?.attributes["gen_ai.tool.name"]).toBe("run_command");
+      expect(byName.get("run_command:lint")?.attributes["gen_ai.tool.name"]).toBe(
+        "run_command:lint",
+      );
+
+      expect(
+        byName.get("run_command:lint")?.attributes["langfuse.observation.metadata.rawToolName"],
+      ).toBe('"run_command"');
 
       expect(
         byName.get("run_command:test:unit")?.attributes[

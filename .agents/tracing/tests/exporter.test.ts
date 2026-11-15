@@ -477,4 +477,100 @@ describe("exporter: end-to-end Langfuse OTel export", () => {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }
   });
+
+  it("exports settings:model-change event and updates generation model attribute after Model Selection change", async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "z-trader-model-switch-test-"));
+
+    try {
+      const logsDir = path.join(tempDir, "conv-model-switch", ".system_generated", "logs");
+
+      fs.mkdirSync(logsDir, { recursive: true });
+
+      const compactPath = path.join(logsDir, "transcript.jsonl");
+      const lines = [
+        JSON.stringify({
+          step_index: 0,
+          source: "USER_EXPLICIT",
+          type: "USER_INPUT",
+          status: "DONE",
+          created_at: "2026-11-15T14:56:08Z",
+          content: [
+            "<USER_REQUEST>",
+            "git status",
+            "</USER_REQUEST>",
+            "<USER_SETTINGS_CHANGE>",
+            "The user changed setting `Model Selection` from Gemini 3.8 Flash (Low) to Gemini 3.8 Flash (High).",
+            "</USER_SETTINGS_CHANGE>",
+          ].join("\n"),
+        }),
+        JSON.stringify({
+          step_index: 0,
+          source: "USER_EXPLICIT",
+          type: "USER_INPUT",
+          status: "DONE",
+          created_at: "2026-11-15T14:56:25Z",
+          content: "<USER_REQUEST>\ngit status\n</USER_REQUEST>",
+        }),
+        JSON.stringify({
+          step_index: 1,
+          source: "MODEL",
+          type: "PLANNER_RESPONSE",
+          status: "DONE",
+          created_at: "2026-11-15T14:56:25Z",
+          input_tokens: 100,
+          output_tokens: 20,
+          content: "Clean.",
+        }),
+      ].join("\n");
+
+      fs.writeFileSync(compactPath, lines, "utf8");
+
+      const exportedSpans: Array<{
+        name: string;
+        attributes: Record<string, unknown>;
+      }> = [];
+
+      const result = await runStopHook(
+        {
+          conversationId: "conv-model-switch",
+          transcriptPath: compactPath,
+          modelName: "gemini-3.8-flash-low",
+          cwd: tempDir,
+        },
+        {
+          skillDirs: [],
+          spanExporter: {
+            export(spans, resultCallback) {
+              for (const s of spans) {
+                exportedSpans.push({
+                  name: s.name,
+                  attributes: { ...s.attributes },
+                });
+              }
+
+              resultCallback({ code: 0 });
+            },
+            shutdown: async () => {},
+          },
+        },
+      );
+
+      expect(result.exportedTurns).toBe(2);
+
+      const byName = new Map(exportedSpans.map((s) => [s.name, s]));
+      const modelEventSpan = byName.get("settings:model-change");
+      const genSpan = byName.get("llm-generation");
+
+      expect(modelEventSpan).toBeDefined();
+
+      expect(modelEventSpan?.attributes[LangfuseOtelSpanAttributes.OBSERVATION_TYPE]).toBe("event");
+      expect(genSpan).toBeDefined();
+
+      expect(genSpan?.attributes[LangfuseOtelSpanAttributes.OBSERVATION_MODEL]).toBe(
+        "gemini-3.8-flash-high",
+      );
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
 });

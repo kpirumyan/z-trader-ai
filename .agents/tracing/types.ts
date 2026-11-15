@@ -176,6 +176,14 @@ export interface ParseTranscriptOptions {
   visitedConversationIds?: Set<string>;
 }
 
+export interface ParsedSettingsChange {
+  setting: string;
+  from?: string;
+  to: string;
+  raw: string;
+  normalizedModel?: string;
+}
+
 export interface ExtractedUserRequest {
   prompt: string;
   additionalMetadata?: string;

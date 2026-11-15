@@ -3,6 +3,7 @@ export { extractGenericTimingAndBody, parseIsoTimestamp } from "./timing-extract
 export { deserializeToolArgs } from "./tool-deserializer.ts";
 export { collectModuleTagsFromToolArgs, collectTagsFromValue } from "./tagger.ts";
 export { classifySystemMessageName, classifyToolCall, matchSkillFilePath } from "./classifier.ts";
+export { normalizeModelIdentifier, parseUserSettingsChanges } from "./settings-parser.ts";
 
 export {
   createFilesystemSubagentResolver,

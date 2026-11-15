@@ -1,5 +1,6 @@
 import { classifySystemMessageName, classifyToolCall } from "./classifier.ts";
 import { parseJsonlSteps } from "./jsonl-reader.ts";
+import { parseUserSettingsChanges } from "./settings-parser.ts";
 import {
   deriveSubagentObservationName,
   extractSubagentConversationId,
@@ -17,6 +18,7 @@ import type {
   ParsedChildObservation,
   ParsedEventObservation,
   ParsedGenerationObservation,
+  ParsedSettingsChange,
   ParsedToolObservation,
   ParsedTurnTrace,
   ParseTranscriptOptions,
@@ -82,12 +84,47 @@ interface ParsedStepSequenceResult {
   history: ChatMessage[];
 }
 
+function buildSettingsEvents(
+  settingsChanges: ParsedSettingsChange[],
+  stepIndex: number,
+  turnStartTime: Date,
+): ParsedEventObservation[] {
+  return settingsChanges.map((change, idx) => {
+    const eventTime = new Date(turnStartTime.getTime() + idx);
+    const isModelChange =
+      Boolean(change.normalizedModel) || /^model(?:\s*selection)?$/i.test(change.setting);
+    const payload: Record<string, unknown> = {
+      setting: change.setting,
+      ...(change.from ? { from: change.from } : {}),
+      to: change.to,
+      ...(change.normalizedModel ? { model: change.normalizedModel } : {}),
+    };
+
+    return {
+      type: "event",
+      name: isModelChange ? "settings:model-change" : "settings:change",
+      stepIndex,
+      startTime: eventTime,
+      endTime: eventTime,
+      input: payload,
+      level: "DEFAULT",
+      metadata: {
+        stepIndex,
+        ...payload,
+        raw: change.raw,
+      },
+    };
+  });
+}
+
 function parseStepSequence(
   steps: RawTranscriptStep[],
   promptText: string,
   options: ParseTranscriptOptions,
   visited: Set<string>,
   initialHistory: ChatMessage[] = [],
+  effectiveModelName = options.modelName?.trim() || "antigravity-model",
+  initialEvents: ParsedEventObservation[] = [],
 ): ParsedStepSequenceResult {
   const children: ParsedChildObservation[] = [];
   const usageSummary: TokenUsageSummary = {
@@ -106,7 +143,7 @@ function parseStepSequence(
     event: 0,
   };
   const tags = new Set<string>();
-  const modelName = options.modelName?.trim() || "antigravity-model";
+  const modelName = effectiveModelName;
 
   let lastAssistantContent = "";
   let generationCount = 0;
@@ -123,6 +160,16 @@ function parseStepSequence(
   let i = 0;
   let lastStartMs = -1;
   let lastEndMs = 0;
+
+  for (const initialEvent of initialEvents) {
+    children.push(initialEvent);
+    observationCounts.event++;
+
+    const evtMs = initialEvent.startTime.getTime();
+
+    lastStartMs = Math.max(lastStartMs, evtMs);
+    lastEndMs = Math.max(lastEndMs, evtMs);
+  }
 
   while (i < steps.length) {
     const step = steps[i]!;
@@ -410,6 +457,7 @@ function parseStepSequence(
 
             const subTurns = parseTranscriptTurns(childTranscriptRaw, {
               ...options,
+              modelName: effectiveModelName,
               conversationId: subagentId,
               afterStepIndex: undefined,
               visitedConversationIds: nextVisited,
@@ -538,14 +586,6 @@ export function parseTranscriptTurns(
 
   for (const step of steps) {
     if (step.type === "USER_INPUT" && currentSlice.length > 0) {
-      if (
-        currentSlice.every((s) => s.type === "USER_INPUT") &&
-        currentSlice[0]!.step_index === step.step_index
-      ) {
-        currentSlice = [step];
-        continue;
-      }
-
       turnSlices.push(currentSlice);
       currentSlice = [step];
     } else {
@@ -559,6 +599,7 @@ export function parseTranscriptTurns(
 
   const parsedTurns: ParsedTurnTrace[] = [];
   let cumulativeSessionHistory: ChatMessage[] = [];
+  let activeModelName = options.modelName?.trim() || "antigravity-model";
 
   for (let idx = 0; idx < turnSlices.length; idx++) {
     const slice = turnSlices[idx]!;
@@ -572,15 +613,41 @@ export function parseTranscriptTurns(
     const extractedInput = extractUserRequest(userInputStep?.content ?? "");
     const startTime = parseIsoTimestamp(firstStep.created_at, new Date(0));
 
+    const settingsChanges = extractedInput.userSettingsChange
+      ? parseUserSettingsChanges(extractedInput.userSettingsChange)
+      : [];
+
+    for (const change of settingsChanges) {
+      if (change.normalizedModel) {
+        activeModelName = change.normalizedModel;
+      }
+    }
+
+    const initialEvents = buildSettingsEvents(
+      settingsChanges,
+      userInputStep?.step_index ?? startStepIndex,
+      startTime,
+    );
+
     const sequence = parseStepSequence(
       slice,
       extractedInput.prompt,
       options,
       visited,
       cumulativeSessionHistory,
+      activeModelName,
+      initialEvents,
     );
 
-    cumulativeSessionHistory = sequence.history;
+    const nextSlice = turnSlices[idx + 1];
+    const supersededBeforeGeneration =
+      sequence.generationCount === 0 &&
+      nextSlice !== undefined &&
+      nextSlice[0]!.step_index <= startStepIndex;
+
+    if (!supersededBeforeGeneration) {
+      cumulativeSessionHistory = sequence.history;
+    }
 
     if (options.afterStepIndex !== undefined && endStepIndex <= options.afterStepIndex) {
       continue;
@@ -604,11 +671,13 @@ export function parseTranscriptTurns(
       turnIndex,
       startStepIndex,
       endStepIndex,
+      model: activeModelName,
       generationCount: sequence.generationCount,
       toolCount: sequence.toolCount,
       errorCount: sequence.errorCount,
       systemMessageCount: sequence.systemMessageCount,
       observationCounts: sequence.observationCounts,
+      ...(sequence.generationCount === 0 ? { interrupted: true } : {}),
     };
 
     if (extractedInput.additionalMetadata) {

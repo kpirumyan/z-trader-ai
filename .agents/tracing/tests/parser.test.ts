@@ -19,10 +19,13 @@ import {
   extractSystemMessageContent,
   extractUserRequest,
   matchSkillFilePath,
+  normalizeModelIdentifier,
   parseIsoTimestamp,
   parseJsonlSteps,
   parseTranscriptTurns,
+  parseUserSettingsChanges,
   resolveFullTranscriptPath,
+  type ParsedSettingsChange,
 } from "../index.ts";
 
 describe("extractUserRequest", () => {
@@ -604,9 +607,16 @@ describe("parseTranscriptTurns", () => {
       modelName: "test-model",
     });
 
-    expect(turns).toHaveLength(2);
+    expect(turns).toHaveLength(3);
 
-    const firstTurn = turns[0]!;
+    const abandonedTurn = turns[0]!;
+
+    expect(abandonedTurn.startStepIndex).toBe(12);
+    expect(abandonedTurn.endStepIndex).toBe(12);
+    expect(abandonedTurn.metadata.interrupted).toBe(true);
+    expect(abandonedTurn.children).toHaveLength(0);
+
+    const firstTurn = turns[1]!;
 
     expect(firstTurn.children).toHaveLength(5);
 
@@ -628,7 +638,7 @@ describe("parseTranscriptTurns", () => {
       expect(secondTool.output).toBe("On branch main\nnothing to commit");
     }
 
-    const secondTurn = turns[1]!;
+    const secondTurn = turns[2]!;
 
     expect(secondTurn.children).toHaveLength(3);
 
@@ -1354,5 +1364,230 @@ describe("semantic observation classification", () => {
     expect(classifySystemMessageName("[Notice] ok")).toBe("system:notice");
     expect(classifySystemMessageName("[Timer] fired")).toBe("system:timer");
     expect(classifySystemMessageName("Arbitrary system payload")).toBe("system:event");
+  });
+});
+
+describe("USER_SETTINGS_CHANGE parsing and model tracking", () => {
+  it("normalizes display model names and parses Antigravity settings changes", () => {
+    expect(normalizeModelIdentifier("Gemini 3.8 Flash (Low)")).toBe("gemini-3.8-flash-low");
+    expect(normalizeModelIdentifier("Gemini 3.8 Flash (High)")).toBe("gemini-3.8-flash-high");
+    expect(normalizeModelIdentifier("Gemini 4 Hydrogen (High)")).toBe("gemini-4-hydrogen-high");
+    expect(normalizeModelIdentifier("Gemini 4 Argon")).toBe("gemini-4-argon");
+    expect(normalizeModelIdentifier("None")).toBeUndefined();
+
+    const parsed: ParsedSettingsChange[] = parseUserSettingsChanges(
+      [
+        "The user changed setting `Model Selection` from Gemini 3.8 Flash (Low) to Gemini 3.8 Flash (High). No need to comment on this change if the user doesn't ask about it.",
+        "The user changed setting `Terminal Policy` from Auto to Always Ask.",
+      ].join("\n"),
+    );
+
+    expect(parsed).toEqual([
+      {
+        setting: "Model Selection",
+        from: "Gemini 3.8 Flash (Low)",
+        to: "Gemini 3.8 Flash (High)",
+        raw: "The user changed setting `Model Selection` from Gemini 3.8 Flash (Low) to Gemini 3.8 Flash (High).",
+        normalizedModel: "gemini-3.8-flash-high",
+      },
+      {
+        setting: "Terminal Policy",
+        from: "Auto",
+        to: "Always Ask",
+        raw: "The user changed setting `Terminal Policy` from Auto to Always Ask.",
+      },
+    ]);
+  });
+
+  it("preserves model switches across duplicate step_index USER_INPUT retries, emits settings:model-change events, and updates subsequent turns", () => {
+    const transcript = [
+      JSON.stringify({
+        step_index: 0,
+        source: "USER_EXPLICIT",
+        type: "USER_INPUT",
+        status: "DONE",
+        created_at: "2026-11-15T14:54:09Z",
+        content: [
+          "<USER_REQUEST>",
+          "hello",
+          "</USER_REQUEST>",
+          "<USER_SETTINGS_CHANGE>",
+          "The user changed setting `Model Selection` from None to Gemini 3.8 Flash (Low). No need to comment on this change if the user doesn't ask about it.",
+          "</USER_SETTINGS_CHANGE>",
+        ].join("\n"),
+      }),
+      JSON.stringify({
+        step_index: 1,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-15T14:54:10Z",
+        input_tokens: 100,
+        output_tokens: 20,
+        content: "Hi.",
+      }),
+      JSON.stringify({
+        step_index: 12,
+        source: "USER_EXPLICIT",
+        type: "USER_INPUT",
+        status: "DONE",
+        created_at: "2026-11-15T14:56:08Z",
+        content: [
+          "<USER_REQUEST>",
+          "git status",
+          "</USER_REQUEST>",
+          "<ADDITIONAL_METADATA>",
+          "Time: 18:56:08",
+          "</ADDITIONAL_METADATA>",
+          "<USER_SETTINGS_CHANGE>",
+          "The user changed setting `Model Selection` from Gemini 3.8 Flash (Low) to Gemini 3.8 Flash (High). No need to comment on this change if the user doesn't ask about it.",
+          "</USER_SETTINGS_CHANGE>",
+        ].join("\n"),
+      }),
+      JSON.stringify({
+        step_index: 12,
+        source: "USER_EXPLICIT",
+        type: "USER_INPUT",
+        status: "DONE",
+        created_at: "2026-11-15T14:56:25Z",
+        content: [
+          "<USER_REQUEST>",
+          "git status",
+          "</USER_REQUEST>",
+          "<ADDITIONAL_METADATA>",
+          "Time: 18:56:25",
+          "</ADDITIONAL_METADATA>",
+        ].join("\n"),
+      }),
+      JSON.stringify({
+        step_index: 13,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-15T14:56:25Z",
+        input_tokens: 200,
+        output_tokens: 30,
+        content: "Clean.",
+      }),
+      JSON.stringify({
+        step_index: 18,
+        source: "USER_EXPLICIT",
+        type: "USER_INPUT",
+        status: "DONE",
+        created_at: "2026-11-15T15:13:06Z",
+        content: "<USER_REQUEST>\n1\n</USER_REQUEST>",
+      }),
+      JSON.stringify({
+        step_index: 19,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-15T15:13:06Z",
+        input_tokens: 300,
+        output_tokens: 40,
+        content: "Clarify.",
+      }),
+    ].join("\n");
+
+    const turns = parseTranscriptTurns(transcript, {
+      conversationId: "conv-model-switch",
+      modelName: "gemini-3.8-flash-low",
+    });
+
+    expect(turns).toHaveLength(4);
+
+    const turn1 = turns[0]!;
+    const turn2 = turns[1]!;
+    const turn3 = turns[2]!;
+    const turn4 = turns[3]!;
+
+    expect(turn1.metadata.model).toBe("gemini-3.8-flash-low");
+
+    expect(turn1.children.map((c) => `${c.type}:${c.name}`)).toEqual([
+      "event:settings:model-change",
+      "generation:llm-generation",
+    ]);
+
+    expect(turn2.startStepIndex).toBe(12);
+    expect(turn2.endStepIndex).toBe(12);
+    expect(turn2.startTime.toISOString()).toBe("2026-11-15T14:56:08.000Z");
+    expect(turn2.metadata.model).toBe("gemini-3.8-flash-high");
+    expect(turn2.metadata.interrupted).toBe(true);
+    expect(turn2.metadata.userSettingsChange).toContain("Gemini 3.8 Flash (High)");
+
+    expect(turn2.metadata.observationCounts).toEqual({
+      generation: 0,
+      agent: 0,
+      retriever: 0,
+      evaluator: 0,
+      guardrail: 0,
+      tool: 0,
+      event: 1,
+    });
+
+    expect(turn2.children.map((c) => `${c.type}:${c.name}`)).toEqual([
+      "event:settings:model-change",
+    ]);
+
+    const modelEvent = turn2.children[0]!;
+
+    expect(modelEvent.type).toBe("event");
+
+    if (modelEvent.type === "event") {
+      expect(modelEvent.startTime.toISOString()).toBe("2026-11-15T14:56:08.000Z");
+
+      expect(modelEvent.input).toEqual({
+        setting: "Model Selection",
+        from: "Gemini 3.8 Flash (Low)",
+        to: "Gemini 3.8 Flash (High)",
+        model: "gemini-3.8-flash-high",
+      });
+    }
+
+    expect(turn3.startStepIndex).toBe(12);
+    expect(turn3.endStepIndex).toBe(13);
+    expect(turn3.startTime.toISOString()).toBe("2026-11-15T14:56:25.000Z");
+    expect(turn3.metadata.model).toBe("gemini-3.8-flash-high");
+    expect(turn3.children.map((c) => `${c.type}:${c.name}`)).toEqual(["generation:llm-generation"]);
+
+    const turn3Gen = turn3.children[0]!;
+
+    expect(turn3Gen.type).toBe("generation");
+
+    if (turn3Gen.type === "generation") {
+      expect(turn3Gen.model).toBe("gemini-3.8-flash-high");
+
+      expect(turn3Gen.input).toEqual([
+        { role: "user", content: "hello" },
+        { role: "assistant", content: "Hi." },
+        { role: "user", content: "git status" },
+      ]);
+    }
+
+    expect(turn4.metadata.model).toBe("gemini-3.8-flash-high");
+    expect(turn4.children.map((c) => `${c.type}:${c.name}`)).toEqual(["generation:llm-generation"]);
+
+    const turn4Gen = turn4.children[0]!;
+
+    if (turn4Gen.type === "generation") {
+      expect(turn4Gen.model).toBe("gemini-3.8-flash-high");
+    }
+
+    // Incremental export after step 17 with a stale hook modelName still resolves the switched model
+    const incremental = parseTranscriptTurns(transcript, {
+      conversationId: "conv-model-switch",
+      modelName: "gemini-3.8-flash-low",
+      afterStepIndex: 17,
+    });
+
+    expect(incremental).toHaveLength(1);
+    expect(incremental[0]!.turnIndex).toBe(4);
+    expect(incremental[0]!.metadata.model).toBe("gemini-3.8-flash-high");
+
+    const incGen = incremental[0]!.children[0]!;
+
+    if (incGen.type === "generation") {
+      expect(incGen.model).toBe("gemini-3.8-flash-high");
+    }
   });
 });

@@ -35,9 +35,11 @@ export {
   extractSystemMessageContent,
   extractUserRequest,
   matchSkillFilePath,
+  normalizeModelIdentifier,
   parseIsoTimestamp,
   parseJsonlSteps,
   parseTranscriptTurns,
+  parseUserSettingsChanges,
   resolveFullTranscriptPath,
 } from "./parser/index.ts";
 
@@ -54,6 +56,7 @@ export type {
   ParsedChildObservation,
   ParsedEventObservation,
   ParsedGenerationObservation,
+  ParsedSettingsChange,
   ParsedToolObservation,
   ParsedTurnTrace,
   ParseTranscriptOptions,

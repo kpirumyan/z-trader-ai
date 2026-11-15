@@ -566,14 +566,236 @@ describe("exporter: end-to-end Langfuse OTel export", () => {
       const byName = new Map(exportedSpans.map((s) => [s.name, s]));
       const modelEventSpan = byName.get("settings:model-change");
       const genSpan = byName.get("llm-generation");
+      const rootSpans = exportedSpans.filter((s) => s.name === "agent-turn");
 
       expect(modelEventSpan).toBeDefined();
-
       expect(modelEventSpan?.attributes[LangfuseOtelSpanAttributes.OBSERVATION_TYPE]).toBe("event");
       expect(genSpan).toBeDefined();
 
       expect(genSpan?.attributes[LangfuseOtelSpanAttributes.OBSERVATION_MODEL]).toBe(
         "gemini-3.8-flash-high",
+      );
+
+      expect(rootSpans[0]?.attributes[LangfuseOtelSpanAttributes.OBSERVATION_LEVEL]).toBe(
+        "WARNING",
+      );
+
+      expect(rootSpans[1]?.attributes[LangfuseOtelSpanAttributes.OBSERVATION_INPUT]).toBe(
+        "git status",
+      );
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("exports interrupted turns with WARNING level and tracks monotonic lineIndex across reused step_index", async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "z-trader-cursor-line-test-"));
+
+    try {
+      const logsDir = path.join(tempDir, "conv-line-cursor", ".system_generated", "logs");
+
+      fs.mkdirSync(logsDir, { recursive: true });
+
+      const compactPath = path.join(logsDir, "transcript.jsonl");
+      const cursorPath = path.join(logsDir, ".langfuse-cursor.json");
+
+      // Phase 1: Turn 1 (step 20..21) + interrupted "ds" (step 22)
+      const phase1Lines = [
+        JSON.stringify({
+          step_index: 20,
+          source: "USER_EXPLICIT",
+          type: "USER_INPUT",
+          status: "DONE",
+          created_at: "2026-11-15T16:22:43Z",
+          content: "<USER_REQUEST>\nsdds\n</USER_REQUEST>",
+        }),
+        JSON.stringify({
+          step_index: 21,
+          source: "MODEL",
+          type: "PLANNER_RESPONSE",
+          status: "DONE",
+          created_at: "2026-11-15T16:22:43Z",
+          input_tokens: 100,
+          output_tokens: 20,
+          content: "Looks like a typo.",
+        }),
+        JSON.stringify({
+          step_index: 22,
+          source: "USER_EXPLICIT",
+          type: "USER_INPUT",
+          status: "DONE",
+          created_at: "2026-11-15T16:22:53Z",
+          content: "<USER_REQUEST>\nds\n</USER_REQUEST>",
+        }),
+      ];
+
+      fs.writeFileSync(compactPath, phase1Lines.join("\n"), "utf8");
+
+      const phase1Spans: Array<{ name: string; attributes: Record<string, unknown> }> = [];
+      const phase1 = await runStopHook(
+        {
+          conversationId: "conv-line-cursor",
+          transcriptPath: compactPath,
+          modelName: "gemini-3.8-flash-high",
+          cwd: tempDir,
+        },
+        {
+          skillDirs: [],
+          spanExporter: {
+            export(spans, resultCallback) {
+              for (const s of spans) {
+                phase1Spans.push({ name: s.name, attributes: { ...s.attributes } });
+              }
+
+              resultCallback({ code: 0 });
+            },
+            shutdown: async () => {},
+          },
+        },
+      );
+
+      expect(phase1.exportedTurns).toBe(2);
+
+      const interruptedRoot = phase1Spans.filter((s) => s.name === "agent-turn")[1];
+
+      expect(interruptedRoot?.attributes[LangfuseOtelSpanAttributes.OBSERVATION_INPUT]).toBe("ds");
+
+      expect(interruptedRoot?.attributes[LangfuseOtelSpanAttributes.OBSERVATION_LEVEL]).toBe(
+        "WARNING",
+      );
+
+      const savedCursor1 = JSON.parse(fs.readFileSync(cursorPath, "utf8")) as {
+        lastExportedStepIndex: number;
+        lastExportedLineIndex?: number;
+      };
+
+      expect(savedCursor1.lastExportedStepIndex).toBe(22);
+      expect(savedCursor1.lastExportedLineIndex).toBe(2);
+
+      // Phase 2: "s" arrives (step 23..24) AND another turn reuses step_index 23..24
+      const phase2Lines = [
+        ...phase1Lines,
+        JSON.stringify({
+          step_index: 23,
+          source: "USER_EXPLICIT",
+          type: "USER_INPUT",
+          status: "DONE",
+          created_at: "2026-11-15T16:23:00Z",
+          content: "<USER_REQUEST>\ns\n</USER_REQUEST>",
+        }),
+        JSON.stringify({
+          step_index: 24,
+          source: "MODEL",
+          type: "PLANNER_RESPONSE",
+          status: "DONE",
+          created_at: "2026-11-15T16:23:00Z",
+          input_tokens: 150,
+          output_tokens: 25,
+          content: "I am online.",
+        }),
+        JSON.stringify({
+          step_index: 23,
+          source: "USER_EXPLICIT",
+          type: "USER_INPUT",
+          status: "DONE",
+          created_at: "2026-11-15T16:23:54Z",
+          content: "<USER_REQUEST>\ns\n</USER_REQUEST>",
+        }),
+        JSON.stringify({
+          step_index: 24,
+          source: "MODEL",
+          type: "PLANNER_RESPONSE",
+          status: "DONE",
+          created_at: "2026-11-15T16:23:54Z",
+          input_tokens: 200,
+          output_tokens: 30,
+          content: "Messages arrived as random chars.",
+        }),
+      ];
+
+      fs.writeFileSync(compactPath, phase2Lines.join("\n"), "utf8");
+
+      const phase2Spans: Array<{ name: string; attributes: Record<string, unknown> }> = [];
+      const phase2 = await runStopHook(
+        {
+          conversationId: "conv-line-cursor",
+          transcriptPath: compactPath,
+          modelName: "gemini-3.8-flash-high",
+          cwd: tempDir,
+        },
+        {
+          skillDirs: [],
+          spanExporter: {
+            export(spans, resultCallback) {
+              for (const s of spans) {
+                phase2Spans.push({ name: s.name, attributes: { ...s.attributes } });
+              }
+
+              resultCallback({ code: 0 });
+            },
+            shutdown: async () => {},
+          },
+        },
+      );
+
+      expect(phase2.exportedTurns).toBe(2);
+
+      // Export through Turn 3 first, then append Turn 4 with reused step_index 23..24
+      fs.writeFileSync(compactPath, phase2Lines.slice(0, 5).join("\n"), "utf8");
+      fs.rmSync(cursorPath, { force: true });
+
+      await runStopHook(
+        {
+          conversationId: "conv-line-cursor",
+          transcriptPath: compactPath,
+          modelName: "gemini-3.8-flash-high",
+          cwd: tempDir,
+        },
+        {
+          skillDirs: [],
+          spanExporter: {
+            export(_spans, resultCallback) {
+              resultCallback({ code: 0 });
+            },
+            shutdown: async () => {},
+          },
+        },
+      );
+
+      fs.writeFileSync(compactPath, phase2Lines.join("\n"), "utf8");
+
+      const phase3Spans: Array<{ name: string; attributes: Record<string, unknown> }> = [];
+      const phase3 = await runStopHook(
+        {
+          conversationId: "conv-line-cursor",
+          transcriptPath: compactPath,
+          modelName: "gemini-3.8-flash-high",
+          cwd: tempDir,
+        },
+        {
+          skillDirs: [],
+          spanExporter: {
+            export(spans, resultCallback) {
+              for (const s of spans) {
+                phase3Spans.push({ name: s.name, attributes: { ...s.attributes } });
+              }
+
+              resultCallback({ code: 0 });
+            },
+            shutdown: async () => {},
+          },
+        },
+      );
+
+      expect(phase3.exportedTurns).toBe(1);
+
+      const finalGen = phase3Spans.find((s) => s.name === "llm-generation");
+
+      expect(finalGen?.attributes[LangfuseOtelSpanAttributes.OBSERVATION_OUTPUT]).toBe(
+        JSON.stringify({
+          role: "assistant",
+          content: "Messages arrived as random chars.",
+        }),
       );
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });

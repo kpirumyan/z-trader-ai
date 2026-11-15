@@ -51,6 +51,9 @@ export function readCursorState(cursorPath: string): LangfuseCursorState | null 
     if (typeof parsed.lastExportedStepIndex === "number") {
       return {
         lastExportedStepIndex: parsed.lastExportedStepIndex,
+        ...(typeof parsed.lastExportedLineIndex === "number"
+          ? { lastExportedLineIndex: parsed.lastExportedLineIndex }
+          : {}),
         lastExportedTurnIndex:
           typeof parsed.lastExportedTurnIndex === "number" ? parsed.lastExportedTurnIndex : -1,
         updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : "",

@@ -18,8 +18,8 @@ export function parseJsonlSteps(jsonlContent: string): RawTranscriptStep[] {
   const lines = jsonlContent.split(/\r?\n/);
   const steps: RawTranscriptStep[] = [];
 
-  for (const line of lines) {
-    const trimmed = line.trim();
+  for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+    const trimmed = lines[lineIdx]!.trim();
 
     if (!trimmed) {
       continue;
@@ -29,7 +29,7 @@ export function parseJsonlSteps(jsonlContent: string): RawTranscriptStep[] {
       const parsed = JSON.parse(trimmed) as RawTranscriptStep;
 
       if (typeof parsed.step_index === "number" && typeof parsed.type === "string") {
-        steps.push(parsed);
+        steps.push({ ...parsed, _lineIndex: lineIdx });
       }
     } catch {
       // Skip malformed or incomplete trailing JSONL lines

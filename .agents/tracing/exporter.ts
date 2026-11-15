@@ -109,7 +109,9 @@ export async function runStopHook(
   const newlyParsedTurns = parseTranscriptTurns(rawTranscript, {
     conversationId,
     modelName: input.modelName,
-    afterStepIndex: cursor?.lastExportedStepIndex,
+    ...(typeof cursor?.lastExportedLineIndex === "number"
+      ? { afterLineIndex: cursor.lastExportedLineIndex }
+      : { afterStepIndex: cursor?.lastExportedStepIndex }),
     resolveSubagentTranscript: createFilesystemSubagentResolver(resolvedTranscriptPath),
   });
 
@@ -166,9 +168,14 @@ export async function runStopHook(
 
     if (shouldPersistState) {
       const lastTurn = turnsToExport[turnsToExport.length - 1]!;
+      const nextLineIndex =
+        typeof lastTurn.endLineIndex === "number"
+          ? Math.max(cursor?.lastExportedLineIndex ?? -1, lastTurn.endLineIndex)
+          : cursor?.lastExportedLineIndex;
 
       writeCursorState(cursorPath, {
         lastExportedStepIndex: Math.max(cursor?.lastExportedStepIndex ?? -1, lastTurn.endStepIndex),
+        ...(typeof nextLineIndex === "number" ? { lastExportedLineIndex: nextLineIndex } : {}),
         lastExportedTurnIndex: Math.max(cursor?.lastExportedTurnIndex ?? -1, lastTurn.turnIndex),
         updatedAt: new Date().toISOString(),
       });

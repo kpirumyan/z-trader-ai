@@ -13,6 +13,7 @@ export interface RawToolCall {
 
 export interface RawTranscriptStep {
   step_index: number;
+  _lineIndex?: number;
   source?: string;
   type: string;
   status?: string;
@@ -158,10 +159,13 @@ export interface ParsedTurnTrace {
   sessionId: string;
   startStepIndex: number;
   endStepIndex: number;
+  endLineIndex?: number;
   startTime: Date;
   endTime: Date;
   input: string;
   output: string;
+  level?: "DEFAULT" | "WARNING" | "ERROR";
+  statusMessage?: string;
   children: ParsedChildObservation[];
   usageSummary: TokenUsageSummary;
   tags: string[];
@@ -172,6 +176,7 @@ export interface ParseTranscriptOptions {
   conversationId: string;
   modelName?: string;
   afterStepIndex?: number;
+  afterLineIndex?: number;
   resolveSubagentTranscript?: (subagentConversationId: string) => string | null;
   visitedConversationIds?: Set<string>;
 }
@@ -212,6 +217,7 @@ export type ReleaseContext = ContextAnchor;
 
 export interface LangfuseCursorState {
   lastExportedStepIndex: number;
+  lastExportedLineIndex?: number;
   lastExportedTurnIndex: number;
   updatedAt: string;
 }

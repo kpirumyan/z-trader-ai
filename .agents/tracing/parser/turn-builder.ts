@@ -76,6 +76,8 @@ interface ParsedStepSequenceResult {
   usageSummary: TokenUsageSummary;
   tags: Set<string>;
   lastAssistantContent: string;
+  lastGenerationLevel?: "DEFAULT" | "WARNING" | "ERROR";
+  lastGenerationStatusMessage?: string;
   generationCount: number;
   toolCount: number;
   errorCount: number;
@@ -146,6 +148,8 @@ function parseStepSequence(
   const modelName = effectiveModelName;
 
   let lastAssistantContent = "";
+  let lastGenerationLevel: "DEFAULT" | "WARNING" | "ERROR" | undefined;
+  let lastGenerationStatusMessage: string | undefined;
   let generationCount = 0;
   let toolCount = 0;
   let errorCount = 0;
@@ -371,6 +375,8 @@ function parseStepSequence(
     };
 
     children.push(genObservation);
+    lastGenerationLevel = genObservation.level;
+    lastGenerationStatusMessage = genObservation.statusMessage;
 
     const assistantHistoryMsg: ChatMessage = {
       role: "assistant",
@@ -460,6 +466,7 @@ function parseStepSequence(
               modelName: effectiveModelName,
               conversationId: subagentId,
               afterStepIndex: undefined,
+              afterLineIndex: undefined,
               visitedConversationIds: nextVisited,
             });
 
@@ -558,6 +565,8 @@ function parseStepSequence(
     usageSummary,
     tags,
     lastAssistantContent,
+    ...(lastGenerationLevel ? { lastGenerationLevel } : {}),
+    ...(lastGenerationStatusMessage ? { lastGenerationStatusMessage } : {}),
     generationCount,
     toolCount,
     errorCount,
@@ -608,6 +617,7 @@ export function parseTranscriptTurns(
     const lastStep = slice[slice.length - 1]!;
     const startStepIndex = firstStep.step_index;
     const endStepIndex = lastStep.step_index;
+    const endLineIndex = lastStep._lineIndex;
 
     const userInputStep = slice.find((s) => s.type === "USER_INPUT");
     const extractedInput = extractUserRequest(userInputStep?.content ?? "");
@@ -649,11 +659,19 @@ export function parseTranscriptTurns(
       cumulativeSessionHistory = sequence.history;
     }
 
-    if (options.afterStepIndex !== undefined && endStepIndex <= options.afterStepIndex) {
+    if (options.afterLineIndex !== undefined && endLineIndex !== undefined) {
+      if (endLineIndex <= options.afterLineIndex) {
+        continue;
+      }
+    } else if (options.afterStepIndex !== undefined && endStepIndex <= options.afterStepIndex) {
       continue;
     }
 
     let endTime = parseIsoTimestamp(lastStep.created_at, startTime);
+
+    if (endTime.getTime() < startTime.getTime()) {
+      endTime = startTime;
+    }
 
     for (const child of sequence.children) {
       if (child.endTime.getTime() > endTime.getTime()) {
@@ -661,11 +679,23 @@ export function parseTranscriptTurns(
       }
     }
 
+    const isFailedGeneration = sequence.lastGenerationLevel === "ERROR";
+    const isInterrupted =
+      sequence.generationCount === 0 || (!isFailedGeneration && !sequence.lastAssistantContent);
     const output =
       sequence.lastAssistantContent ||
-      (sequence.children.length > 0
+      (sequence.generationCount > 0 || sequence.toolCount > 0
         ? `Completed ${sequence.generationCount} generation(s) and ${sequence.toolCount} tool call(s).`
         : "");
+
+    const traceLevel = isFailedGeneration ? "ERROR" : isInterrupted ? "WARNING" : undefined;
+    const traceStatusMessage = isFailedGeneration
+      ? (sequence.lastGenerationStatusMessage ?? "Generation failed")
+      : sequence.generationCount === 0
+        ? "Interrupted before model generation"
+        : isInterrupted
+          ? "Turn ended without final assistant text"
+          : undefined;
 
     const metadata: Record<string, unknown> = {
       turnIndex,
@@ -677,7 +707,7 @@ export function parseTranscriptTurns(
       errorCount: sequence.errorCount,
       systemMessageCount: sequence.systemMessageCount,
       observationCounts: sequence.observationCounts,
-      ...(sequence.generationCount === 0 ? { interrupted: true } : {}),
+      ...(isInterrupted ? { interrupted: true } : {}),
     };
 
     if (extractedInput.additionalMetadata) {
@@ -695,10 +725,13 @@ export function parseTranscriptTurns(
       sessionId: options.conversationId,
       startStepIndex,
       endStepIndex,
+      ...(typeof endLineIndex === "number" ? { endLineIndex } : {}),
       startTime,
       endTime,
       input: extractedInput.prompt,
       output,
+      ...(traceLevel ? { level: traceLevel } : {}),
+      ...(traceStatusMessage ? { statusMessage: traceStatusMessage } : {}),
       children: sequence.children,
       usageSummary: sequence.usageSummary,
       tags: [...sequence.tags].sort(),

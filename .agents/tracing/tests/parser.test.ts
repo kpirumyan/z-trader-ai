@@ -614,11 +614,20 @@ describe("parseTranscriptTurns", () => {
     expect(abandonedTurn.startStepIndex).toBe(12);
     expect(abandonedTurn.endStepIndex).toBe(12);
     expect(abandonedTurn.metadata.interrupted).toBe(true);
+    expect(abandonedTurn.level).toBe("WARNING");
     expect(abandonedTurn.children).toHaveLength(0);
 
     const firstTurn = turns[1]!;
 
     expect(firstTurn.children).toHaveLength(5);
+
+    const firstTurnGen = firstTurn.children[0]!;
+
+    expect(firstTurnGen.type).toBe("generation");
+
+    if (firstTurnGen.type === "generation") {
+      expect(firstTurnGen.input).toEqual([{ role: "user", content: "git status" }]);
+    }
 
     const firstTool = firstTurn.children[1]!;
 
@@ -1508,9 +1517,14 @@ describe("USER_SETTINGS_CHANGE parsing and model tracking", () => {
       "generation:llm-generation",
     ]);
 
+    expect(turn2.turnIndex).toBe(2);
     expect(turn2.startStepIndex).toBe(12);
     expect(turn2.endStepIndex).toBe(12);
     expect(turn2.startTime.toISOString()).toBe("2026-11-15T14:56:08.000Z");
+    expect(turn2.input).toBe("git status");
+    expect(turn2.output).toBe("");
+    expect(turn2.level).toBe("WARNING");
+    expect(turn2.statusMessage).toBe("Interrupted before model generation");
     expect(turn2.metadata.model).toBe("gemini-3.8-flash-high");
     expect(turn2.metadata.interrupted).toBe(true);
     expect(turn2.metadata.userSettingsChange).toContain("Gemini 3.8 Flash (High)");
@@ -1544,6 +1558,7 @@ describe("USER_SETTINGS_CHANGE parsing and model tracking", () => {
       });
     }
 
+    expect(turn3.turnIndex).toBe(3);
     expect(turn3.startStepIndex).toBe(12);
     expect(turn3.endStepIndex).toBe(13);
     expect(turn3.startTime.toISOString()).toBe("2026-11-15T14:56:25.000Z");
@@ -1564,6 +1579,7 @@ describe("USER_SETTINGS_CHANGE parsing and model tracking", () => {
       ]);
     }
 
+    expect(turn4.turnIndex).toBe(4);
     expect(turn4.metadata.model).toBe("gemini-3.8-flash-high");
     expect(turn4.children.map((c) => `${c.type}:${c.name}`)).toEqual(["generation:llm-generation"]);
 
@@ -1589,5 +1605,194 @@ describe("USER_SETTINGS_CHANGE parsing and model tracking", () => {
     if (incGen.type === "generation") {
       expect(incGen.model).toBe("gemini-3.8-flash-high");
     }
+  });
+
+  it("traces interrupted queued prompts faithfully while keeping subsequent generation history and monotonic lineIndex", () => {
+    const transcript = [
+      JSON.stringify({
+        step_index: 20,
+        source: "USER_EXPLICIT",
+        type: "USER_INPUT",
+        status: "DONE",
+        created_at: "2026-11-15T16:22:43Z",
+        content: "<USER_REQUEST>\nsdds\n</USER_REQUEST>",
+      }),
+      JSON.stringify({
+        step_index: 21,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-15T16:22:43Z",
+        input_tokens: 100,
+        output_tokens: 20,
+        content: "Looks like a typo.",
+      }),
+      JSON.stringify({
+        step_index: 22,
+        source: "USER_EXPLICIT",
+        type: "USER_INPUT",
+        status: "DONE",
+        created_at: "2026-11-15T16:22:53Z",
+        content: "<USER_REQUEST>\nds\n</USER_REQUEST>",
+      }),
+      JSON.stringify({
+        step_index: 23,
+        source: "USER_EXPLICIT",
+        type: "USER_INPUT",
+        status: "DONE",
+        created_at: "2026-11-15T16:23:00Z",
+        content: [
+          "<USER_REQUEST>",
+          "s",
+          "</USER_REQUEST>",
+          "<USER_SETTINGS_CHANGE>",
+          "The user changed setting `Model Selection` from Gemini 3.8 Flash (High) to Gemini 3.8 Flash (Low).",
+          "</USER_SETTINGS_CHANGE>",
+        ].join("\n"),
+      }),
+      JSON.stringify({
+        step_index: 24,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-15T16:23:00Z",
+        input_tokens: 150,
+        output_tokens: 25,
+        content: "Online.",
+      }),
+      JSON.stringify({
+        step_index: 23,
+        source: "USER_EXPLICIT",
+        type: "USER_INPUT",
+        status: "DONE",
+        created_at: "2026-11-15T16:23:54Z",
+        content: "<USER_REQUEST>\ns\n</USER_REQUEST>",
+      }),
+      JSON.stringify({
+        step_index: 24,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-15T16:23:54Z",
+        input_tokens: 200,
+        output_tokens: 30,
+        content: "Observed random messages.",
+      }),
+    ].join("\n");
+
+    const turns = parseTranscriptTurns(transcript, {
+      conversationId: "conv-queued",
+      modelName: "gemini-3.8-flash-high",
+    });
+
+    expect(turns).toHaveLength(4);
+
+    const interruptedTurn = turns[1]!;
+
+    expect(interruptedTurn.turnIndex).toBe(2);
+    expect(interruptedTurn.startStepIndex).toBe(22);
+    expect(interruptedTurn.endStepIndex).toBe(22);
+    expect(interruptedTurn.endLineIndex).toBe(2);
+    expect(interruptedTurn.input).toBe("ds");
+    expect(interruptedTurn.output).toBe("");
+    expect(interruptedTurn.level).toBe("WARNING");
+    expect(interruptedTurn.statusMessage).toBe("Interrupted before model generation");
+    expect(interruptedTurn.metadata.interrupted).toBe(true);
+    expect(interruptedTurn.metadata.generationCount).toBe(0);
+
+    const nextTurn = turns[2]!;
+
+    expect(nextTurn.turnIndex).toBe(3);
+    expect(nextTurn.startStepIndex).toBe(23);
+    expect(nextTurn.endStepIndex).toBe(24);
+    expect(nextTurn.endLineIndex).toBe(4);
+    expect(nextTurn.input).toBe("s");
+    expect(nextTurn.output).toBe("Online.");
+    expect(nextTurn.metadata.model).toBe("gemini-3.8-flash-low");
+
+    const gen = nextTurn.children.find((c) => c.type === "generation");
+
+    expect(gen?.type).toBe("generation");
+
+    if (gen?.type === "generation") {
+      expect(gen.input).toEqual([
+        { role: "user", content: "sdds" },
+        { role: "assistant", content: "Looks like a typo." },
+        { role: "user", content: "ds" },
+        { role: "user", content: "s" },
+      ]);
+    }
+
+    const reusedStepTurn = turns[3]!;
+
+    expect(reusedStepTurn.turnIndex).toBe(4);
+    expect(reusedStepTurn.endStepIndex).toBe(24);
+    expect(reusedStepTurn.endLineIndex).toBe(6);
+
+    const incrementalByLine = parseTranscriptTurns(transcript, {
+      conversationId: "conv-queued",
+      modelName: "gemini-3.8-flash-high",
+      afterLineIndex: nextTurn.endLineIndex,
+    });
+
+    expect(incrementalByLine).toHaveLength(1);
+    expect(incrementalByLine[0]!.turnIndex).toBe(4);
+    expect(incrementalByLine[0]!.output).toBe("Observed random messages.");
+  });
+
+  it("propagates ERROR and WARNING trace levels from failed or interrupted executions", () => {
+    const transcript = [
+      JSON.stringify({
+        step_index: 0,
+        source: "USER_EXPLICIT",
+        type: "USER_INPUT",
+        status: "DONE",
+        created_at: "2026-11-15T17:00:00Z",
+        content: "<USER_REQUEST>\nRun tool\n</USER_REQUEST>",
+      }),
+      JSON.stringify({
+        step_index: 1,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-15T17:00:01Z",
+        tool_calls: [{ name: "run_command", args: { CommandLine: "pnpm check:fast" } }],
+      }),
+      JSON.stringify({
+        step_index: 2,
+        source: "MODEL",
+        type: "GENERIC",
+        status: "DONE",
+        created_at: "2026-11-15T17:00:02Z",
+        content: "ok",
+      }),
+      JSON.stringify({
+        step_index: 3,
+        source: "USER_EXPLICIT",
+        type: "USER_INPUT",
+        status: "DONE",
+        created_at: "2026-11-15T17:01:00Z",
+        content: "<USER_REQUEST>\nFail generation\n</USER_REQUEST>",
+      }),
+      JSON.stringify({
+        step_index: 4,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "ERROR",
+        error: "Rate limit exceeded",
+        created_at: "2026-11-15T17:01:01Z",
+      }),
+    ].join("\n");
+
+    const turns = parseTranscriptTurns(transcript, {
+      conversationId: "conv-levels",
+      modelName: "gemini-3.8-flash-high",
+    });
+
+    expect(turns).toHaveLength(2);
+    expect(turns[0]!.level).toBe("WARNING");
+    expect(turns[0]!.metadata.interrupted).toBe(true);
+    expect(turns[1]!.level).toBe("ERROR");
+    expect(turns[1]!.statusMessage).toBe("Rate limit exceeded");
   });
 });

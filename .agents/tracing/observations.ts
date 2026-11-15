@@ -168,6 +168,8 @@ export async function emitRootObservation(
         {
           input: turn.input,
           output: turn.output,
+          ...(turn.level ? { level: turn.level } : {}),
+          ...(turn.statusMessage ? { statusMessage: turn.statusMessage } : {}),
           metadata: {
             ...turn.metadata,
             gitSha: contextAnchor.gitSha,

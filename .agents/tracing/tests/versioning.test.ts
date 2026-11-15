@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { computeContextAnchor } from "../index.ts";
 
 describe("versioning: computeContextAnchor", () => {
-  it("computes deterministic context anchor (gitShortSha-agentsHash) excluding test files", () => {
+  it("computes distinct release (gitShortSha) and version (agentsHash) excluding test files", () => {
     const tempWorkspace = fs.mkdtempSync(path.join(os.tmpdir(), "z-trader-anchor-test-"));
 
     try {
@@ -37,7 +37,9 @@ describe("versioning: computeContextAnchor", () => {
       const anchor1 = computeContextAnchor(tempWorkspace);
 
       expect(anchor1.agentsHash).toMatch(/^[0-9a-f]{8}$/);
-      expect(anchor1.version).toBe(`${anchor1.gitShortSha}-${anchor1.agentsHash}`);
+      expect(anchor1.release).toBe(anchor1.gitShortSha);
+      expect(anchor1.version).toBe(anchor1.agentsHash);
+      expect(anchor1.release).not.toBe(anchor1.version);
 
       // Modifying a test file inside .agents/**/tests/ should NOT change agentsHash
       fs.writeFileSync(

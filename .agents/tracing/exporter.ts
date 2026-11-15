@@ -74,6 +74,7 @@ export async function runStopHook(
       decision: "allow",
       exportedTurns: 0,
       spooledTurns: 0,
+      release: contextAnchor.release,
       version: contextAnchor.version,
       dryRun,
       summary: [],
@@ -87,6 +88,7 @@ export async function runStopHook(
       decision: "allow",
       exportedTurns: 0,
       spooledTurns: 0,
+      release: contextAnchor.release,
       version: contextAnchor.version,
       dryRun,
       summary: [],
@@ -118,6 +120,7 @@ export async function runStopHook(
       decision: "allow",
       exportedTurns: 0,
       spooledTurns: 0,
+      release: contextAnchor.release,
       version: contextAnchor.version,
       dryRun,
       summary: [],
@@ -133,7 +136,7 @@ export async function runStopHook(
 
   try {
     session = startTracingSession({
-      release: contextAnchor.version,
+      release: contextAnchor.release,
       dryRun,
       spanExporter: options.spanExporter,
       availableSkills,
@@ -179,6 +182,7 @@ export async function runStopHook(
       decision: "allow",
       exportedTurns: turnsToExport.length,
       spooledTurns: 0,
+      release: contextAnchor.release,
       version: contextAnchor.version,
       dryRun,
       summary,
@@ -209,6 +213,7 @@ export async function runStopHook(
       decision: "allow",
       exportedTurns: 0,
       spooledTurns: turnsToExport.length,
+      release: contextAnchor.release,
       version: contextAnchor.version,
       dryRun,
       summary,

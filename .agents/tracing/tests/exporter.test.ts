@@ -133,6 +133,10 @@ describe("exporter: end-to-end Langfuse OTel export", () => {
 
       expect(rootSpan?.attributes[LangfuseOtelSpanAttributes.TRACE_SESSION_ID]).toBe("conv-hook-1");
 
+      expect(rootSpan?.attributes[LangfuseOtelSpanAttributes.RELEASE]).toBe(result1.release);
+      expect(rootSpan?.attributes[LangfuseOtelSpanAttributes.VERSION]).toBe(result1.version);
+      expect(result1.release).not.toBe(result1.version);
+
       expect(rootSpan?.attributes[LangfuseOtelSpanAttributes.TRACE_TAGS]).toEqual(["module:chart"]);
 
       const childSpans = exportedSpans.filter((s) => s.name !== "agent-turn");
@@ -141,6 +145,8 @@ describe("exporter: end-to-end Langfuse OTel export", () => {
         expect(child.traceId).toBe(expectedTraceId);
         expect(child.parentSpanId).toBe(rootSpan?.spanId);
         expect(child.attributes[LangfuseOtelSpanAttributes.IS_APP_ROOT]).toBeUndefined();
+        expect(child.attributes[LangfuseOtelSpanAttributes.RELEASE]).toBe(result1.release);
+        expect(child.attributes[LangfuseOtelSpanAttributes.VERSION]).toBe(result1.version);
       }
 
       const toolSpan = childSpans.find((s) => s.name === "read_file");

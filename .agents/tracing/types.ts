@@ -204,6 +204,7 @@ export interface ContextAnchor {
   gitBranch: string;
   isDirty: boolean;
   agentsHash: string;
+  release: string;
   version: string;
 }
 
@@ -244,6 +245,7 @@ export interface RunStopHookResult {
   decision: "allow";
   exportedTurns: number;
   spooledTurns: number;
+  release: string;
   version: string;
   dryRun: boolean;
   summary: Array<{

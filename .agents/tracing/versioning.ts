@@ -55,8 +55,9 @@ function collectAgentCustomizationFiles(dirPath: string, rootDir: string, out: s
 }
 
 /**
- * Computes the deterministic release/version identifier (`${gitShortSha}-${agentsHash}`)
- * and Git workspace state for trace correlation.
+ * Computes deterministic Langfuse identifiers and Git workspace state for trace correlation:
+ * - `release`: repository Git short SHA (`gitShortSha`) for application-wide build scope
+ * - `version`: content hash (`agentsHash`) of `AGENTS.md` and `.agents/` customizations for agent-context scope
  */
 export function computeContextAnchor(workspaceRoot: string): ContextAnchor {
   const gitSha = runGitCommand(
@@ -93,7 +94,8 @@ export function computeContextAnchor(workspaceRoot: string): ContextAnchor {
   }
 
   const agentsHash = hash.digest("hex").slice(0, 8);
-  const version = `${gitShortSha}-${agentsHash}`;
+  const release = gitShortSha;
+  const version = agentsHash;
 
   return {
     gitSha,
@@ -101,6 +103,7 @@ export function computeContextAnchor(workspaceRoot: string): ContextAnchor {
     gitBranch,
     isDirty,
     agentsHash,
+    release,
     version,
   };
 }

@@ -1,6 +1,8 @@
 import { expect, test, type Locator, type Page, type Route } from "@playwright/test";
 
-import { THEME_STORAGE_KEY, type Theme } from "@/src/shared/theme";
+import { THEME_STORAGE_KEY } from "@/src/shared/theme/constants";
+
+import type { Theme } from "@/src/shared/theme/types";
 
 type Box = { x: number; y: number; width: number; height: number };
 

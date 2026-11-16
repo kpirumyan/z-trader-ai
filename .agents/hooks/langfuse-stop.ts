@@ -23,12 +23,16 @@ async function main(): Promise<void> {
     const data = raw.trim() ? (JSON.parse(raw) as Record<string, unknown>) : {};
 
     const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
+    const bool = (v: unknown): boolean | undefined => (typeof v === "boolean" ? v : undefined);
 
     const input: StopHookInput = {
       conversationId: str(values["conversation-id"]) ?? str(data.conversationId ?? data.session_id),
       transcriptPath: str(values.transcript) ?? str(data.transcriptPath ?? data.transcript_path),
       artifactDirectoryPath: str(data.artifactDirectoryPath),
       modelName: str(data.modelName),
+      terminationReason: str(data.terminationReason),
+      fullyIdle: bool(data.fullyIdle),
+      continuationActive: bool(data.continuationActive),
       cwd: str(data.cwd),
       workspacePaths: Array.isArray(data.workspacePaths)
         ? data.workspacePaths.filter((p): p is string => typeof p === "string")

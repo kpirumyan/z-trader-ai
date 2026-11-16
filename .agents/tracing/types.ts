@@ -44,6 +44,14 @@ export interface ObservationCounts {
   event: number;
 }
 
+export interface TurnGateSummary {
+  totalRuns: number;
+  firstTryPassed: boolean | null;
+  finalPassed: boolean | null;
+  retryCount: number;
+  failedGates: string[];
+}
+
 export interface AssistantToolCallOutput {
   id: string;
   type: "function";
@@ -175,6 +183,7 @@ export interface ParsedTurnTrace {
 export interface ParseTranscriptOptions {
   conversationId: string;
   modelName?: string;
+  terminationReason?: string;
   afterStepIndex?: number;
   afterLineIndex?: number;
   resolveSubagentTranscript?: (subagentConversationId: string) => string | null;
@@ -200,6 +209,9 @@ export interface StopHookInput {
   transcriptPath?: string;
   artifactDirectoryPath?: string;
   modelName?: string;
+  terminationReason?: string;
+  fullyIdle?: boolean;
+  continuationActive?: boolean;
   cwd?: string;
   workspacePaths?: string[];
 }

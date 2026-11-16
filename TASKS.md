@@ -8,7 +8,7 @@
 
 | ID         | Задача                                                                                      | Зависимости | Статус     |
 | :--------- | :------------------------------------------------------------------------------------------ | :---------- | :--------- |
-| **TASK-1** | Обогащение `metadata` спана `agent-turn` и проброс `terminationReason` в `.agents/tracing/` | Нет         | `[ ] Todo` |
+| **TASK-1** | Обогащение `metadata` спана `agent-turn` и проброс `terminationReason` в `.agents/tracing/` | Нет         | `[x] Done` |
 | **TASK-2** | Актуализация ADR-0008 (Supersede -> ADR-0009) под архитектуру Evaluators в Langfuse v4      | TASK-1      | `[ ] Todo` |
 | **TASK-3** | Создание и верификация детерминированного Langfuse Code Evaluator (`agent-turn-signals`)    | TASK-1      | `[ ] Todo` |
 | **TASK-4** | Создание и калибровка модельного судьи Langfuse LLM-as-a-Judge (`user-message-type`)        | TASK-1      | `[ ] Todo` |

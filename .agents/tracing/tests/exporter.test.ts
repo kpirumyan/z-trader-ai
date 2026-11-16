@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -797,6 +798,246 @@ describe("exporter: end-to-end Langfuse OTel export", () => {
           content: "Messages arrived as random chars.",
         }),
       );
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("propagates hasPreviousTurn string attribute and exports terminationReason, failedTools, and gateSummary on agent-turn spans", async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "z-trader-eval-ctx-test-"));
+
+    try {
+      const logsDir = path.join(tempDir, "conv-eval-ctx", ".system_generated", "logs");
+
+      fs.mkdirSync(logsDir, { recursive: true });
+
+      const compactPath = path.join(logsDir, "transcript.jsonl");
+      const lines = [
+        JSON.stringify({
+          step_index: 0,
+          source: "USER_EXPLICIT",
+          type: "USER_INPUT",
+          status: "DONE",
+          created_at: "2026-11-16T14:00:00Z",
+          content: "<USER_REQUEST>\nRun lint\n</USER_REQUEST>",
+        }),
+        JSON.stringify({
+          step_index: 1,
+          source: "MODEL",
+          type: "PLANNER_RESPONSE",
+          status: "DONE",
+          created_at: "2026-11-16T14:00:01Z",
+          tool_calls: [{ name: "run_command", args: { CommandLine: "pnpm lint" } }],
+        }),
+        JSON.stringify({
+          step_index: 2,
+          source: "MODEL",
+          type: "GENERIC",
+          status: "ERROR",
+          error: "Lint error",
+          created_at: "2026-11-16T14:00:02Z",
+          content: "Lint error",
+        }),
+        JSON.stringify({
+          step_index: 3,
+          source: "MODEL",
+          type: "PLANNER_RESPONSE",
+          status: "DONE",
+          created_at: "2026-11-16T14:00:03Z",
+          content: "Lint failed.",
+        }),
+        JSON.stringify({
+          step_index: 4,
+          source: "USER_EXPLICIT",
+          type: "USER_INPUT",
+          status: "DONE",
+          created_at: "2026-11-16T14:01:00Z",
+          content: "<USER_REQUEST>\nFix and recheck\n</USER_REQUEST>",
+        }),
+        JSON.stringify({
+          step_index: 5,
+          source: "MODEL",
+          type: "PLANNER_RESPONSE",
+          status: "DONE",
+          created_at: "2026-11-16T14:01:01Z",
+          content: "Working on fix...",
+          tool_calls: [{ name: "run_command", args: { CommandLine: "pnpm lint" } }],
+        }),
+        JSON.stringify({
+          step_index: 6,
+          source: "MODEL",
+          type: "GENERIC",
+          status: "DONE",
+          created_at: "2026-11-16T14:01:02Z",
+          content: "lint ok",
+        }),
+      ].join("\n");
+
+      fs.writeFileSync(compactPath, lines, "utf8");
+
+      const exportedSpans: Array<{
+        name: string;
+        attributes: Record<string, unknown>;
+      }> = [];
+
+      const result = await runStopHook(
+        {
+          conversationId: "conv-eval-ctx",
+          transcriptPath: compactPath,
+          modelName: "gemini-4-hydrogen-high",
+          cwd: tempDir,
+          terminationReason: "USER_CANCELED",
+          fullyIdle: true,
+          continuationActive: false,
+        },
+        {
+          skillDirs: [],
+          spanExporter: {
+            export(spans, resultCallback) {
+              for (const s of spans) {
+                exportedSpans.push({
+                  name: s.name,
+                  attributes: { ...s.attributes },
+                });
+              }
+
+              resultCallback({ code: 0 });
+            },
+            shutdown: async () => {},
+          },
+        },
+      );
+
+      expect(result.exportedTurns).toBe(2);
+
+      const rootSpans = exportedSpans.filter((s) => s.name === "agent-turn");
+
+      expect(rootSpans).toHaveLength(2);
+
+      const turn1Root = rootSpans[0]!;
+      const turn2Root = rootSpans[1]!;
+
+      expect(turn1Root.attributes["langfuse.trace.metadata.hasPreviousTurn"]).toBe('"false"');
+
+      expect(turn1Root.attributes["langfuse.observation.metadata.failedTools"]).toBe(
+        JSON.stringify(["run_command:lint (step 2)"]),
+      );
+
+      expect(turn1Root.attributes["langfuse.observation.metadata.gateSummary"]).toBe(
+        JSON.stringify({
+          totalRuns: 1,
+          firstTryPassed: false,
+          finalPassed: false,
+          retryCount: 0,
+          failedGates: ["run_command:lint"],
+        }),
+      );
+
+      expect(
+        turn1Root.attributes["langfuse.observation.metadata.terminationReason"],
+      ).toBeUndefined();
+
+      expect(turn2Root.attributes["langfuse.trace.metadata.hasPreviousTurn"]).toBe('"true"');
+
+      expect(turn2Root.attributes["langfuse.observation.metadata.previousTurnInput"]).toBe(
+        '"Run lint"',
+      );
+
+      expect(turn2Root.attributes["langfuse.observation.metadata.previousTurnOutput"]).toBe(
+        '"Lint failed."',
+      );
+
+      expect(turn2Root.attributes["langfuse.observation.metadata.terminationReason"]).toBe(
+        '"USER_CANCELED"',
+      );
+
+      expect(turn2Root.attributes["langfuse.observation.metadata.interrupted"]).toBe("true");
+      expect(turn2Root.attributes[LangfuseOtelSpanAttributes.OBSERVATION_LEVEL]).toBe("WARNING");
+
+      expect(turn2Root.attributes[LangfuseOtelSpanAttributes.OBSERVATION_STATUS_MESSAGE]).toBe(
+        "Turn canceled by user (USER_CANCELED)",
+      );
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("parses terminationReason, fullyIdle, and continuationActive from Stop hook stdin in langfuse-stop.ts", () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "z-trader-stop-cli-test-"));
+
+    try {
+      const logsDir = path.join(tempDir, "conv-stop-cli", ".system_generated", "logs");
+      const spoolDir = path.join(tempDir, "spool");
+
+      fs.mkdirSync(logsDir, { recursive: true });
+      fs.mkdirSync(spoolDir, { recursive: true });
+
+      const compactPath = path.join(logsDir, "transcript.jsonl");
+      const lines = [
+        JSON.stringify({
+          step_index: 0,
+          source: "USER_EXPLICIT",
+          type: "USER_INPUT",
+          status: "DONE",
+          created_at: "2026-11-16T15:00:00Z",
+          content: "<USER_REQUEST>\nCancel mid-turn\n</USER_REQUEST>",
+        }),
+        JSON.stringify({
+          step_index: 1,
+          source: "MODEL",
+          type: "PLANNER_RESPONSE",
+          status: "DONE",
+          created_at: "2026-11-16T15:00:01Z",
+          content: "Working on it...",
+        }),
+      ].join("\n");
+
+      fs.writeFileSync(compactPath, lines, "utf8");
+
+      const env = { ...process.env };
+
+      delete env.LANGFUSE_PUBLIC_KEY;
+      delete env.LANGFUSE_SECRET_KEY;
+      env.LANGFUSE_DRY_RUN = "false";
+
+      const cli = spawnSync(
+        process.execPath,
+        [path.resolve(".agents/hooks/langfuse-stop.ts"), "--spool-dir", spoolDir],
+        {
+          cwd: tempDir,
+          env,
+          input: JSON.stringify({
+            conversationId: "conv-stop-cli",
+            transcriptPath: compactPath,
+            cwd: tempDir,
+            terminationReason: "USER_CANCELED",
+            fullyIdle: true,
+            continuationActive: false,
+          }),
+          encoding: "utf8",
+        },
+      );
+
+      expect(cli.status).toBe(0);
+      expect(JSON.parse(cli.stdout.trim())).toEqual({ decision: "allow" });
+
+      const spoolPath = path.join(spoolDir, "conv-stop-cli.json");
+
+      expect(fs.existsSync(spoolPath)).toBe(true);
+
+      const spooled = JSON.parse(fs.readFileSync(spoolPath, "utf8")) as {
+        pendingTurns: Array<{
+          level?: string;
+          statusMessage?: string;
+          metadata: Record<string, unknown>;
+        }>;
+      };
+
+      expect(spooled.pendingTurns).toHaveLength(1);
+      expect(spooled.pendingTurns[0]!.metadata.terminationReason).toBe("USER_CANCELED");
+      expect(spooled.pendingTurns[0]!.metadata.interrupted).toBe(true);
+      expect(spooled.pendingTurns[0]!.level).toBe("WARNING");
+      expect(spooled.pendingTurns[0]!.statusMessage).toBe("Turn canceled by user (USER_CANCELED)");
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }

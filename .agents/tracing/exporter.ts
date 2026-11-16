@@ -134,6 +134,7 @@ export async function runStopHook(
   const newlyParsedTurns = parseTranscriptTurns(rawTranscript, {
     conversationId,
     modelName: input.modelName,
+    ...(input.terminationReason ? { terminationReason: input.terminationReason } : {}),
     ...(typeof cursor?.lastExportedLineIndex === "number"
       ? { afterLineIndex: cursor.lastExportedLineIndex }
       : { afterStepIndex: cursor?.lastExportedStepIndex }),

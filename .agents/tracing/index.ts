@@ -84,4 +84,5 @@ export type {
   ToolClassificationResult,
   ToolObservationType,
   TracerProviderLike,
+  TurnGateSummary,
 } from "./types.ts";

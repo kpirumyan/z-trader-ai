@@ -26,6 +26,7 @@ import {
   parseUserSettingsChanges,
   resolveFullTranscriptPath,
   type ParsedSettingsChange,
+  type TurnGateSummary,
 } from "../index.ts";
 
 describe("extractUserRequest", () => {
@@ -1794,5 +1795,591 @@ describe("USER_SETTINGS_CHANGE parsing and model tracking", () => {
     expect(turns[0]!.metadata.interrupted).toBe(true);
     expect(turns[1]!.level).toBe("ERROR");
     expect(turns[1]!.statusMessage).toBe("Rate limit exceeded");
+  });
+});
+
+describe("parseTranscriptTurns evaluation context enrichment", () => {
+  it("applies terminationReason only to the last turn and forces USER_CANCELED interruption even when assistant text exists", () => {
+    const transcript = [
+      JSON.stringify({
+        step_index: 0,
+        source: "USER_EXPLICIT",
+        type: "USER_INPUT",
+        status: "DONE",
+        created_at: "2026-11-16T10:00:00Z",
+        content: "<USER_REQUEST>\nFirst task\n</USER_REQUEST>",
+      }),
+      JSON.stringify({
+        step_index: 1,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-16T10:00:02Z",
+        content: "First task completed.",
+      }),
+      JSON.stringify({
+        step_index: 2,
+        source: "USER_EXPLICIT",
+        type: "USER_INPUT",
+        status: "DONE",
+        created_at: "2026-11-16T10:01:00Z",
+        content: "<USER_REQUEST>\nSecond task\n</USER_REQUEST>",
+      }),
+      JSON.stringify({
+        step_index: 3,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-16T10:01:02Z",
+        content: "Starting second task...",
+        tool_calls: [{ name: "run_command", args: { CommandLine: "pnpm test:unit" } }],
+      }),
+      JSON.stringify({
+        step_index: 4,
+        source: "MODEL",
+        type: "GENERIC",
+        status: "DONE",
+        created_at: "2026-11-16T10:01:04Z",
+        content: "Created At: 2026-11-16T10:01:03Z\nCompleted At: 2026-11-16T10:01:04Z\nok",
+      }),
+    ].join("\n");
+
+    const canceledTurns = parseTranscriptTurns(transcript, {
+      conversationId: "conv-termination-cancel",
+      terminationReason: "USER_CANCELED",
+    });
+
+    expect(canceledTurns).toHaveLength(2);
+
+    expect(canceledTurns[0]!.metadata.terminationReason).toBeUndefined();
+    expect(canceledTurns[0]!.metadata.interrupted).toBeUndefined();
+    expect(canceledTurns[0]!.level).toBeUndefined();
+
+    const lastCanceledTurn = canceledTurns[1]!;
+
+    expect(lastCanceledTurn.metadata.terminationReason).toBe("USER_CANCELED");
+    expect(lastCanceledTurn.metadata.interrupted).toBe(true);
+    expect(lastCanceledTurn.level).toBe("WARNING");
+    expect(lastCanceledTurn.statusMessage).toBe("Turn canceled by user (USER_CANCELED)");
+
+    const completedTranscript = [
+      JSON.stringify({
+        step_index: 0,
+        source: "USER_EXPLICIT",
+        type: "USER_INPUT",
+        status: "DONE",
+        created_at: "2026-11-16T10:00:00Z",
+        content: "<USER_REQUEST>\nSay hi\n</USER_REQUEST>",
+      }),
+      JSON.stringify({
+        step_index: 1,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-16T10:00:01Z",
+        content: "Hello.",
+      }),
+    ].join("\n");
+
+    const normalTurns = parseTranscriptTurns(completedTranscript, {
+      conversationId: "conv-termination-normal",
+      terminationReason: "END_TURN",
+    });
+
+    expect(normalTurns[0]!.metadata.terminationReason).toBe("END_TURN");
+    expect(normalTurns[0]!.metadata.interrupted).toBeUndefined();
+    expect(normalTurns[0]!.level).toBeUndefined();
+    expect(normalTurns[0]!.statusMessage).toBeUndefined();
+  });
+
+  it("collects failedTools across direct tool calls and nested subagents consistently with errorCount", () => {
+    const subagentId = "aaaa1111-2222-3333-4444-555555555555";
+
+    const parentTranscript = [
+      JSON.stringify({
+        step_index: 0,
+        source: "USER_EXPLICIT",
+        type: "USER_INPUT",
+        status: "DONE",
+        created_at: "2026-11-16T11:00:00Z",
+        content: "<USER_REQUEST>\nFix and verify\n</USER_REQUEST>",
+      }),
+      JSON.stringify({
+        step_index: 1,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-16T11:00:01Z",
+        tool_calls: [
+          { name: "edit_file", args: { Path: "src/app.ts" } },
+          { name: "run_command", args: { CommandLine: "npx vitest run" } },
+          {
+            name: "invoke_subagent",
+            args: { TypeName: "research", Role: "Code Researcher", Prompt: "Check file" },
+          },
+        ],
+      }),
+      JSON.stringify({
+        step_index: 4,
+        source: "MODEL",
+        type: "GENERIC",
+        status: "ERROR",
+        error: "Target not found",
+        created_at: "2026-11-16T11:00:02Z",
+        content: "Target not found",
+      }),
+      JSON.stringify({
+        step_index: 7,
+        source: "MODEL",
+        type: "GENERIC",
+        status: "ERROR",
+        error: "Exit code 1",
+        created_at: "2026-11-16T11:00:05Z",
+        content: "1 test failed",
+      }),
+      JSON.stringify({
+        step_index: 8,
+        source: "MODEL",
+        type: "GENERIC",
+        status: "DONE",
+        created_at: "2026-11-16T11:00:09Z",
+        content: `Subagent finished. conversationId: ${subagentId}`,
+      }),
+      JSON.stringify({
+        step_index: 9,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-16T11:00:10Z",
+        content: "Done.",
+      }),
+    ].join("\n");
+
+    const subagentTranscript = [
+      JSON.stringify({
+        step_index: 0,
+        source: "USER_EXPLICIT",
+        type: "USER_INPUT",
+        status: "DONE",
+        created_at: "2026-11-16T11:00:06Z",
+        content: "Check file",
+      }),
+      JSON.stringify({
+        step_index: 1,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-16T11:00:07Z",
+        tool_calls: [{ name: "read_file", args: { Path: "missing.ts" } }],
+      }),
+      JSON.stringify({
+        step_index: 2,
+        source: "MODEL",
+        type: "GENERIC",
+        status: "ERROR",
+        error: "ENOENT",
+        created_at: "2026-11-16T11:00:08Z",
+        content: "ENOENT",
+      }),
+      JSON.stringify({
+        step_index: 3,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-16T11:00:09Z",
+        content: "File missing.",
+      }),
+    ].join("\n");
+
+    const turns = parseTranscriptTurns(parentTranscript, {
+      conversationId: "conv-failed-tools",
+      resolveSubagentTranscript: (id) => (id === subagentId ? subagentTranscript : null),
+    });
+
+    expect(turns).toHaveLength(1);
+    expect(turns[0]!.metadata.errorCount).toBe(3);
+
+    expect(turns[0]!.metadata.failedTools).toEqual([
+      "edit_file (step 4)",
+      "run_command:vitest (step 7)",
+      "read_file (step 2)",
+    ]);
+
+    const cleanTranscript = [
+      JSON.stringify({
+        step_index: 0,
+        source: "USER_EXPLICIT",
+        type: "USER_INPUT",
+        status: "DONE",
+        created_at: "2026-11-16T11:05:00Z",
+        content: "<USER_REQUEST>\nHi\n</USER_REQUEST>",
+      }),
+      JSON.stringify({
+        step_index: 1,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-16T11:05:01Z",
+        content: "Hello",
+      }),
+    ].join("\n");
+
+    const cleanTurns = parseTranscriptTurns(cleanTranscript, {
+      conversationId: "conv-no-failed-tools",
+    });
+
+    expect(cleanTurns[0]!.metadata.errorCount).toBe(0);
+    expect(cleanTurns[0]!.metadata.failedTools).toEqual([]);
+  });
+
+  it("computes gateSummary for turns without gates, first-try passes, retries, and nested subagent gates", () => {
+    const subagentId = "bbbb1111-2222-3333-4444-555555555555";
+
+    const noGatesTranscript = [
+      JSON.stringify({
+        step_index: 0,
+        source: "USER_EXPLICIT",
+        type: "USER_INPUT",
+        status: "DONE",
+        created_at: "2026-11-16T12:00:00Z",
+        content: "<USER_REQUEST>\nExplain code\n</USER_REQUEST>",
+      }),
+      JSON.stringify({
+        step_index: 1,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-16T12:00:01Z",
+        content: "Explanation.",
+      }),
+    ].join("\n");
+
+    const noGatesTurns = parseTranscriptTurns(noGatesTranscript, {
+      conversationId: "conv-no-gates",
+    });
+
+    const expectedNoGates: TurnGateSummary = {
+      totalRuns: 0,
+      firstTryPassed: null,
+      finalPassed: null,
+      retryCount: 0,
+      failedGates: [],
+    };
+
+    expect(noGatesTurns[0]!.metadata.gateSummary).toEqual(expectedNoGates);
+
+    const firstTryTranscript = [
+      JSON.stringify({
+        step_index: 0,
+        source: "USER_EXPLICIT",
+        type: "USER_INPUT",
+        status: "DONE",
+        created_at: "2026-11-16T12:05:00Z",
+        content: "<USER_REQUEST>\nRun checks\n</USER_REQUEST>",
+      }),
+      JSON.stringify({
+        step_index: 1,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-16T12:05:01Z",
+        tool_calls: [
+          { name: "run_command", args: { CommandLine: "pnpm lint" } },
+          { name: "run_command", args: { CommandLine: "pnpm test:unit" } },
+        ],
+      }),
+      JSON.stringify({
+        step_index: 2,
+        source: "MODEL",
+        type: "GENERIC",
+        status: "DONE",
+        created_at: "2026-11-16T12:05:02Z",
+        content: "lint ok",
+      }),
+      JSON.stringify({
+        step_index: 3,
+        source: "MODEL",
+        type: "GENERIC",
+        status: "DONE",
+        created_at: "2026-11-16T12:05:03Z",
+        content: "tests ok",
+      }),
+      JSON.stringify({
+        step_index: 4,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-16T12:05:04Z",
+        content: "All checks passed.",
+      }),
+    ].join("\n");
+
+    const firstTryTurns = parseTranscriptTurns(firstTryTranscript, {
+      conversationId: "conv-first-try",
+    });
+
+    expect(firstTryTurns[0]!.metadata.gateSummary).toEqual({
+      totalRuns: 2,
+      firstTryPassed: true,
+      finalPassed: true,
+      retryCount: 0,
+      failedGates: [],
+    });
+
+    const retryPassTranscript = [
+      JSON.stringify({
+        step_index: 0,
+        source: "USER_EXPLICIT",
+        type: "USER_INPUT",
+        status: "DONE",
+        created_at: "2026-11-16T12:10:00Z",
+        content: "<USER_REQUEST>\nFix lint\n</USER_REQUEST>",
+      }),
+      JSON.stringify({
+        step_index: 1,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-16T12:10:01Z",
+        tool_calls: [{ name: "run_command", args: { CommandLine: "pnpm lint" } }],
+      }),
+      JSON.stringify({
+        step_index: 2,
+        source: "MODEL",
+        type: "GENERIC",
+        status: "ERROR",
+        error: "Lint failed",
+        created_at: "2026-11-16T12:10:02Z",
+        content: "Lint failed",
+      }),
+      JSON.stringify({
+        step_index: 3,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-16T12:10:03Z",
+        tool_calls: [
+          { name: "run_command", args: { CommandLine: "pnpm lint" } },
+          { name: "run_command", args: { CommandLine: "pnpm check:fast" } },
+        ],
+      }),
+      JSON.stringify({
+        step_index: 4,
+        source: "MODEL",
+        type: "GENERIC",
+        status: "DONE",
+        created_at: "2026-11-16T12:10:04Z",
+        content: "lint ok",
+      }),
+      JSON.stringify({
+        step_index: 5,
+        source: "MODEL",
+        type: "GENERIC",
+        status: "DONE",
+        created_at: "2026-11-16T12:10:05Z",
+        content: "check:fast ok",
+      }),
+      JSON.stringify({
+        step_index: 6,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-16T12:10:06Z",
+        content: "Fixed and passed.",
+      }),
+    ].join("\n");
+
+    const retryPassTurns = parseTranscriptTurns(retryPassTranscript, {
+      conversationId: "conv-retry-pass",
+    });
+
+    expect(retryPassTurns[0]!.metadata.gateSummary).toEqual({
+      totalRuns: 3,
+      firstTryPassed: false,
+      finalPassed: true,
+      retryCount: 2,
+      failedGates: ["run_command:lint"],
+    });
+
+    const nestedFailTranscript = [
+      JSON.stringify({
+        step_index: 0,
+        source: "USER_EXPLICIT",
+        type: "USER_INPUT",
+        status: "DONE",
+        created_at: "2026-11-16T12:20:00Z",
+        content: "<USER_REQUEST>\nVerify via subagent\n</USER_REQUEST>",
+      }),
+      JSON.stringify({
+        step_index: 1,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-16T12:20:01Z",
+        tool_calls: [
+          { name: "run_command", args: { CommandLine: "pnpm lint" } },
+          {
+            name: "invoke_subagent",
+            args: { TypeName: "verifier", Role: "Test Runner", Prompt: "Run vitest" },
+          },
+          { name: "run_command", args: { CommandLine: "pnpm test:unit" } },
+        ],
+      }),
+      JSON.stringify({
+        step_index: 2,
+        source: "MODEL",
+        type: "GENERIC",
+        status: "DONE",
+        created_at: "2026-11-16T12:20:02Z",
+        content: "lint ok",
+      }),
+      JSON.stringify({
+        step_index: 3,
+        source: "MODEL",
+        type: "GENERIC",
+        status: "DONE",
+        created_at: "2026-11-16T12:20:05Z",
+        content: `Subagent done. conversationId: ${subagentId}`,
+      }),
+      JSON.stringify({
+        step_index: 4,
+        source: "MODEL",
+        type: "GENERIC",
+        status: "ERROR",
+        error: "Test failed",
+        created_at: "2026-11-16T12:20:06Z",
+        content: "Test failed",
+      }),
+      JSON.stringify({
+        step_index: 5,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-16T12:20:07Z",
+        content: "Tests are still failing.",
+      }),
+    ].join("\n");
+
+    const nestedSubagentTranscript = [
+      JSON.stringify({
+        step_index: 0,
+        source: "USER_EXPLICIT",
+        type: "USER_INPUT",
+        status: "DONE",
+        created_at: "2026-11-16T12:20:03Z",
+        content: "Run vitest",
+      }),
+      JSON.stringify({
+        step_index: 1,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-16T12:20:03Z",
+        tool_calls: [{ name: "run_command", args: { CommandLine: "pnpm test:unit" } }],
+      }),
+      JSON.stringify({
+        step_index: 2,
+        source: "MODEL",
+        type: "GENERIC",
+        status: "ERROR",
+        error: "Test failed in subagent",
+        created_at: "2026-11-16T12:20:04Z",
+        content: "Test failed in subagent",
+      }),
+      JSON.stringify({
+        step_index: 3,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-16T12:20:04Z",
+        content: "Subagent test failed.",
+      }),
+    ].join("\n");
+
+    const nestedTurns = parseTranscriptTurns(nestedFailTranscript, {
+      conversationId: "conv-nested-gates",
+      resolveSubagentTranscript: (id) => (id === subagentId ? nestedSubagentTranscript : null),
+    });
+
+    expect(nestedTurns[0]!.metadata.gateSummary).toEqual({
+      totalRuns: 3,
+      firstTryPassed: false,
+      finalPassed: false,
+      retryCount: 1,
+      failedGates: ["run_command:test:unit"],
+    });
+  });
+
+  it("populates previous turn context with safe 4000-char truncation even under incremental cursor slicing", () => {
+    const longInput = "I".repeat(4500);
+    const longOutput = "O".repeat(4500);
+
+    const transcript = [
+      JSON.stringify({
+        step_index: 0,
+        source: "USER_EXPLICIT",
+        type: "USER_INPUT",
+        status: "DONE",
+        created_at: "2026-11-16T13:00:00Z",
+        content: `<USER_REQUEST>\n${longInput}\n</USER_REQUEST>`,
+      }),
+      JSON.stringify({
+        step_index: 1,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-16T13:00:02Z",
+        content: longOutput,
+      }),
+      JSON.stringify({
+        step_index: 2,
+        source: "USER_EXPLICIT",
+        type: "USER_INPUT",
+        status: "DONE",
+        created_at: "2026-11-16T13:01:00Z",
+        content: "<USER_REQUEST>\nPlease fix that\n</USER_REQUEST>",
+      }),
+      JSON.stringify({
+        step_index: 3,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-11-16T13:01:02Z",
+        content: "Fixed.",
+      }),
+    ].join("\n");
+
+    const allTurns = parseTranscriptTurns(transcript, {
+      conversationId: "conv-prev-context",
+    });
+
+    expect(allTurns).toHaveLength(2);
+
+    expect(allTurns[0]!.metadata.hasPreviousTurn).toBe(false);
+    expect(allTurns[0]!.metadata.previousTurnInput).toBeUndefined();
+    expect(allTurns[0]!.metadata.previousTurnOutput).toBeUndefined();
+
+    expect(allTurns[1]!.metadata.hasPreviousTurn).toBe(true);
+    expect(typeof allTurns[1]!.metadata.previousTurnInput).toBe("string");
+    expect(typeof allTurns[1]!.metadata.previousTurnOutput).toBe("string");
+
+    const prevInput = allTurns[1]!.metadata.previousTurnInput as string;
+    const prevOutput = allTurns[1]!.metadata.previousTurnOutput as string;
+
+    expect(prevInput.length).toBeLessThanOrEqual(4000);
+    expect(prevInput.startsWith("I".repeat(100))).toBe(true);
+    expect(prevOutput.length).toBeLessThanOrEqual(4000);
+    expect(prevOutput.startsWith("O".repeat(100))).toBe(true);
+
+    const incrementalTurns = parseTranscriptTurns(transcript, {
+      conversationId: "conv-prev-context",
+      afterLineIndex: 1,
+    });
+
+    expect(incrementalTurns).toHaveLength(1);
+    expect(incrementalTurns[0]!.turnIndex).toBe(2);
+    expect(incrementalTurns[0]!.metadata.hasPreviousTurn).toBe(true);
+    expect(incrementalTurns[0]!.metadata.previousTurnInput).toBe(prevInput);
+    expect(incrementalTurns[0]!.metadata.previousTurnOutput).toBe(prevOutput);
   });
 });

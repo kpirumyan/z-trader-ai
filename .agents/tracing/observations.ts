@@ -160,6 +160,7 @@ export async function emitRootObservation(
         gitBranch: contextAnchor.gitBranch.slice(0, 120),
         isDirty: String(contextAnchor.isDirty),
         turnIndex: String(turn.turnIndex),
+        hasPreviousTurn: String(Boolean(turn.metadata.hasPreviousTurn)),
       },
     },
     async () => {

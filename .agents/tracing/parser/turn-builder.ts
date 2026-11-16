@@ -24,7 +24,69 @@ import type {
   ParseTranscriptOptions,
   RawTranscriptStep,
   TokenUsageSummary,
+  TurnGateSummary,
 } from "../types.ts";
+
+const MAX_PREVIOUS_TURN_TEXT_LENGTH = 4000;
+const PREVIOUS_TURN_TRUNCATION_SUFFIX = "\n... [truncated]";
+
+function truncatePreviousTurnText(value: string): string {
+  if (value.length <= MAX_PREVIOUS_TURN_TEXT_LENGTH) {
+    return value;
+  }
+
+  const headLength = Math.max(
+    0,
+    MAX_PREVIOUS_TURN_TEXT_LENGTH - PREVIOUS_TURN_TRUNCATION_SUFFIX.length,
+  );
+
+  return `${value.slice(0, headLength)}${PREVIOUS_TURN_TRUNCATION_SUFFIX}`;
+}
+
+function collectGateObservations(children: ParsedChildObservation[]): ParsedToolObservation[] {
+  const gates: ParsedToolObservation[] = [];
+
+  for (const child of children) {
+    if (child.type === "evaluator" || child.type === "guardrail") {
+      gates.push(child);
+    } else if (child.type === "agent") {
+      gates.push(...collectGateObservations(child.children));
+    }
+  }
+
+  return gates;
+}
+
+function buildTurnGateSummary(children: ParsedChildObservation[]): TurnGateSummary {
+  const gates = collectGateObservations(children);
+  const totalRuns = gates.length;
+
+  if (totalRuns === 0) {
+    return {
+      totalRuns: 0,
+      firstTryPassed: null,
+      finalPassed: null,
+      retryCount: 0,
+      failedGates: [],
+    };
+  }
+
+  const firstFailureIndex = gates.findIndex((gate) => gate.level === "ERROR");
+  const firstTryPassed = firstFailureIndex === -1;
+  const finalPassed = gates[totalRuns - 1]!.level !== "ERROR";
+  const retryCount = firstFailureIndex === -1 ? 0 : totalRuns - 1 - firstFailureIndex;
+  const failedGates = Array.from(
+    new Set(gates.filter((gate) => gate.level === "ERROR").map((gate) => gate.name)),
+  );
+
+  return {
+    totalRuns,
+    firstTryPassed,
+    finalPassed,
+    retryCount,
+    failedGates,
+  };
+}
 
 export function extractUserRequest(rawContent: string): ExtractedUserRequest {
   const userRequestMatch = rawContent.match(/<USER_REQUEST>\s*([\s\S]*?)\s*<\/USER_REQUEST>/);
@@ -81,6 +143,7 @@ interface ParsedStepSequenceResult {
   generationCount: number;
   toolCount: number;
   errorCount: number;
+  failedTools: string[];
   systemMessageCount: number;
   observationCounts: ObservationCounts;
   history: ChatMessage[];
@@ -153,6 +216,7 @@ function parseStepSequence(
   let generationCount = 0;
   let toolCount = 0;
   let errorCount = 0;
+  const failedTools: string[] = [];
   let systemMessageCount = 0;
 
   const history: ChatMessage[] = [...initialHistory];
@@ -417,11 +481,12 @@ function parseStepSequence(
       const isError = genericResult?.status === "ERROR" || Boolean(genericResult?.error);
       const statusMessage = genericResult?.error ?? (isError ? cleanBody.slice(0, 200) : undefined);
 
+      const resultStepIndex = genericResult?.step_index ?? step.step_index;
+
       if (isError) {
         errorCount++;
+        failedTools.push(`${resolvedName} (step ${resultStepIndex})`);
       }
-
-      const resultStepIndex = genericResult?.step_index ?? step.step_index;
 
       if (genericResult) {
         const rawToolOutput = isError ? (statusMessage ?? cleanBody) : cleanBody;
@@ -465,6 +530,7 @@ function parseStepSequence(
               ...options,
               modelName: effectiveModelName,
               conversationId: subagentId,
+              terminationReason: undefined,
               afterStepIndex: undefined,
               afterLineIndex: undefined,
               visitedConversationIds: nextVisited,
@@ -480,6 +546,17 @@ function parseStepSequence(
                   subagentUsage.cacheReadInputTokens + st.usageSummary.cacheReadInputTokens,
                 total: subagentUsage.total + st.usageSummary.total,
               };
+
+              const subFailedTools = Array.isArray(st.metadata.failedTools)
+                ? st.metadata.failedTools.filter((item): item is string => typeof item === "string")
+                : [];
+
+              if (subFailedTools.length > 0) {
+                failedTools.push(...subFailedTools);
+                errorCount += subFailedTools.length;
+              } else if (typeof st.metadata.errorCount === "number" && st.metadata.errorCount > 0) {
+                errorCount += st.metadata.errorCount;
+              }
 
               for (const tag of st.tags) {
                 tags.add(tag);
@@ -570,6 +647,7 @@ function parseStepSequence(
     generationCount,
     toolCount,
     errorCount,
+    failedTools,
     systemMessageCount,
     observationCounts,
     history,
@@ -609,6 +687,7 @@ export function parseTranscriptTurns(
   const parsedTurns: ParsedTurnTrace[] = [];
   let cumulativeSessionHistory: ChatMessage[] = [];
   let activeModelName = options.modelName?.trim() || "antigravity-model";
+  let previousTurnContext: { input: string; output: string } | undefined;
 
   for (let idx = 0; idx < turnSlices.length; idx++) {
     const slice = turnSlices[idx]!;
@@ -659,6 +738,18 @@ export function parseTranscriptTurns(
       cumulativeSessionHistory = sequence.history;
     }
 
+    const output =
+      sequence.lastAssistantContent ||
+      (sequence.generationCount > 0 || sequence.toolCount > 0
+        ? `Completed ${sequence.generationCount} generation(s) and ${sequence.toolCount} tool call(s).`
+        : "");
+    const priorTurn = previousTurnContext;
+
+    previousTurnContext = {
+      input: extractedInput.prompt,
+      output,
+    };
+
     if (options.afterLineIndex !== undefined && endLineIndex !== undefined) {
       if (endLineIndex <= options.afterLineIndex) {
         continue;
@@ -679,23 +770,34 @@ export function parseTranscriptTurns(
       }
     }
 
+    const normalizedTerminationReason =
+      idx === turnSlices.length - 1 ? options.terminationReason?.trim() || undefined : undefined;
+    const isUserCanceled = normalizedTerminationReason === "USER_CANCELED";
     const isFailedGeneration = sequence.lastGenerationLevel === "ERROR";
     const isInterrupted =
-      sequence.generationCount === 0 || (!isFailedGeneration && !sequence.lastAssistantContent);
-    const output =
-      sequence.lastAssistantContent ||
-      (sequence.generationCount > 0 || sequence.toolCount > 0
-        ? `Completed ${sequence.generationCount} generation(s) and ${sequence.toolCount} tool call(s).`
-        : "");
+      isUserCanceled ||
+      sequence.generationCount === 0 ||
+      (!isFailedGeneration && !sequence.lastAssistantContent);
 
-    const traceLevel = isFailedGeneration ? "ERROR" : isInterrupted ? "WARNING" : undefined;
-    const traceStatusMessage = isFailedGeneration
-      ? (sequence.lastGenerationStatusMessage ?? "Generation failed")
-      : sequence.generationCount === 0
-        ? "Interrupted before model generation"
+    const traceLevel = isUserCanceled
+      ? "WARNING"
+      : isFailedGeneration
+        ? "ERROR"
         : isInterrupted
-          ? "Turn ended without final assistant text"
+          ? "WARNING"
           : undefined;
+    const traceStatusMessage = isUserCanceled
+      ? "Turn canceled by user (USER_CANCELED)"
+      : isFailedGeneration
+        ? (sequence.lastGenerationStatusMessage ?? "Generation failed")
+        : sequence.generationCount === 0
+          ? "Interrupted before model generation"
+          : isInterrupted
+            ? "Turn ended without final assistant text"
+            : undefined;
+
+    const gateSummary = buildTurnGateSummary(sequence.children);
+    const hasPreviousTurn = turnIndex > 1 && priorTurn !== undefined;
 
     const metadata: Record<string, unknown> = {
       turnIndex,
@@ -705,8 +807,18 @@ export function parseTranscriptTurns(
       generationCount: sequence.generationCount,
       toolCount: sequence.toolCount,
       errorCount: sequence.errorCount,
+      failedTools: sequence.failedTools,
+      gateSummary,
       systemMessageCount: sequence.systemMessageCount,
       observationCounts: sequence.observationCounts,
+      hasPreviousTurn,
+      ...(hasPreviousTurn
+        ? {
+            previousTurnInput: truncatePreviousTurnText(priorTurn.input),
+            previousTurnOutput: truncatePreviousTurnText(priorTurn.output),
+          }
+        : {}),
+      ...(normalizedTerminationReason ? { terminationReason: normalizedTerminationReason } : {}),
       ...(isInterrupted ? { interrupted: true } : {}),
     };
 

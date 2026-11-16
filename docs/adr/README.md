@@ -10,14 +10,20 @@ This directory contains the Architecture Decision Log (ADL) for Z-Trader, struct
 
 ## Active Decisions Index
 
-| ID                                                                   | Title                                                                        | Status   | Date       | Area                    |
-| -------------------------------------------------------------------- | ---------------------------------------------------------------------------- | -------- | ---------- | ----------------------- |
-| [ADR-0000](./0000-executable-adr-governance.md)                      | Executable ADR Governance via Hybrid MADR 4.0 and Bidirectional Traceability | accepted | 2026-11-05 | Tooling & Governance    |
-| [ADR-0001](./0001-modular-architecture.md)                           | Modular Architecture & Vertical Domain Slices                                | accepted | 2026-10-24 | Architecture & Layout   |
-| [ADR-0002](./0002-boundary-enforcement-and-quarantine.md)            | Automated Architectural Boundary Enforcement                                 | accepted | 2026-11-05 | Tooling & Governance    |
-| [ADR-0003](./0003-css-architecture.md)                               | CSS Modules, Design Tokens & Styling Standard                                | accepted | 2026-10-24 | UI & Styling            |
-| [ADR-0004](./0004-resilient-storage-and-terminal-status-bar.md)      | Resilient Silent Storage & Terminal Status Bar                               | accepted | 2026-10-25 | Storage & UI Layout     |
-| [ADR-0005](./0005-market-data-streaming-and-transport-separation.md) | Out-of-React Market Data Streaming & Transport Separation                    | accepted | 2026-10-25 | Market Data & Streaming |
-| [ADR-0006](./0006-canvas-charting-and-lightweight-charts.md)         | High-Performance Canvas Charting via Lightweight Charts & Theme Integration  | accepted | 2026-10-25 | Charting & Performance  |
-| [ADR-0007](./0007-ninjatrader-cme-market-data.md)                    | CME Futures Market Data via NinjaTrader 8 Dual-Workflow Architecture         | accepted | 2026-10-30 | Market Data & Replay    |
-| [ADR-0008](./0008-langfuse-native-self-improving-agent-flywheel.md)  | Langfuse-Native Self-Improving Agent Flywheel                                | accepted | 2026-11-11 | AI & Observability      |
+| ID                                                                                         | Title                                                                        | Status   | Date       | Area                    |
+| ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- | -------- | ---------- | ----------------------- |
+| [ADR-0000](./0000-executable-adr-governance.md)                                            | Executable ADR Governance via Hybrid MADR 4.0 and Bidirectional Traceability | accepted | 2026-11-05 | Tooling & Governance    |
+| [ADR-0001](./0001-modular-architecture.md)                                                 | Modular Architecture & Vertical Domain Slices                                | accepted | 2026-10-24 | Architecture & Layout   |
+| [ADR-0002](./0002-boundary-enforcement-and-quarantine.md)                                  | Automated Architectural Boundary Enforcement                                 | accepted | 2026-11-05 | Tooling & Governance    |
+| [ADR-0003](./0003-css-architecture.md)                                                     | CSS Modules, Design Tokens & Styling Standard                                | accepted | 2026-10-24 | UI & Styling            |
+| [ADR-0004](./0004-resilient-storage-and-terminal-status-bar.md)                            | Resilient Silent Storage & Terminal Status Bar                               | accepted | 2026-10-25 | Storage & UI Layout     |
+| [ADR-0005](./0005-market-data-streaming-and-transport-separation.md)                       | Out-of-React Market Data Streaming & Transport Separation                    | accepted | 2026-10-25 | Market Data & Streaming |
+| [ADR-0006](./0006-canvas-charting-and-lightweight-charts.md)                               | High-Performance Canvas Charting via Lightweight Charts & Theme Integration  | accepted | 2026-10-25 | Charting & Performance  |
+| [ADR-0007](./0007-ninjatrader-cme-market-data.md)                                          | CME Futures Market Data via NinjaTrader 8 Dual-Workflow Architecture         | accepted | 2026-10-30 | Market Data & Replay    |
+| [ADR-0009](./0009-langfuse-v4-self-improving-agent-flywheel-and-evaluator-architecture.md) | Langfuse v4 Self-Improving Agent Flywheel and Evaluator Architecture         | accepted | 2026-11-16 | AI & Observability      |
+
+## Historical Decisions Index
+
+| ID                                                                  | Title                                         | Status                 | Date       | Area               |
+| ------------------------------------------------------------------- | --------------------------------------------- | ---------------------- | ---------- | ------------------ |
+| [ADR-0008](./0008-langfuse-native-self-improving-agent-flywheel.md) | Langfuse-Native Self-Improving Agent Flywheel | superseded by ADR-0009 | 2026-11-11 | AI & Observability |

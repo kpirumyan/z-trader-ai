@@ -1,7 +1,7 @@
 ---
 id: "ADR-0008"
 title: "Langfuse-Native Self-Improving Agent Flywheel"
-status: "accepted"
+status: "superseded by ADR-0009"
 date: "2026-11-11"
 decision-makers:
   - "Product Owner"
@@ -18,7 +18,7 @@ enforced_by:
   - ".agents/skills/langfuse/SKILL.md"
   - ".agents/skills/adr/scripts/adr-cli.mjs"
 supersedes: null
-superseded_by: null
+superseded_by: "ADR-0009"
 ---
 
 # ADR-0008: Langfuse-Native Self-Improving Agent Flywheel

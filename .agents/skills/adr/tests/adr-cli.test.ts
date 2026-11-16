@@ -21,7 +21,7 @@ import {
   checkAdrs,
   readLockFile,
   parseArgs,
-} from "../scripts/adr-cli.mjs";
+} from "../scripts/adr-cli.ts";
 
 interface ParsedResult {
   frontmatter: Record<string, unknown>;
@@ -185,9 +185,9 @@ Context text.
         mockAdrs as unknown as Parameters<typeof getGoverningAdrsForModule>[1]
       );
 
-      expect(chartAdrs.map((a: { frontmatter: { id: string } }) => a.frontmatter.id)).toEqual(["ADR-0001", "ADR-0006"]);
+      expect(chartAdrs.map((a) => a.frontmatter.id)).toEqual(["ADR-0001", "ADR-0006"]);
       // Deprecated ADR-0099 is not included because it is not active ("accepted")
-      expect(chartAdrs.some((a: { frontmatter: { id: string } }) => a.frontmatter.id === "ADR-0099")).toBe(false);
+      expect(chartAdrs.some((a) => a.frontmatter.id === "ADR-0099")).toBe(false);
     });
 
     it("generates markdown bullet list for module README", () => {

@@ -11,7 +11,7 @@ applies_to:
   - "docs/adr"
   - ".agents/skills/adr"
 enforced_by:
-  - ".agents/skills/adr/scripts/adr-cli.mjs"
+  - ".agents/skills/adr/scripts/adr-cli.ts"
   - ".agents/skills/adr/tests/adr-cli.test.ts"
 supersedes: null
 superseded_by: null

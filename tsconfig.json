@@ -29,7 +29,9 @@
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
+    ".agents/hooks/**/*.ts",
     ".agents/tracing/**/*.ts",
+    ".agents/skills/*/scripts/**/*.ts",
     ".agents/skills/*/tests/**/*.ts",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"

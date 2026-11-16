@@ -16,7 +16,7 @@ applies_to:
   - "AGENTS.md"
 enforced_by:
   - ".agents/skills/langfuse/SKILL.md"
-  - ".agents/skills/adr/scripts/adr-cli.mjs"
+  - ".agents/skills/adr/scripts/adr-cli.ts"
 supersedes: "ADR-0008"
 superseded_by: null
 ---

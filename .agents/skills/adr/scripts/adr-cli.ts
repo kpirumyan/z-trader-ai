@@ -4,11 +4,103 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+export interface AdrFrontmatter {
+  id: string;
+  title: string;
+  status: string;
+  date: string;
+  "decision-makers": string[];
+  area: string;
+  applies_to: string[];
+  enforced_by: string[];
+  supersedes: string | null;
+  superseded_by: string | null;
+}
+
+type FrontmatterValue = string | string[] | null | undefined;
+
+export interface AdrRecord {
+  fileName: string;
+  filePath: string;
+  frontmatter: Partial<AdrFrontmatter>;
+  body: string;
+  rawContent: string;
+}
+
+export interface LockFileData {
+  version: number;
+  records: Record<string, string>;
+}
+
+export interface AdrContextOptions {
+  rootDir?: string;
+  adrDir?: string;
+  lockFile?: string;
+  modulesDir?: string;
+}
+
+export interface AdrCommandOptions extends AdrContextOptions {
+  silent?: boolean;
+  noExit?: boolean;
+}
+
+export interface AdrContext {
+  root: string;
+  adrDir: string;
+  lockFile: string;
+  modulesDir: string;
+}
+
+export interface ParsedCliArgs {
+  _: string[];
+  module?: string;
+  all?: boolean;
+  json?: boolean;
+  title?: string;
+  area?: string;
+  status?: string;
+  "applies-to"?: string;
+  "enforced-by"?: string;
+  "decision-makers"?: string;
+  [key: string]: string | boolean | string[] | undefined;
+}
+
+export interface AdrListJsonItem {
+  id: string | undefined;
+  title: string | undefined;
+  status: string | undefined;
+  date: string | undefined;
+  area: string | undefined;
+  applies_to: string[] | undefined;
+  enforced_by: string[] | undefined;
+  file: string;
+}
+
+export interface AdrCheckResult {
+  valid: boolean;
+  errors: string[];
+}
+
+export interface AdrNewResult {
+  id: string;
+  fileName: string;
+  filePath: string;
+}
+
+export interface AdrSupersedeResult {
+  nextId: string;
+  filePath: string;
+}
 
 // ---------------------------------------------------------------------------
 // Root & Paths
 // ---------------------------------------------------------------------------
-function findProjectRoot() {
+function findProjectRoot(): string {
   let curr = process.cwd();
 
   while (curr !== path.dirname(curr)) {
@@ -27,11 +119,12 @@ const ADR_DIR = path.join(ROOT_DIR, "docs", "adr");
 const LOCK_FILE = path.join(ADR_DIR, ".adr-lock.json");
 const MODULES_DIR = path.join(ROOT_DIR, "src", "modules");
 
-export function getContext(opts = {}) {
+export function getContext(opts: AdrContextOptions = {}): AdrContext {
   const root = opts.rootDir || process.env.ADR_ROOT_DIR || ROOT_DIR;
   const adrDir = opts.adrDir || (opts.rootDir ? path.join(opts.rootDir, "docs", "adr") : ADR_DIR);
   const lockFile = opts.lockFile || path.join(adrDir, ".adr-lock.json");
-  const modulesDir = opts.modulesDir || (opts.rootDir ? path.join(opts.rootDir, "src", "modules") : MODULES_DIR);
+  const modulesDir =
+    opts.modulesDir || (opts.rootDir ? path.join(opts.rootDir, "src", "modules") : MODULES_DIR);
 
   return { root, adrDir, lockFile, modulesDir };
 }
@@ -43,12 +136,15 @@ const CANONICAL_SECTIONS = [
   "Confirmation and Enforcement",
   "Consequences",
   "Rejected Alternatives",
-];
+] as const;
 
 // ---------------------------------------------------------------------------
 // YAML Frontmatter Parser & Serializer (Zero External Dependencies)
 // ---------------------------------------------------------------------------
-export function parseFrontmatter(raw) {
+export function parseFrontmatter(raw: string): {
+  frontmatter: Partial<AdrFrontmatter> | null;
+  body: string;
+} {
   const norm = raw.replace(/\r\n/g, "\n");
   const match = norm.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
 
@@ -59,10 +155,10 @@ export function parseFrontmatter(raw) {
   const fmText = match[1];
   const body = match[2];
   const lines = fmText.split("\n");
-  const data = {};
+  const data: Record<string, FrontmatterValue> = {};
 
-  let currentKey = null;
-  let currentArray = null;
+  let currentKey: string | null = null;
+  let currentArray: string[] | null = null;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -71,7 +167,10 @@ export function parseFrontmatter(raw) {
     if (!trimmed || trimmed.startsWith("#")) continue;
 
     if (line.startsWith("  - ")) {
-      const val = line.slice(4).trim().replace(/^["']|["']$/g, "");
+      const val = line
+        .slice(4)
+        .trim()
+        .replace(/^["']|["']$/g, "");
 
       if (currentArray) {
         currentArray.push(val);
@@ -101,10 +200,10 @@ export function parseFrontmatter(raw) {
     }
   }
 
-  return { frontmatter: data, body };
+  return { frontmatter: data as Partial<AdrFrontmatter>, body };
 }
 
-export function serializeFrontmatter(data, body) {
+export function serializeFrontmatter(data: Partial<AdrFrontmatter>, body: string): string {
   const lines = ["---"];
 
   if (data.id !== undefined) lines.push(`id: "${data.id}"`);
@@ -140,46 +239,44 @@ export function serializeFrontmatter(data, body) {
 
   lines.push(`supersedes: ${data.supersedes ? `"${data.supersedes}"` : "null"}`);
 
-  lines.push(
-    `superseded_by: ${data.superseded_by ? `"${data.superseded_by}"` : "null"}`
-  );
+  lines.push(`superseded_by: ${data.superseded_by ? `"${data.superseded_by}"` : "null"}`);
 
   lines.push("---");
   lines.push("");
 
   const trimmedBody = body.replace(/^\n+/, "");
 
-  return lines.join("\n") + trimmedBody;
+  return lines.join("\n") + "\n" + trimmedBody;
 }
 
 // ---------------------------------------------------------------------------
 // Cryptographic Body Hash
 // ---------------------------------------------------------------------------
-export function computeBodyHash(body) {
+export function computeBodyHash(body: string): string {
   const normalized = body.replace(/\r\n/g, "\n").trim();
 
   return crypto.createHash("sha256").update(normalized).digest("hex");
 }
 
-export function readLockFile(customLockFile) {
+export function readLockFile(customLockFile?: string): LockFileData {
   const targetPath = customLockFile || LOCK_FILE;
 
   if (!fs.existsSync(targetPath)) {
     return { version: 1, records: {} };
   }
 
-  return JSON.parse(fs.readFileSync(targetPath, "utf8"));
+  return JSON.parse(fs.readFileSync(targetPath, "utf8")) as LockFileData;
 }
 
-export function writeLockFile(lockData, customLockFile) {
+export function writeLockFile(lockData: LockFileData, customLockFile?: string): void {
   const targetPath = customLockFile || LOCK_FILE;
-  const sortedRecords = {};
+  const sortedRecords: Record<string, string> = {};
 
   for (const k of Object.keys(lockData.records).sort()) {
     sortedRecords[k] = lockData.records[k];
   }
 
-  const payload = {
+  const payload: LockFileData = {
     version: 1,
     records: sortedRecords,
   };
@@ -190,13 +287,13 @@ export function writeLockFile(lockData, customLockFile) {
 // ---------------------------------------------------------------------------
 // Load & Parse All ADRs
 // ---------------------------------------------------------------------------
-export function loadAllAdrs(customAdrDir) {
+export function loadAllAdrs(customAdrDir?: string): AdrRecord[] {
   const targetDir = customAdrDir || ADR_DIR;
 
   if (!fs.existsSync(targetDir)) return [];
 
   const entries = fs.readdirSync(targetDir);
-  const adrs = [];
+  const adrs: AdrRecord[] = [];
 
   for (const entry of entries) {
     if (!entry.endsWith(".md") || entry === "README.md") continue;
@@ -216,18 +313,60 @@ export function loadAllAdrs(customAdrDir) {
     });
   }
 
-  return adrs.sort((a, b) => a.frontmatter.id.localeCompare(b.frontmatter.id));
+  return adrs.sort((a, b) => (a.frontmatter.id ?? "").localeCompare(b.frontmatter.id ?? ""));
 }
 
 // ---------------------------------------------------------------------------
 // Generator: docs/adr/README.md
 // ---------------------------------------------------------------------------
-export function generateAdrReadme(adrs) {
-  const activeAdrs = adrs.filter((a) =>
-    ["accepted", "proposed"].includes(a.frontmatter.status)
+function formatAdrIndexTable(rows: AdrRecord[]): string[] {
+  const pad = (str: string, len: number): string => str.padEnd(len, " ");
+  const idWidth = Math.max(
+    3,
+    "ID".length,
+    ...rows.map((a) => `[${a.frontmatter.id ?? ""}](./${a.fileName})`.length)
   );
-  const historicalAdrs = adrs.filter((a) =>
-    !["accepted", "proposed"].includes(a.frontmatter.status)
+  const titleWidth = Math.max(
+    3,
+    "Title".length,
+    ...rows.map((a) => (a.frontmatter.title || "").length)
+  );
+  const statusWidth = Math.max(
+    3,
+    "Status".length,
+    ...rows.map((a) => (a.frontmatter.status || "").length)
+  );
+  const dateWidth = Math.max(
+    3,
+    "Date".length,
+    ...rows.map((a) => (a.frontmatter.date || "").length)
+  );
+  const areaWidth = Math.max(
+    3,
+    "Area".length,
+    ...rows.map((a) => (a.frontmatter.area || "").length)
+  );
+
+  const lines = [
+    `| ${pad("ID", idWidth)} | ${pad("Title", titleWidth)} | ${pad("Status", statusWidth)} | ${pad("Date", dateWidth)} | ${pad("Area", areaWidth)} |`,
+    `| ${"-".repeat(idWidth)} | ${"-".repeat(titleWidth)} | ${"-".repeat(statusWidth)} | ${"-".repeat(dateWidth)} | ${"-".repeat(areaWidth)} |`,
+  ];
+
+  for (const a of rows) {
+    const idLink = `[${a.frontmatter.id ?? ""}](./${a.fileName})`;
+
+    lines.push(
+      `| ${pad(idLink, idWidth)} | ${pad(a.frontmatter.title ?? "", titleWidth)} | ${pad(a.frontmatter.status ?? "", statusWidth)} | ${pad(a.frontmatter.date ?? "", dateWidth)} | ${pad(a.frontmatter.area ?? "", areaWidth)} |`
+    );
+  }
+
+  return lines;
+}
+
+export function generateAdrReadme(adrs: AdrRecord[]): string {
+  const activeAdrs = adrs.filter((a) => ["accepted", "proposed"].includes(a.frontmatter.status ?? ""));
+  const historicalAdrs = adrs.filter(
+    (a) => !["accepted", "proposed"].includes(a.frontmatter.status ?? "")
   );
 
   const lines = [
@@ -239,54 +378,18 @@ export function generateAdrReadme(adrs) {
     "",
     "- **Decision Makers**: Product Owner & specialized AI agents (e.g. Architect Agent, Main Agent, Tester Agent).",
     "- **MADR 4.0 Immutable Log**: Accepted ADRs are immutable historical records. When an architectural decision is replaced or retired, the original file is never deleted or overwritten; its frontmatter `status` is updated to `superseded by ADR-XXXX` or `deprecated`, and a new ADR is created.",
-    "- **AI Agent Filtering & Enforcement**: Coding agents and automated path gates enforce only active decisions (`status: \"accepted\"`). Use `pnpm adr:list --module <name>` to query active decisions for a domain module, and `pnpm adr:check` to validate compliance.",
+    '- **AI Agent Filtering & Enforcement**: Coding agents and automated path gates enforce only active decisions (`status: "accepted"`). Use `pnpm adr:list --module <name>` to query active decisions for a domain module, and `pnpm adr:check` to validate compliance.',
     "",
     "## Active Decisions Index",
     "",
-    "| ID                                                                   | Title                                                                        | Status   | Date       | Area                    |",
-    "| -------------------------------------------------------------------- | ---------------------------------------------------------------------------- | -------- | ---------- | ----------------------- |",
+    ...formatAdrIndexTable(activeAdrs),
   ];
-
-  for (const a of activeAdrs) {
-    const idLink = `[${a.frontmatter.id}](./${a.fileName})`;
-    const title = a.frontmatter.title;
-    const status = a.frontmatter.status;
-    const date = a.frontmatter.date;
-    const area = a.frontmatter.area;
-
-    const pad = (str, len) => str.padEnd(len, " ");
-
-    lines.push(
-      `| ${pad(idLink, 68)} | ${pad(title, 76)} | ${pad(status, 8)} | ${pad(date, 10)} | ${pad(area, 23)} |`
-    );
-  }
 
   if (historicalAdrs.length > 0) {
     lines.push("");
     lines.push("## Historical Decisions Index");
     lines.push("");
-
-    lines.push(
-      "| ID                                                                   | Title                                                                        | Status   | Date       | Area                    |"
-    );
-
-    lines.push(
-      "| -------------------------------------------------------------------- | ---------------------------------------------------------------------------- | -------- | ---------- | ----------------------- |"
-    );
-
-    for (const a of historicalAdrs) {
-      const idLink = `[${a.frontmatter.id}](./${a.fileName})`;
-      const title = a.frontmatter.title;
-      const status = a.frontmatter.status;
-      const date = a.frontmatter.date;
-      const area = a.frontmatter.area;
-
-      const pad = (str, len) => str.padEnd(len, " ");
-
-      lines.push(
-        `| ${pad(idLink, 68)} | ${pad(title, 76)} | ${pad(status, 8)} | ${pad(date, 10)} | ${pad(area, 23)} |`
-      );
-    }
+    lines.push(...formatAdrIndexTable(historicalAdrs));
   }
 
   lines.push("");
@@ -297,7 +400,7 @@ export function generateAdrReadme(adrs) {
 // ---------------------------------------------------------------------------
 // Generator: src/modules/*/README.md Governing ADRs
 // ---------------------------------------------------------------------------
-export function getGoverningAdrsForModule(moduleName, adrs) {
+export function getGoverningAdrsForModule(moduleName: string, adrs: AdrRecord[]): AdrRecord[] {
   const moduleRelPath = `src/modules/${moduleName}`;
 
   return adrs
@@ -310,13 +413,13 @@ export function getGoverningAdrsForModule(moduleName, adrs) {
         (p) =>
           p === moduleRelPath ||
           p.startsWith(`${moduleRelPath}/`) ||
-          p === "src/shared" && moduleRelPath.startsWith("src/shared")
+          (p === "src/shared" && moduleRelPath.startsWith("src/shared"))
       );
     })
-    .sort((a, b) => a.frontmatter.id.localeCompare(b.frontmatter.id));
+    .sort((a, b) => (a.frontmatter.id ?? "").localeCompare(b.frontmatter.id ?? ""));
 }
 
-export function updateModuleReadmeContent(content, governingAdrs) {
+export function updateModuleReadmeContent(content: string, governingAdrs: AdrRecord[]): string {
   const headingIdx = content.indexOf("## Governing ADRs");
   const beforeSection = headingIdx !== -1 ? content.slice(0, headingIdx) : content.trim() + "\n\n";
 
@@ -327,7 +430,7 @@ export function updateModuleReadmeContent(content, governingAdrs) {
   } else {
     for (const a of governingAdrs) {
       lines.push(
-        `- [${a.frontmatter.id}: ${a.frontmatter.title}](../../../docs/adr/${a.fileName}) \u2014 ${a.frontmatter.area}`
+        `- [${a.frontmatter.id ?? ""}: ${a.frontmatter.title ?? ""}](../../../docs/adr/${a.fileName}) \u2014 ${a.frontmatter.area ?? ""}`
       );
     }
   }
@@ -338,17 +441,20 @@ export function updateModuleReadmeContent(content, governingAdrs) {
 // ---------------------------------------------------------------------------
 // Command: list
 // ---------------------------------------------------------------------------
-export function cmdList(args, opts = {}) {
+export function cmdList(
+  args: Partial<ParsedCliArgs>,
+  opts: AdrCommandOptions = {}
+): AdrListJsonItem[] | AdrRecord[] {
   const { adrDir } = getContext(opts);
   const adrs = loadAllAdrs(adrDir);
-  const moduleFilter = args.module;
-  const showAll = args.all;
-  const asJson = args.json;
+  const moduleFilter = typeof args.module === "string" ? args.module : undefined;
+  const showAll = Boolean(args.all);
+  const asJson = Boolean(args.json);
 
   let filtered = adrs;
 
   if (!showAll) {
-    filtered = filtered.filter((a) => ["accepted", "proposed"].includes(a.frontmatter.status));
+    filtered = filtered.filter((a) => ["accepted", "proposed"].includes(a.frontmatter.status ?? ""));
   }
 
   if (moduleFilter) {
@@ -363,7 +469,7 @@ export function cmdList(args, opts = {}) {
   }
 
   if (asJson) {
-    const out = filtered.map((a) => ({
+    const out: AdrListJsonItem[] = filtered.map((a) => ({
       id: a.frontmatter.id,
       title: a.frontmatter.title,
       status: a.frontmatter.status,
@@ -386,9 +492,7 @@ export function cmdList(args, opts = {}) {
       `\nFound ${filtered.length} ADR(s)${moduleFilter ? ` for module "${moduleFilter}"` : ""}:\n`
     );
 
-    console.log(
-      `${"ID".padEnd(10)} | ${"Status".padEnd(10)} | ${"Area".padEnd(25)} | Title`
-    );
+    console.log(`${"ID".padEnd(10)} | ${"Status".padEnd(10)} | ${"Area".padEnd(25)} | Title`);
 
     console.log("-".repeat(80));
 
@@ -397,7 +501,7 @@ export function cmdList(args, opts = {}) {
       const status = (a.frontmatter.status || "").padEnd(10);
       const area = (a.frontmatter.area || "").padEnd(25);
 
-      console.log(`${id} | ${status} | ${area} | ${a.frontmatter.title}`);
+      console.log(`${id} | ${status} | ${area} | ${a.frontmatter.title ?? ""}`);
     }
 
     console.log("");
@@ -409,7 +513,7 @@ export function cmdList(args, opts = {}) {
 // ---------------------------------------------------------------------------
 // Command: sync
 // ---------------------------------------------------------------------------
-export function cmdSync(opts = {}) {
+export function cmdSync(opts: AdrCommandOptions = {}): void {
   const { adrDir, modulesDir } = getContext(opts);
   const adrs = loadAllAdrs(adrDir);
 
@@ -448,14 +552,14 @@ export function cmdSync(opts = {}) {
 // ---------------------------------------------------------------------------
 // Command: check & Validator Core
 // ---------------------------------------------------------------------------
-export function checkAdrs(opts = {}) {
+export function checkAdrs(opts: AdrCommandOptions = {}): AdrCheckResult {
   const { root, adrDir, lockFile, modulesDir } = getContext(opts);
   const adrs = loadAllAdrs(adrDir);
   const lock = readLockFile(lockFile);
-  const errors = [];
+  const errors: string[] = [];
 
   // Git HEAD anchoring verification for .adr-lock.json
-  let headLockRecords = null;
+  let headLockRecords: Record<string, string> | null = null;
 
   try {
     const headLockRaw = execSync("git show HEAD:docs/adr/.adr-lock.json", {
@@ -464,7 +568,7 @@ export function checkAdrs(opts = {}) {
       stdio: ["pipe", "pipe", "ignore"],
     });
 
-    headLockRecords = JSON.parse(headLockRaw).records;
+    headLockRecords = (JSON.parse(headLockRaw) as LockFileData).records;
   } catch {
     // If not in git or file not in HEAD, skip head anchoring
   }
@@ -485,10 +589,12 @@ export function checkAdrs(opts = {}) {
     }
   }
 
-  const adrMap = new Map();
+  const adrMap = new Map<string, AdrRecord>();
 
   for (const a of adrs) {
-    adrMap.set(a.frontmatter.id, a);
+    if (a.frontmatter.id) {
+      adrMap.set(a.frontmatter.id, a);
+    }
   }
 
   for (const a of adrs) {
@@ -504,23 +610,18 @@ export function checkAdrs(opts = {}) {
       errors.push(`${prefix} Missing title`);
     }
 
-    const validStatuses = [
-      "proposed",
-      "accepted",
-      "rejected",
-      "deprecated",
-    ];
+    const validStatuses = ["proposed", "accepted", "rejected", "deprecated"];
     const isSuperseded =
       typeof fm.status === "string" && fm.status.startsWith("superseded by ADR-");
 
-    if (!validStatuses.includes(fm.status) && !isSuperseded) {
+    if ((!fm.status || !validStatuses.includes(fm.status)) && !isSuperseded) {
       errors.push(
-        `${prefix} Invalid status "${fm.status}". Allowed: proposed, accepted, rejected, deprecated, or "superseded by ADR-XXXX"`
+        `${prefix} Invalid status "${fm.status ?? ""}". Allowed: proposed, accepted, rejected, deprecated, or "superseded by ADR-XXXX"`
       );
     }
 
     if (!fm.date || !/^\d{4}-\d{2}-\d{2}$/.test(fm.date)) {
-      errors.push(`${prefix} Invalid date "${fm.date}". Must be YYYY-MM-DD.`);
+      errors.push(`${prefix} Invalid date "${fm.date ?? ""}". Must be YYYY-MM-DD.`);
     }
 
     if (!Array.isArray(fm["decision-makers"]) || fm["decision-makers"].length === 0) {
@@ -540,9 +641,7 @@ export function checkAdrs(opts = {}) {
     }
 
     // 2. Canonical 6 H2 sections in exact order
-    const h2Matches = [...a.body.matchAll(/^##\s+([^\r\n]+)/gm)].map((m) =>
-      m[1].trim()
-    );
+    const h2Matches = [...a.body.matchAll(/^##\s+([^\r\n]+)/gm)].map((m) => m[1].trim());
     let lastFoundIdx = -1;
 
     for (const expectedSec of CANONICAL_SECTIONS) {
@@ -551,9 +650,7 @@ export function checkAdrs(opts = {}) {
       if (idx === -1) {
         errors.push(`${prefix} Missing canonical section: "## ${expectedSec}"`);
       } else if (idx <= lastFoundIdx) {
-        errors.push(
-          `${prefix} Canonical section out of order: "## ${expectedSec}"`
-        );
+        errors.push(`${prefix} Canonical section out of order: "## ${expectedSec}"`);
       } else {
         lastFoundIdx = idx;
       }
@@ -568,13 +665,13 @@ export function checkAdrs(opts = {}) {
       } else {
         if (target.frontmatter.superseded_by !== fm.id) {
           errors.push(
-            `${prefix} supersedes "${fm.supersedes}", but ${fm.supersedes} does not link back with superseded_by: "${fm.id}"`
+            `${prefix} supersedes "${fm.supersedes}", but ${fm.supersedes} does not link back with superseded_by: "${fm.id ?? ""}"`
           );
         }
 
-        if (target.frontmatter.status !== `superseded by ${fm.id}`) {
+        if (target.frontmatter.status !== `superseded by ${fm.id ?? ""}`) {
           errors.push(
-            `${prefix} supersedes "${fm.supersedes}", but ${fm.supersedes} status is "${target.frontmatter.status}", expected "superseded by ${fm.id}"`
+            `${prefix} supersedes "${fm.supersedes}", but ${fm.supersedes} status is "${target.frontmatter.status ?? ""}", expected "superseded by ${fm.id ?? ""}"`
           );
         }
       }
@@ -584,12 +681,10 @@ export function checkAdrs(opts = {}) {
       const target = adrMap.get(fm.superseded_by);
 
       if (!target) {
-        errors.push(
-          `${prefix} superseded_by "${fm.superseded_by}" which does not exist.`
-        );
+        errors.push(`${prefix} superseded_by "${fm.superseded_by}" which does not exist.`);
       } else if (target.frontmatter.supersedes !== fm.id) {
         errors.push(
-          `${prefix} superseded_by "${fm.superseded_by}", but ${fm.superseded_by} does not declare supersedes: "${fm.id}"`
+          `${prefix} superseded_by "${fm.superseded_by}", but ${fm.superseded_by} does not declare supersedes: "${fm.id ?? ""}"`
         );
       }
     }
@@ -600,9 +695,7 @@ export function checkAdrs(opts = {}) {
         const resolved = path.join(root, p);
 
         if (!fs.existsSync(resolved)) {
-          errors.push(
-            `${prefix} Active applies_to path does not exist on filesystem: "${p}"`
-          );
+          errors.push(`${prefix} Active applies_to path does not exist on filesystem: "${p}"`);
         }
       }
 
@@ -610,16 +703,14 @@ export function checkAdrs(opts = {}) {
         const resolved = path.join(root, p);
 
         if (!fs.existsSync(resolved)) {
-          errors.push(
-            `${prefix} Active enforced_by path does not exist on filesystem: "${p}"`
-          );
+          errors.push(`${prefix} Active enforced_by path does not exist on filesystem: "${p}"`);
         }
       }
     }
 
     // 5. Cryptographic body hash check
     const hash = computeBodyHash(a.body);
-    const lockedHash = lock.records[fm.id];
+    const lockedHash = fm.id ? lock.records[fm.id] : undefined;
 
     if (!lockedHash) {
       errors.push(`${prefix} Missing entry in docs/adr/.adr-lock.json`);
@@ -638,9 +729,7 @@ export function checkAdrs(opts = {}) {
     const expectedReadme = generateAdrReadme(adrs).replace(/\r\n/g, "\n");
 
     if (currentReadme !== expectedReadme) {
-      errors.push(
-        "Drift detected in docs/adr/README.md. Run `pnpm adr:sync` to reconcile index."
-      );
+      errors.push("Drift detected in docs/adr/README.md. Run `pnpm adr:sync` to reconcile index.");
     }
   }
 
@@ -668,7 +757,7 @@ export function checkAdrs(opts = {}) {
   return { valid: errors.length === 0, errors };
 }
 
-export function cmdCheck(opts = {}) {
+export function cmdCheck(opts: AdrCommandOptions = {}): boolean {
   const { valid, errors } = checkAdrs(opts);
   const { adrDir } = getContext(opts);
   const adrs = loadAllAdrs(adrDir);
@@ -692,7 +781,9 @@ export function cmdCheck(opts = {}) {
   }
 
   if (!opts.silent) {
-    console.log(`\n\x1b[32m[ADR Check Passed]\x1b[0m All ${adrs.length} ADRs comply with MADR 4.0 and immutability invariants.\n`);
+    console.log(
+      `\n\x1b[32m[ADR Check Passed]\x1b[0m All ${adrs.length} ADRs comply with MADR 4.0 and immutability invariants.\n`
+    );
   }
 
   return true;
@@ -701,8 +792,11 @@ export function cmdCheck(opts = {}) {
 // ---------------------------------------------------------------------------
 // Command: new
 // ---------------------------------------------------------------------------
-export function cmdNew(args, opts = {}) {
-  const title = args.title;
+export function cmdNew(
+  args: Partial<ParsedCliArgs>,
+  opts: AdrCommandOptions = {}
+): AdrNewResult | null {
+  const title = typeof args.title === "string" ? args.title : undefined;
 
   if (!title) {
     console.error("Error: --title is required");
@@ -712,19 +806,26 @@ export function cmdNew(args, opts = {}) {
   }
 
   const { adrDir, lockFile } = getContext(opts);
-  const area = args.area || "Architecture & Layout";
-  const status = args.status || "accepted";
-  const appliesTo = args["applies-to"] ? args["applies-to"].split(",").map((s) => s.trim()) : [];
-  const enforcedBy = args["enforced-by"] ? args["enforced-by"].split(",").map((s) => s.trim()) : [];
-  const decisionMakers = args["decision-makers"]
-    ? args["decision-makers"].split(",").map((s) => s.trim())
-    : ["Product Owner", "Architect Agent"];
+  const area = typeof args.area === "string" ? args.area : "Architecture & Layout";
+  const status = typeof args.status === "string" ? args.status : "accepted";
+  const appliesTo =
+    typeof args["applies-to"] === "string"
+      ? args["applies-to"].split(",").map((s) => s.trim())
+      : [];
+  const enforcedBy =
+    typeof args["enforced-by"] === "string"
+      ? args["enforced-by"].split(",").map((s) => s.trim())
+      : [];
+  const decisionMakers =
+    typeof args["decision-makers"] === "string"
+      ? args["decision-makers"].split(",").map((s) => s.trim())
+      : ["Product Owner", "Architect Agent"];
 
   const adrs = loadAllAdrs(adrDir);
   let maxNum = -1;
 
   for (const a of adrs) {
-    const num = parseInt(a.frontmatter.id.replace("ADR-", ""), 10);
+    const num = parseInt((a.frontmatter.id ?? "").replace("ADR-", ""), 10);
 
     if (!isNaN(num) && num > maxNum) maxNum = num;
   }
@@ -775,7 +876,7 @@ Chosen option: **${title}**, because rationale.
 - **Alternative A**: Description of why it was rejected.
 `.trimStart();
 
-  const fm = {
+  const fm: AdrFrontmatter = {
     id: nextId,
     title,
     status,
@@ -811,7 +912,11 @@ Chosen option: **${title}**, because rationale.
 // ---------------------------------------------------------------------------
 // Command: supersede
 // ---------------------------------------------------------------------------
-export function cmdSupersede(oldIdInput, args, opts = {}) {
+export function cmdSupersede(
+  oldIdInput: string | undefined,
+  args: Partial<ParsedCliArgs>,
+  opts: AdrCommandOptions = {}
+): AdrSupersedeResult | null {
   if (!oldIdInput) {
     console.error("Error: old-id is required");
     if (!opts.noExit) process.exit(1);
@@ -819,9 +924,7 @@ export function cmdSupersede(oldIdInput, args, opts = {}) {
     return null;
   }
 
-  const oldId = oldIdInput.startsWith("ADR-")
-    ? oldIdInput
-    : `ADR-${oldIdInput.padStart(4, "0")}`;
+  const oldId = oldIdInput.startsWith("ADR-") ? oldIdInput : `ADR-${oldIdInput.padStart(4, "0")}`;
 
   const { adrDir, lockFile } = getContext(opts);
   const adrs = loadAllAdrs(adrDir);
@@ -834,22 +937,28 @@ export function cmdSupersede(oldIdInput, args, opts = {}) {
     return null;
   }
 
-  const title = args.title || `Supersedes ${oldId}: ${oldAdr.frontmatter.title}`;
-  const area = args.area || oldAdr.frontmatter.area;
-  const appliesTo = args["applies-to"]
-    ? args["applies-to"].split(",").map((s) => s.trim())
-    : [...(oldAdr.frontmatter.applies_to || [])];
-  const enforcedBy = args["enforced-by"]
-    ? args["enforced-by"].split(",").map((s) => s.trim())
-    : [...(oldAdr.frontmatter.enforced_by || [])];
-  const decisionMakers = args["decision-makers"]
-    ? args["decision-makers"].split(",").map((s) => s.trim())
-    : ["Product Owner", "Architect Agent"];
+  const title =
+    typeof args.title === "string"
+      ? args.title
+      : `Supersedes ${oldId}: ${oldAdr.frontmatter.title ?? ""}`;
+  const area = typeof args.area === "string" ? args.area : (oldAdr.frontmatter.area ?? "");
+  const appliesTo =
+    typeof args["applies-to"] === "string"
+      ? args["applies-to"].split(",").map((s) => s.trim())
+      : [...(oldAdr.frontmatter.applies_to || [])];
+  const enforcedBy =
+    typeof args["enforced-by"] === "string"
+      ? args["enforced-by"].split(",").map((s) => s.trim())
+      : [...(oldAdr.frontmatter.enforced_by || [])];
+  const decisionMakers =
+    typeof args["decision-makers"] === "string"
+      ? args["decision-makers"].split(",").map((s) => s.trim())
+      : ["Product Owner", "Architect Agent"];
 
   let maxNum = -1;
 
   for (const a of adrs) {
-    const num = parseInt(a.frontmatter.id.replace("ADR-", ""), 10);
+    const num = parseInt((a.frontmatter.id ?? "").replace("ADR-", ""), 10);
 
     if (!isNaN(num) && num > maxNum) maxNum = num;
   }
@@ -900,7 +1009,7 @@ Chosen option: **${title}**, because rationale.
 - **Keeping ${oldId}**: Insufficient for new requirements.
 `.trimStart();
 
-  const newFm = {
+  const newFm: AdrFrontmatter = {
     id: nextId,
     title,
     status: "accepted",
@@ -920,11 +1029,7 @@ Chosen option: **${title}**, because rationale.
   oldAdr.frontmatter.status = `superseded by ${nextId}`;
   oldAdr.frontmatter.superseded_by = nextId;
 
-  fs.writeFileSync(
-    oldAdr.filePath,
-    serializeFrontmatter(oldAdr.frontmatter, oldAdr.body),
-    "utf8"
-  );
+  fs.writeFileSync(oldAdr.filePath, serializeFrontmatter(oldAdr.frontmatter, oldAdr.body), "utf8");
 
   // 3. Lock new hash
   const hash = computeBodyHash(body);
@@ -945,7 +1050,10 @@ Chosen option: **${title}**, because rationale.
 // ---------------------------------------------------------------------------
 // Command: deprecate
 // ---------------------------------------------------------------------------
-export function cmdDeprecate(idInput, opts = {}) {
+export function cmdDeprecate(
+  idInput: string | undefined,
+  opts: AdrCommandOptions = {}
+): AdrRecord | null {
   if (!idInput) {
     console.error("Error: id is required");
     if (!opts.noExit) process.exit(1);
@@ -953,9 +1061,7 @@ export function cmdDeprecate(idInput, opts = {}) {
     return null;
   }
 
-  const id = idInput.startsWith("ADR-")
-    ? idInput
-    : `ADR-${idInput.padStart(4, "0")}`;
+  const id = idInput.startsWith("ADR-") ? idInput : `ADR-${idInput.padStart(4, "0")}`;
 
   const { adrDir } = getContext(opts);
   const adrs = loadAllAdrs(adrDir);
@@ -970,11 +1076,7 @@ export function cmdDeprecate(idInput, opts = {}) {
 
   adr.frontmatter.status = "deprecated";
 
-  fs.writeFileSync(
-    adr.filePath,
-    serializeFrontmatter(adr.frontmatter, adr.body),
-    "utf8"
-  );
+  fs.writeFileSync(adr.filePath, serializeFrontmatter(adr.frontmatter, adr.body), "utf8");
 
   cmdSync(opts);
 
@@ -988,7 +1090,11 @@ export function cmdDeprecate(idInput, opts = {}) {
 // ---------------------------------------------------------------------------
 // Command: retarget
 // ---------------------------------------------------------------------------
-export function cmdRetarget(oldPathInput, newPathInput, opts = {}) {
+export function cmdRetarget(
+  oldPathInput: string | undefined,
+  newPathInput: string | undefined,
+  opts: AdrCommandOptions = {}
+): number {
   if (!oldPathInput || !newPathInput) {
     console.error("Error: old-path and new-path are required");
     if (!opts.noExit) process.exit(1);
@@ -1003,7 +1109,7 @@ export function cmdRetarget(oldPathInput, newPathInput, opts = {}) {
   const adrs = loadAllAdrs(adrDir);
   let count = 0;
 
-  const replacePath = (p) => {
+  const replacePath = (p: string): string => {
     const norm = p.replace(/\\/g, "/");
 
     if (norm === oldPath) return newPath;
@@ -1045,11 +1151,7 @@ export function cmdRetarget(oldPathInput, newPathInput, opts = {}) {
     }
 
     if (modified) {
-      fs.writeFileSync(
-        a.filePath,
-        serializeFrontmatter(a.frontmatter, a.body),
-        "utf8"
-      );
+      fs.writeFileSync(a.filePath, serializeFrontmatter(a.frontmatter, a.body), "utf8");
 
       count++;
     }
@@ -1067,7 +1169,10 @@ export function cmdRetarget(oldPathInput, newPathInput, opts = {}) {
 // ---------------------------------------------------------------------------
 // Command: remove-path
 // ---------------------------------------------------------------------------
-export function cmdRemovePath(targetPathInput, opts = {}) {
+export function cmdRemovePath(
+  targetPathInput: string | undefined,
+  opts: AdrCommandOptions = {}
+): number {
   if (!targetPathInput) {
     console.error("Error: path is required");
     if (!opts.noExit) process.exit(1);
@@ -1086,7 +1191,7 @@ export function cmdRemovePath(targetPathInput, opts = {}) {
     const applies = (a.frontmatter.applies_to || []).map((p) => p.replace(/\\/g, "/"));
     const enforced = (a.frontmatter.enforced_by || []).map((p) => p.replace(/\\/g, "/"));
 
-    const matchesTarget = (p) => p === targetPath || p.startsWith(`${targetPath}/`);
+    const matchesTarget = (p: string): boolean => p === targetPath || p.startsWith(`${targetPath}/`);
     const hasPath = applies.some(matchesTarget) || enforced.some(matchesTarget);
 
     if (hasPath) {
@@ -1099,7 +1204,7 @@ export function cmdRemovePath(targetPathInput, opts = {}) {
 
         if (!opts.silent) {
           console.log(
-            `ADR ${a.frontmatter.id} exclusively governed "${targetPath}"; auto-deprecating.`
+            `ADR ${a.frontmatter.id ?? ""} exclusively governed "${targetPath}"; auto-deprecating.`
           );
         }
       } else {
@@ -1111,11 +1216,7 @@ export function cmdRemovePath(targetPathInput, opts = {}) {
         }
       }
 
-      fs.writeFileSync(
-        a.filePath,
-        serializeFrontmatter(a.frontmatter, a.body),
-        "utf8"
-      );
+      fs.writeFileSync(a.filePath, serializeFrontmatter(a.frontmatter, a.body), "utf8");
 
       modifiedCount++;
     }
@@ -1133,8 +1234,8 @@ export function cmdRemovePath(targetPathInput, opts = {}) {
 // ---------------------------------------------------------------------------
 // CLI Argument Parsing & Router
 // ---------------------------------------------------------------------------
-export function parseArgs(rawArgs) {
-  const result = { _: [] };
+export function parseArgs(rawArgs: string[]): ParsedCliArgs {
+  const result: ParsedCliArgs = { _: [] };
 
   for (let i = 0; i < rawArgs.length; i++) {
     const arg = rawArgs[i];
@@ -1156,7 +1257,7 @@ export function parseArgs(rawArgs) {
   return result;
 }
 
-export function main() {
+export function main(): void {
   const rawArgs = process.argv.slice(2);
   const parsed = parseArgs(rawArgs);
   const command = parsed._[0] || "help";
@@ -1201,20 +1302,23 @@ export function main() {
 Z-Trader Architectural Decision Records (ADR) CLI
 
 Usage:
-  node adr-cli.mjs list [--module <name>] [--all] [--json]
-  node adr-cli.mjs check
-  node adr-cli.mjs sync
-  node adr-cli.mjs new --title <title> --area <area> [--applies-to <p1,p2>] [--enforced-by <e1,e2>]
-  node adr-cli.mjs supersede <old-id> --title <title> [--area <area>]
-  node adr-cli.mjs deprecate <id>
-  node adr-cli.mjs retarget <old-path> <new-path>
-  node adr-cli.mjs remove-path <path>
+  node adr-cli.ts list [--module <name>] [--all] [--json]
+  node adr-cli.ts check
+  node adr-cli.ts sync
+  node adr-cli.ts new --title <title> --area <area> [--applies-to <p1,p2>] [--enforced-by <e1,e2>]
+  node adr-cli.ts supersede <old-id> --title <title> [--area <area>]
+  node adr-cli.ts deprecate <id>
+  node adr-cli.ts retarget <old-path> <new-path>
+  node adr-cli.ts remove-path <path>
 `);
 
       break;
   }
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"))) {
+if (
+  process.argv[1] &&
+  path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))
+) {
   main();
 }

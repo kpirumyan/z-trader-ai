@@ -18,6 +18,7 @@ import {
   extractSubagentConversationId,
   extractSystemMessageContent,
   extractUserRequest,
+  isClientMetaCommand,
   matchSkillFilePath,
   normalizeModelIdentifier,
   parseIsoTimestamp,
@@ -2381,5 +2382,120 @@ describe("parseTranscriptTurns evaluation context enrichment", () => {
     expect(incrementalTurns[0]!.metadata.hasPreviousTurn).toBe(true);
     expect(incrementalTurns[0]!.metadata.previousTurnInput).toBe(prevInput);
     expect(incrementalTurns[0]!.metadata.previousTurnOutput).toBe(prevOutput);
+  });
+
+  describe("client meta command handling (/compact, /clear, etc.)", () => {
+    it("recognizes client meta commands correctly via isClientMetaCommand", () => {
+      expect(isClientMetaCommand("/compact")).toBe(true);
+      expect(isClientMetaCommand("/compact please keep last test results")).toBe(true);
+      expect(isClientMetaCommand("  /COMPACT  ")).toBe(true);
+      expect(isClientMetaCommand("/clear")).toBe(true);
+      expect(isClientMetaCommand("/help")).toBe(true);
+      expect(isClientMetaCommand("/exit")).toBe(true);
+      expect(isClientMetaCommand("/quit")).toBe(true);
+
+      expect(isClientMetaCommand("compact")).toBe(false);
+      expect(isClientMetaCommand("/plan")).toBe(false);
+      expect(isClientMetaCommand("/goal test")).toBe(false);
+      expect(isClientMetaCommand("git status")).toBe(false);
+    });
+
+    it("does not treat /compact as interrupted even with zero model generations", () => {
+      const transcript = [
+        JSON.stringify({
+          step_index: 0,
+          source: "USER_EXPLICIT",
+          type: "USER_INPUT",
+          status: "DONE",
+          created_at: "2026-11-16T20:48:10Z",
+          content: "<USER_REQUEST>\n/compact\n</USER_REQUEST>",
+        }),
+      ].join("\n");
+
+      const turns = parseTranscriptTurns(transcript, {
+        conversationId: "conv-compact",
+      });
+
+      expect(turns).toHaveLength(1);
+
+      const compactTurn = turns[0]!;
+
+      expect(compactTurn.turnIndex).toBe(1);
+      expect(compactTurn.input).toBe("/compact");
+      expect(compactTurn.output).toBe("Executed client command: /compact");
+      expect(compactTurn.level).toBeUndefined();
+      expect(compactTurn.statusMessage).toBeUndefined();
+      expect(compactTurn.metadata.interrupted).toBeUndefined();
+      expect(compactTurn.metadata.clientCommand).toBe(true);
+      expect(compactTurn.metadata.generationCount).toBe(0);
+      expect(compactTurn.tags).toContain("command:compact");
+    });
+
+    it("preserves USER_CANCELED interruption if user explicitly cancels a client command turn", () => {
+      const transcript = [
+        JSON.stringify({
+          step_index: 0,
+          source: "USER_EXPLICIT",
+          type: "USER_INPUT",
+          status: "DONE",
+          created_at: "2026-11-16T20:48:10Z",
+          content: "<USER_REQUEST>\n/compact\n</USER_REQUEST>",
+        }),
+      ].join("\n");
+
+      const turns = parseTranscriptTurns(transcript, {
+        conversationId: "conv-compact-canceled",
+        terminationReason: "USER_CANCELED",
+      });
+
+      expect(turns).toHaveLength(1);
+
+      const compactTurn = turns[0]!;
+
+      expect(compactTurn.metadata.terminationReason).toBe("USER_CANCELED");
+      expect(compactTurn.metadata.interrupted).toBe(true);
+      expect(compactTurn.level).toBe("WARNING");
+      expect(compactTurn.statusMessage).toBe("Turn canceled by user (USER_CANCELED)");
+      expect(compactTurn.metadata.clientCommand).toBe(true);
+    });
+
+    it("propagates client command output to subsequent turn previousTurnOutput cleanly", () => {
+      const transcript = [
+        JSON.stringify({
+          step_index: 0,
+          source: "USER_EXPLICIT",
+          type: "USER_INPUT",
+          status: "DONE",
+          created_at: "2026-11-16T20:48:10Z",
+          content: "<USER_REQUEST>\n/compact\n</USER_REQUEST>",
+        }),
+        JSON.stringify({
+          step_index: 1,
+          source: "USER_EXPLICIT",
+          type: "USER_INPUT",
+          status: "DONE",
+          created_at: "2026-11-16T20:49:00Z",
+          content: "<USER_REQUEST>\nNow run tests\n</USER_REQUEST>",
+        }),
+        JSON.stringify({
+          step_index: 2,
+          source: "MODEL",
+          type: "PLANNER_RESPONSE",
+          status: "DONE",
+          created_at: "2026-11-16T20:49:02Z",
+          content: "Running tests...",
+        }),
+      ].join("\n");
+
+      const turns = parseTranscriptTurns(transcript, {
+        conversationId: "conv-compact-chain",
+      });
+
+      expect(turns).toHaveLength(2);
+      expect(turns[0]!.metadata.interrupted).toBeUndefined();
+      expect(turns[1]!.metadata.hasPreviousTurn).toBe(true);
+      expect(turns[1]!.metadata.previousTurnInput).toBe("/compact");
+      expect(turns[1]!.metadata.previousTurnOutput).toBe("Executed client command: /compact");
+    });
   });
 });

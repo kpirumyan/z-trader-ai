@@ -15,5 +15,6 @@ export {
   buildSyntheticToolCallId,
   extractSystemMessageContent,
   extractUserRequest,
+  isClientMetaCommand,
   parseTranscriptTurns,
 } from "./turn-builder.ts";

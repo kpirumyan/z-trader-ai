@@ -41,6 +41,7 @@ export {
   extractSubagentConversationId,
   extractSystemMessageContent,
   extractUserRequest,
+  isClientMetaCommand,
   matchSkillFilePath,
   normalizeModelIdentifier,
   parseIsoTimestamp,

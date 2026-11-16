@@ -111,6 +111,12 @@ export function extractUserRequest(rawContent: string): ExtractedUserRequest {
   return result;
 }
 
+const CLIENT_META_COMMAND_REGEX = /^\/(compact|clear|help|exit|quit)(?:\s+[\s\S]*)?$/i;
+
+export function isClientMetaCommand(prompt: string): boolean {
+  return CLIENT_META_COMMAND_REGEX.test(prompt.trim());
+}
+
 const SYSTEM_MESSAGE_TAG_REGEX = /(?:^|\n)\s*<SYSTEM_MESSAGE>\s*([\s\S]*?)\s*<\/SYSTEM_MESSAGE>/;
 
 export function extractSystemMessageContent(rawContent: string): string {
@@ -738,11 +744,19 @@ export function parseTranscriptTurns(
       cumulativeSessionHistory = sequence.history;
     }
 
+    const isClientCommand = isClientMetaCommand(extractedInput.prompt);
+    const clientCommandMatch = isClientCommand
+      ? extractedInput.prompt.trim().match(/^\/([a-zA-Z0-9_-]+)/)
+      : null;
+    const clientCommandName = clientCommandMatch?.[1]?.toLowerCase();
+
     const output =
       sequence.lastAssistantContent ||
       (sequence.generationCount > 0 || sequence.toolCount > 0
         ? `Completed ${sequence.generationCount} generation(s) and ${sequence.toolCount} tool call(s).`
-        : "");
+        : isClientCommand
+          ? `Executed client command: ${extractedInput.prompt.trim()}`
+          : "");
     const priorTurn = previousTurnContext;
 
     previousTurnContext = {
@@ -776,8 +790,9 @@ export function parseTranscriptTurns(
     const isFailedGeneration = sequence.lastGenerationLevel === "ERROR";
     const isInterrupted =
       isUserCanceled ||
-      sequence.generationCount === 0 ||
-      (!isFailedGeneration && !sequence.lastAssistantContent);
+      (!isClientCommand &&
+        (sequence.generationCount === 0 ||
+          (!isFailedGeneration && !sequence.lastAssistantContent)));
 
     const traceLevel = isUserCanceled
       ? "WARNING"
@@ -790,11 +805,11 @@ export function parseTranscriptTurns(
       ? "Turn canceled by user (USER_CANCELED)"
       : isFailedGeneration
         ? (sequence.lastGenerationStatusMessage ?? "Generation failed")
-        : sequence.generationCount === 0
-          ? "Interrupted before model generation"
-          : isInterrupted
-            ? "Turn ended without final assistant text"
-            : undefined;
+        : isInterrupted
+          ? sequence.generationCount === 0
+            ? "Interrupted before model generation"
+            : "Turn ended without final assistant text"
+          : undefined;
 
     const gateSummary = buildTurnGateSummary(sequence.children);
     const hasPreviousTurn = turnIndex > 1 && priorTurn !== undefined;
@@ -812,6 +827,7 @@ export function parseTranscriptTurns(
       systemMessageCount: sequence.systemMessageCount,
       observationCounts: sequence.observationCounts,
       hasPreviousTurn,
+      ...(isClientCommand ? { clientCommand: true } : {}),
       ...(hasPreviousTurn
         ? {
             previousTurnInput: truncatePreviousTurnText(priorTurn.input),
@@ -830,6 +846,12 @@ export function parseTranscriptTurns(
       metadata.userSettingsChange = extractedInput.userSettingsChange;
     }
 
+    const turnTags = new Set(sequence.tags);
+
+    if (clientCommandName) {
+      turnTags.add(`command:${clientCommandName}`);
+    }
+
     parsedTurns.push({
       turnIndex,
       traceSeed: `${options.conversationId}-turn-${turnIndex}`,
@@ -846,7 +868,7 @@ export function parseTranscriptTurns(
       ...(traceStatusMessage ? { statusMessage: traceStatusMessage } : {}),
       children: sequence.children,
       usageSummary: sequence.usageSummary,
-      tags: [...sequence.tags].sort(),
+      tags: [...turnTags].sort(),
       metadata,
     });
   }

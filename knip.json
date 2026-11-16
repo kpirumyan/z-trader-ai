@@ -1,6 +1,7 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": [
+    ".agents/hooks/langfuse-session-start.ts",
     ".agents/hooks/langfuse-stop.ts",
     ".agents/tracing/index.ts",
     "src/composition/widgets.ts",

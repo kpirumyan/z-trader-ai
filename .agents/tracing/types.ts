@@ -198,6 +198,16 @@ export interface ExtractedUserRequest {
 export interface StopHookInput {
   conversationId?: string;
   transcriptPath?: string;
+  artifactDirectoryPath?: string;
+  modelName?: string;
+  cwd?: string;
+  workspacePaths?: string[];
+}
+
+export interface SessionStartHookInput {
+  conversationId?: string;
+  transcriptPath?: string;
+  artifactDirectoryPath?: string;
   modelName?: string;
   cwd?: string;
   workspacePaths?: string[];
@@ -223,6 +233,10 @@ export interface LangfuseCursorState {
 }
 
 export interface PendingExportSpool {
+  conversationId?: string;
+  workspaceRoot?: string;
+  cursorPath?: string;
+  contextAnchor?: ContextAnchor;
   pendingTurns: ParsedTurnTrace[];
   updatedAt: string;
 }
@@ -243,6 +257,8 @@ export interface RunStopHookOptions {
   timeoutMs?: number;
   spanExporter?: SpanExporterLike;
   skillDirs?: string[];
+  spoolDir?: string;
+  drainBacklog?: boolean;
   simulateFlushFailure?: Error;
   onWarning?: (message: string) => void;
 }
@@ -251,6 +267,9 @@ export interface RunStopHookResult {
   decision: "allow";
   exportedTurns: number;
   spooledTurns: number;
+  drainedFiles: number;
+  drainedTurns: number;
+  spoolDir?: string;
   release: string;
   version: string;
   dryRun: boolean;
@@ -261,6 +280,42 @@ export interface RunStopHookResult {
     tags: string[];
     totalTokens: number;
   }>;
+}
+
+export interface DrainSpoolOptions {
+  spoolDir: string;
+  workspaceRoot: string;
+  excludeConversationIds?: string[];
+  dryRun?: boolean;
+  persistCursorInDryRun?: boolean;
+  timeoutMs?: number;
+  spanExporter?: SpanExporterLike;
+  skillDirs?: string[];
+  simulateFlushFailure?: Error;
+  onWarning?: (message: string) => void;
+}
+
+export interface DrainSpoolResult {
+  drainedFiles: number;
+  drainedTurns: number;
+  failedFiles: number;
+  dryRun: boolean;
+  spoolDir: string;
+}
+
+export interface RunSessionStartHookOptions {
+  dryRun?: boolean;
+  persistCursorInDryRun?: boolean;
+  timeoutMs?: number;
+  spanExporter?: SpanExporterLike;
+  skillDirs?: string[];
+  spoolDir?: string;
+  simulateFlushFailure?: Error;
+  onWarning?: (message: string) => void;
+}
+
+export interface RunSessionStartHookResult extends DrainSpoolResult {
+  continue: true;
 }
 
 export type { SkillReference };

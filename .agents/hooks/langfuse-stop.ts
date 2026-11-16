@@ -3,13 +3,18 @@ import { parseArgs } from "node:util";
 
 import { runStopHook, type StopHookInput } from "../tracing/index.ts";
 
+const HOOK_WALL_BUDGET_MS = 4000;
+
 async function main(): Promise<void> {
+  const startedAt = Date.now();
+
   try {
     const { values } = parseArgs({
       options: {
         "dry-run": { type: "boolean", default: false },
         transcript: { type: "string" },
         "conversation-id": { type: "string" },
+        "spool-dir": { type: "string" },
       },
       strict: false,
     });
@@ -22,6 +27,7 @@ async function main(): Promise<void> {
     const input: StopHookInput = {
       conversationId: str(values["conversation-id"]) ?? str(data.conversationId ?? data.session_id),
       transcriptPath: str(values.transcript) ?? str(data.transcriptPath ?? data.transcript_path),
+      artifactDirectoryPath: str(data.artifactDirectoryPath),
       modelName: str(data.modelName),
       cwd: str(data.cwd),
       workspacePaths: Array.isArray(data.workspacePaths)
@@ -29,8 +35,12 @@ async function main(): Promise<void> {
         : undefined,
     };
 
+    const remainingMs = Math.max(1000, HOOK_WALL_BUDGET_MS - (Date.now() - startedAt));
+
     const result = await runStopHook(input, {
       dryRun: values["dry-run"] ? true : undefined,
+      spoolDir: str(values["spool-dir"]),
+      timeoutMs: remainingMs,
     });
 
     if (values["dry-run"]) {

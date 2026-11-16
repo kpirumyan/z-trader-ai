@@ -1,14 +1,21 @@
 export { runStopHook } from "./exporter.ts";
+export { runSessionStartHook } from "./session-start-hook.ts";
 export { discoverAvailableSkills, resolveDefaultSkillDirs } from "./skills.ts";
 export { computeContextAnchor } from "./versioning.ts";
 
 export {
+  advanceCursorForTurns,
+  getSpoolFilePath,
+  listSpoolFiles,
   mergeTurnsForExport,
   readCursorState,
   readPendingSpool,
+  readSpoolEntry,
+  removeSpoolFile,
+  resolveSpoolDir,
   writeCursorState,
   writePendingSpool,
-} from "./spool.ts";
+} from "./spool/index.ts";
 
 export {
   DEFAULT_TIMEOUT_MS,
@@ -64,8 +71,11 @@ export type {
   RawToolCall,
   RawTranscriptStep,
   ReleaseContext,
+  RunSessionStartHookOptions,
+  RunSessionStartHookResult,
   RunStopHookOptions,
   RunStopHookResult,
+  SessionStartHookInput,
   SkillFileMatch,
   SkillReference,
   SpanExporterLike,

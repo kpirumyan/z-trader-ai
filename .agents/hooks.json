@@ -1,11 +1,18 @@
 {
   "langfuse-export": {
     "enabled": false,
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "node --no-warnings --experimental-strip-types hooks/langfuse-session-start.ts",
+        "timeout": 5
+      }
+    ],
     "Stop": [
       {
         "type": "command",
         "command": "node --no-warnings --experimental-strip-types hooks/langfuse-stop.ts",
-        "timeout": 15
+        "timeout": 5
       }
     ]
   }

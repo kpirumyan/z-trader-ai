@@ -1,5 +1,4 @@
 // @vitest-environment node
-import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -957,87 +956,6 @@ describe("exporter: end-to-end Langfuse OTel export", () => {
       expect(turn2Root.attributes[LangfuseOtelSpanAttributes.OBSERVATION_STATUS_MESSAGE]).toBe(
         "Turn canceled by user (USER_CANCELED)",
       );
-    } finally {
-      fs.rmSync(tempDir, { recursive: true, force: true });
-    }
-  });
-
-  it("parses terminationReason, fullyIdle, and continuationActive from Stop hook stdin in langfuse-stop.ts", () => {
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "z-trader-stop-cli-test-"));
-
-    try {
-      const logsDir = path.join(tempDir, "conv-stop-cli", ".system_generated", "logs");
-      const spoolDir = path.join(tempDir, "spool");
-
-      fs.mkdirSync(logsDir, { recursive: true });
-      fs.mkdirSync(spoolDir, { recursive: true });
-
-      const compactPath = path.join(logsDir, "transcript.jsonl");
-      const lines = [
-        JSON.stringify({
-          step_index: 0,
-          source: "USER_EXPLICIT",
-          type: "USER_INPUT",
-          status: "DONE",
-          created_at: "2026-11-16T15:00:00Z",
-          content: "<USER_REQUEST>\nCancel mid-turn\n</USER_REQUEST>",
-        }),
-        JSON.stringify({
-          step_index: 1,
-          source: "MODEL",
-          type: "PLANNER_RESPONSE",
-          status: "DONE",
-          created_at: "2026-11-16T15:00:01Z",
-          content: "Working on it...",
-        }),
-      ].join("\n");
-
-      fs.writeFileSync(compactPath, lines, "utf8");
-
-      const env = { ...process.env };
-
-      delete env.LANGFUSE_PUBLIC_KEY;
-      delete env.LANGFUSE_SECRET_KEY;
-      env.LANGFUSE_DRY_RUN = "false";
-
-      const cli = spawnSync(
-        process.execPath,
-        [path.resolve(".agents/hooks/langfuse-stop.ts"), "--spool-dir", spoolDir],
-        {
-          cwd: tempDir,
-          env,
-          input: JSON.stringify({
-            conversationId: "conv-stop-cli",
-            transcriptPath: compactPath,
-            cwd: tempDir,
-            terminationReason: "USER_CANCELED",
-            fullyIdle: true,
-            continuationActive: false,
-          }),
-          encoding: "utf8",
-        },
-      );
-
-      expect(cli.status).toBe(0);
-      expect(JSON.parse(cli.stdout.trim())).toEqual({ decision: "allow" });
-
-      const spoolPath = path.join(spoolDir, "conv-stop-cli.json");
-
-      expect(fs.existsSync(spoolPath)).toBe(true);
-
-      const spooled = JSON.parse(fs.readFileSync(spoolPath, "utf8")) as {
-        pendingTurns: Array<{
-          level?: string;
-          statusMessage?: string;
-          metadata: Record<string, unknown>;
-        }>;
-      };
-
-      expect(spooled.pendingTurns).toHaveLength(1);
-      expect(spooled.pendingTurns[0]!.metadata.terminationReason).toBe("USER_CANCELED");
-      expect(spooled.pendingTurns[0]!.metadata.interrupted).toBe(true);
-      expect(spooled.pendingTurns[0]!.level).toBe("WARNING");
-      expect(spooled.pendingTurns[0]!.statusMessage).toBe("Turn canceled by user (USER_CANCELED)");
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }

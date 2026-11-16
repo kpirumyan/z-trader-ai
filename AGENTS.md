@@ -33,6 +33,7 @@ Z-Trader is engineered entirely by AI agents without manual code authoring. Engi
 - Think carefully & step-by-step.
 - Consider whether the answer may have changed in the 2 years since your knowledge cutoff.
 - If you are not confident in your answer, begin your response with "Unsure".
+- In /grill-me mode first, provide explanations for the options so I understand what’s being discussed.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

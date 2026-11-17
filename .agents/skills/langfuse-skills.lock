@@ -1,0 +1,13 @@
+{
+  "lockVersion": 1,
+  "skills": [
+    {
+      "path": "adr",
+      "name": "adr",
+      "selector": {
+        "label": "production"
+      },
+      "version": 1
+    }
+  ]
+}

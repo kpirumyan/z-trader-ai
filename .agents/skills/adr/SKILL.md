@@ -22,16 +22,6 @@ This skill guides humans and AI agents in querying, authoring, superseding, and 
 
 ---
 
-## When to Trigger This Skill
-
-- Before starting code changes in any domain module: query active ADRs governing that module.
-- When designing a new architecture, domain module, storage engine, or communication contract.
-- When replacing or deprecating an existing architectural pattern.
-- When renaming, moving, or removing a module path.
-- When verifying PR / commit compliance with `pnpm adr:check`.
-
----
-
 ## Agent Workflows
 
 ### 1. Pre-Task Discovery (Consult Governing ADRs)

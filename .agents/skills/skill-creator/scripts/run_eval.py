@@ -93,10 +93,20 @@ def check_subagent_transcript_trigger(
                 or tool_args.get("path")
                 or ""
             )
-            norm_path = str(raw_path).replace("\\", "/").lower()
+            path_str = str(raw_path).strip()
+            if len(path_str) >= 2 and path_str[0] == '"' and path_str[-1] == '"':
+                try:
+                    decoded = json.loads(path_str)
+                    if isinstance(decoded, str):
+                        path_str = decoded
+                except json.JSONDecodeError:
+                    path_str = path_str[1:-1]
+            norm_path = path_str.strip().strip("'").replace("\\", "/").lower()
+            while "//" in norm_path:
+                norm_path = norm_path.replace("//", "/")
             return norm_path.endswith(target_suffix)
         if tool_name == "Skill":
-            skill_arg = str(tool_args.get("skill") or "").lower()
+            skill_arg = str(tool_args.get("skill") or "").strip().strip('"').strip("'").lower()
             return skill_name.lower() in skill_arg
 
         return False
@@ -140,7 +150,7 @@ def run_single_query(
         claude_bin = shutil.which("claude") or "claude"
         cmd = [
             claude_bin,
-            "-p", query,
+            "-p",
             "--output-format", "stream-json",
             "--verbose",
             "--include-partial-messages",
@@ -152,11 +162,18 @@ def run_single_query(
 
         process = subprocess.Popen(
             cmd,
+            stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             cwd=project_root,
             env=env,
         )
+        if process.stdin is not None:
+            try:
+                process.stdin.write(query.encode("utf-8"))
+                process.stdin.close()
+            except OSError:
+                pass
 
         line_queue: "queue.Queue[str | None]" = queue.Queue()
         reader_thread = threading.Thread(

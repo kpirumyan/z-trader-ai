@@ -28,7 +28,38 @@ from scripts.run_eval import (
     run_eval,
     score_trigger_counts,
 )
-from scripts.utils import ensure_utf8_stdio, parse_skill_md, update_skill_md_description
+from scripts.utils import (
+    ensure_utf8_stdio,
+    extract_raw_description_block,
+    parse_skill_md,
+    update_skill_md_description,
+)
+
+
+MAX_DESCRIPTION_CHARS = 1024
+
+
+def _sanitize_and_validate_description(description: str) -> str:
+    """Sanitize a candidate description and enforce the 1024-char frontmatter limit."""
+    clean = " ".join(description.replace("<", "").replace(">", "").splitlines()).strip()
+    if not clean:
+        raise ValueError("Candidate description cannot be empty")
+    if len(clean) > MAX_DESCRIPTION_CHARS:
+        raise ValueError(
+            f"Candidate description is too long ({len(clean)} chars; maximum is {MAX_DESCRIPTION_CHARS}). "
+            f"Shorten it before setting."
+        )
+    return clean
+
+
+def _restore_original_description(state: dict) -> None:
+    """Restore SKILL.md's original description verbatim (preserving raw YAML formatting)."""
+    update_skill_md_description(
+        Path(state["skill_path"]),
+        state["original_description"],
+        raw_lines=state.get("original_description_raw_lines"),
+    )
+    state["skill_md_modified"] = False
 
 
 def split_eval_set(eval_set: list[dict], holdout: float, seed: int = 42) -> tuple[list[dict], list[dict]]:
@@ -96,10 +127,15 @@ def init_split_state(
 ) -> dict:
     """Initialize stateful train/test split for Antigravity native subagent mode."""
     name, original_description, _ = parse_skill_md(skill_path)
-    current_description = description_override or original_description
+    original_raw_lines = extract_raw_description_block(skill_path)
+    skill_md_modified = False
 
     if description_override:
+        current_description = _sanitize_and_validate_description(description_override)
         update_skill_md_description(skill_path, current_description)
+        skill_md_modified = True
+    else:
+        current_description = original_description
 
     if holdout > 0 and len(eval_set) >= 4:
         train_set, test_set = split_eval_set(eval_set, holdout)
@@ -126,7 +162,9 @@ def init_split_state(
         "skill_name": name,
         "skill_path": str(skill_path.resolve()),
         "original_description": original_description,
+        "original_description_raw_lines": original_raw_lines,
         "current_description": current_description,
+        "skill_md_modified": skill_md_modified,
         "holdout": holdout,
         "max_iterations": max_iterations,
         "runs_per_query": runs_per_query,
@@ -270,7 +308,8 @@ def record_iteration_state(
 
     if is_done:
         state["status"] = "completed"
-        update_skill_md_description(skill_path, state["original_description"])
+        if state.get("skill_md_modified", True):
+            _restore_original_description(state)
         state_file.write_text(json.dumps(state, indent=2), encoding="utf-8")
         return summary_output
 
@@ -287,12 +326,13 @@ def record_iteration_state(
     )
 
     if next_description:
-        clean_next = next_description.replace("<", "").replace(">", "").strip()
+        clean_next = _sanitize_and_validate_description(next_description)
         state["current_description"] = clean_next
         update_skill_md_description(skill_path, clean_next)
-    else:
-        # Restore original description in SKILL.md between iterations so an aborted loop never leaves a test description
-        update_skill_md_description(skill_path, state["original_description"])
+        state["skill_md_modified"] = True
+    elif state.get("skill_md_modified", True):
+        # Restore original description in SKILL.md verbatim between iterations so an aborted loop never leaves a test description
+        _restore_original_description(state)
 
     state_file.write_text(json.dumps(state, indent=2), encoding="utf-8")
 
@@ -510,10 +550,18 @@ def main():
     parser.add_argument("--init-split", action="store_true", help="Initialize train/test split state file for Antigravity native subagent loop")
     parser.add_argument("--record-iteration", action="store_true", help="Record subagent trigger results for one iteration and update report")
     parser.add_argument("--set-next-description", default=None, help="Set the next candidate description on an existing state file and SKILL.md")
+    parser.add_argument("--set-next-description-file", type=Path, default=None, help="Read the next candidate description from a UTF-8 text file (avoids shell escaping issues on Windows)")
     parser.add_argument("--restore-description", action="store_true", help="Restore the original description in SKILL.md from --state-file")
     parser.add_argument("--state-file", type=Path, default=None, help="Path to loop_state.json for step mode")
     parser.add_argument("--triggers-file", type=Path, default=None, help="Path to iteration trigger results JSON for --record-iteration")
     args = parser.parse_args()
+
+    resolved_next_desc = args.set_next_description
+    if args.set_next_description_file is not None:
+        if not args.set_next_description_file.exists():
+            print(f"Error: description file not found: {args.set_next_description_file}", file=sys.stderr)
+            sys.exit(1)
+        resolved_next_desc = args.set_next_description_file.read_text(encoding="utf-8-sig")
 
     # Step mode 0: --restore-description
     if args.restore_description:
@@ -521,9 +569,9 @@ def main():
             print("Error: --restore-description requires an existing --state-file", file=sys.stderr)
             sys.exit(1)
         state = json.loads(args.state_file.read_text(encoding="utf-8-sig"))
-        orig_desc = state["original_description"]
-        update_skill_md_description(Path(state["skill_path"]), orig_desc)
-        print(json.dumps({"status": "restored", "original_description": orig_desc}, indent=2))
+        _restore_original_description(state)
+        args.state_file.write_text(json.dumps(state, indent=2), encoding="utf-8")
+        print(json.dumps({"status": "restored", "original_description": state["original_description"]}, indent=2))
         sys.exit(0)
 
     # Step mode 1: --init-split
@@ -532,29 +580,38 @@ def main():
             print("Error: --init-split requires --eval-set, --skill-path, and --state-file", file=sys.stderr)
             sys.exit(1)
         eval_set = json.loads(Path(args.eval_set).read_text(encoding="utf-8-sig"))
-        out = init_split_state(
-            eval_set=eval_set,
-            skill_path=Path(args.skill_path),
-            state_file=args.state_file,
-            description_override=args.description,
-            holdout=args.holdout,
-            max_iterations=args.max_iterations,
-            runs_per_query=args.runs_per_query,
-            trigger_threshold=args.trigger_threshold,
-            report_arg=args.report,
-        )
+        try:
+            out = init_split_state(
+                eval_set=eval_set,
+                skill_path=Path(args.skill_path),
+                state_file=args.state_file,
+                description_override=args.description,
+                holdout=args.holdout,
+                max_iterations=args.max_iterations,
+                runs_per_query=args.runs_per_query,
+                trigger_threshold=args.trigger_threshold,
+                report_arg=args.report,
+            )
+        except ValueError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
         print(json.dumps(out, indent=2))
         sys.exit(0)
 
-    # Step mode 2: --set-next-description (alone)
-    if args.set_next_description and not args.record_iteration:
+    # Step mode 2: --set-next-description / --set-next-description-file (alone)
+    if resolved_next_desc is not None and not args.record_iteration:
         if not args.state_file or not args.state_file.exists():
             print("Error: --set-next-description requires an existing --state-file", file=sys.stderr)
             sys.exit(1)
         state = json.loads(args.state_file.read_text(encoding="utf-8-sig"))
-        clean_desc = args.set_next_description.replace("<", "").replace(">", "").strip()
+        try:
+            clean_desc = _sanitize_and_validate_description(resolved_next_desc)
+        except ValueError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
         state["current_description"] = clean_desc
         update_skill_md_description(Path(state["skill_path"]), clean_desc)
+        state["skill_md_modified"] = True
         args.state_file.write_text(json.dumps(state, indent=2), encoding="utf-8")
         print(json.dumps({"status": "updated", "current_description": clean_desc}, indent=2))
         sys.exit(0)
@@ -564,11 +621,15 @@ def main():
         if not args.state_file or not args.triggers_file:
             print("Error: --record-iteration requires --state-file and --triggers-file", file=sys.stderr)
             sys.exit(1)
-        out = record_iteration_state(
-            state_file=args.state_file,
-            triggers_file=args.triggers_file,
-            next_description=args.set_next_description,
-        )
+        try:
+            out = record_iteration_state(
+                state_file=args.state_file,
+                triggers_file=args.triggers_file,
+                next_description=resolved_next_desc,
+            )
+        except ValueError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
         print(json.dumps(out, indent=2))
         sys.exit(0)
 

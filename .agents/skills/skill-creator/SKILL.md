@@ -169,17 +169,17 @@ See `references/schemas.md` for the full schema.
 
 ## Running and evaluating test cases
 
-This section is one continuous sequence — don't stop partway through.
+This section is one continuous sequence — don't stop partway through. Do NOT use `/skill-test` or any other testing skill.
 
 **Where to store `<workspace>` (`<skill-name>-workspace/`):**
 - **In Antigravity**: Place `<skill-name>-workspace/` inside the conversation's scratch directory (`<appDataDir>/brain/<conversation-id>/scratch/<skill-name>-workspace/`) to respect workspace hygiene rules on both Linux and Windows.
 - **In Claude Code**: Place `<skill-name>-workspace/` as a sibling to the skill directory or in `/tmp/`.
 
-Within the workspace, organize results by iteration (`iteration-1/`, `iteration-2/`, etc.) and within that, each test case gets a directory (`eval-0/`, `eval-1/`, etc.).
+Within the workspace, organize results by iteration (`iteration-1/`, `iteration-2/`, etc.) and within that, each test case gets a directory (`eval-0/`, `eval-1/`, etc.). Don't create all of this upfront — just create directories as you go.
 
 ### Step 1: Spawn all runs (with-skill AND baseline) in the same turn
 
-For each test case, spawn two subagents in the same turn — one with the skill, one without (in Antigravity, call `invoke_subagent` with `TypeName: "self"` and `Model: "inherit"`). Launch everything at once so it all finishes around the same time.
+For each test case, spawn two subagents in the same turn — one with the skill, one without (in Antigravity, call `invoke_subagent` with `TypeName: "self"` and `Model: "inherit"`). This is important: don't spawn the with-skill runs first and then come back for baselines later. Launch everything at once so it all finishes around the same time. (However, if you run into severe problems with timeouts, it's OK to run the test prompts in series rather than parallel.)
 
 **With-skill run:**
 
@@ -217,9 +217,13 @@ Update the `eval_metadata.json` files and `evals/evals.json` with the assertions
 
 ### Step 3: As runs complete, capture timing and transcript data
 
-- **In Antigravity**: Each `invoke_subagent` call returns a `conversationId`. Once a subagent finishes, run `extract_subagent_metrics.py` from the `skill-creator` directory to automatically generate `timing.json`, `outputs/metrics.json`, and `transcript.md` from the subagent's JSONL log (works on both Linux and Windows):
+- **In Antigravity**: Each `invoke_subagent` call returns a `conversationId`. Once a subagent finishes, run `extract_subagent_metrics.py` from the `skill-creator` directory to automatically generate `timing.json` (using real token counts from the transcript), `outputs/metrics.json`, and `transcript.md` from the subagent's JSONL log (works on both Linux and Windows):
   ```bash
   python -m scripts.extract_subagent_metrics --conversation-id <subagent-conversation-id> --run-dir <workspace>/iteration-<N>/eval-<ID>/with_skill
+  ```
+  For `without_skill` baseline runs, also pass `--forbidden-skill <skill-name>` so any accidental read of the skill under test is flagged (`"skill_leak_detected": true` in `metrics.json` and a warning on `stderr`):
+  ```bash
+  python -m scripts.extract_subagent_metrics --conversation-id <subagent-conversation-id> --run-dir <workspace>/iteration-<N>/eval-<ID>/without_skill --forbidden-skill <skill-name>
   ```
 - **In Claude Code**: When each subagent task completes, you receive a notification containing `total_tokens` and `duration_ms`. Save this data immediately to `timing.json` in the run directory:
   ```json
@@ -245,15 +249,26 @@ Once all runs are done:
 
 3. **Do an analyst pass** — read the benchmark data and surface patterns the aggregate stats might hide. See `agents/analyzer.md` (the "Analyzing Benchmark Results" section) for what to look for — things like assertions that always pass regardless of skill (non-discriminating), high-variance evals (possibly flaky), and time/token tradeoffs. Add these to `"notes"` in `benchmark.json`.
 
-4. **Launch the viewer** with both qualitative outputs and quantitative data:
-   - **Interactive HTTP server mode** (works on Linux & Windows; in Antigravity, start with `IsDaemon: true` and `BypassSandbox: true` if the user wants to open `http://localhost:3117` in their browser):
-     ```bash
-     python <skill-creator-path>/eval-viewer/generate_review.py <workspace>/iteration-N --skill-name "my-skill" --benchmark <workspace>/iteration-N/benchmark.json
-     ```
-   - **Static HTML mode** (works inside the sandbox without port binding or `BypassSandbox`, on both Linux & Windows):
+4. **Launch the viewer** with both qualitative outputs and quantitative data — **always generate the eval viewer *before* evaluating outputs or revising the skill yourself**, so you get results in front of the human ASAP:
+   - **Interactive HTTP server mode** (works on Linux & Windows; run in the background so it doesn't block the terminal):
+     - **In Antigravity**: Start with `IsDaemon: true` and `BypassSandbox: true` if the user wants to open `http://localhost:3117` in their browser:
+       ```bash
+       python <skill-creator-path>/eval-viewer/generate_review.py <workspace>/iteration-N --skill-name "my-skill" --benchmark <workspace>/iteration-N/benchmark.json
+       ```
+     - **In Claude Code (POSIX)**: Start in the background and record the PID so you can stop it in Step 5:
+       ```bash
+       nohup python <skill-creator-path>/eval-viewer/generate_review.py \
+         <workspace>/iteration-N \
+         --skill-name "my-skill" \
+         --benchmark <workspace>/iteration-N/benchmark.json \
+         > /dev/null 2>&1 &
+       VIEWER_PID=$!
+       ```
+   - **Static HTML mode** (works inside the sandbox without port binding or `BypassSandbox`, on both Linux & Windows, and in headless environments with no display):
      ```bash
      python <skill-creator-path>/eval-viewer/generate_review.py <workspace>/iteration-N --skill-name "my-skill" --benchmark <workspace>/iteration-N/benchmark.json --static <workspace>/iteration-N/review.html
      ```
+     In `--static` mode, clicking "Submit All Reviews" downloads `feedback.json` to `~/Downloads/feedback.json`. After download, **copy `feedback.json` into `<workspace>/iteration-N/feedback.json`** so `--previous-workspace` picks up previous feedback on the next iteration.
    For iteration 2+, also pass `--previous-workspace <workspace>/iteration-<N-1>`.
 
    Note: please use `generate_review.py` to create the viewer; there's no need to write custom HTML.
@@ -276,7 +291,7 @@ Navigation is via prev/next buttons or arrow keys. When done, they click "Submit
 
 ### Step 5: Read the feedback
 
-When the user tells you they're done, read `feedback.json` (in server mode it is saved directly to `<workspace>/iteration-N/feedback.json`; in `--static` mode the "Submit All Reviews" button downloads `feedback.json` to `~/Downloads/feedback.json`):
+When the user tells you they're done, read `feedback.json` (in server mode it is saved directly to `<workspace>/iteration-N/feedback.json`; in `--static` mode the "Submit All Reviews" button downloads `feedback.json` to `~/Downloads/feedback.json` — read it from there and copy it into `<workspace>/iteration-N/feedback.json` so the next iteration's `--previous-workspace` picks it up):
 
 ```json
 {
@@ -290,6 +305,10 @@ When the user tells you they're done, read `feedback.json` (in server mode it is
 ```
 
 Empty feedback means the user thought it was fine. Focus your improvements on the test cases where the user had specific complaints.
+
+If you started the viewer in interactive HTTP server mode, stop the server once you're done with it:
+- **In Antigravity**: Call `manage_task` with `Action: "kill"` for the viewer daemon task.
+- **In Claude Code**: Run `kill $VIEWER_PID 2>/dev/null`.
 
 ---
 
@@ -336,7 +355,7 @@ This is optional, requires subagents, and most users won't need it. The human re
 
 ## Description Optimization
 
-The `description` field in `SKILL.md` frontmatter is the primary mechanism that determines whether the agent invokes a skill. After creating or improving a skill, offer to optimize the description for better triggering accuracy.
+The `description` field in `SKILL.md` frontmatter is the primary mechanism that determines whether the agent invokes a skill. Save description optimization until you've fully finished making the skill and the user agrees it's in good shape — then offer to optimize the description for better triggering accuracy.
 
 ### Step 1: Generate trigger eval queries
 
@@ -402,10 +421,11 @@ Drive the exact 60%/40% stratified train/test loop using `scripts/run_loop.py` a
      python -m scripts.run_loop --record-iteration --state-file <workspace>/loop_state.json --triggers-file <workspace>/iter_triggers.json
      ```
      This inspects the first `PLANNER_RESPONSE` step of each subagent's `transcript.jsonl` (`check_subagent_transcript_trigger`) to check whether its first tool call was `read_file` on `<skill-name>/SKILL.md` (1-to-1 with `run_single_query`).
-   - If the output JSON has `"status": "continue"`, it includes `"improve_prompt"` (which contains only the train results and hides the held-out test set to prevent overfitting). Pass `"improve_prompt"` to a subagent (or evaluate inline) to produce `<new_description>` (<1024 chars, no `<` or `>`), then register it for the next iteration (which also updates `<path-to-skill>/SKILL.md` frontmatter for the next subagent runs):
+   - If the output JSON has `"status": "continue"`, it includes `"improve_prompt"` (which contains only the train results and hides the held-out test set to prevent overfitting). Pass `"improve_prompt"` to a subagent (or evaluate inline) to produce `<new_description>` (≤1024 chars, no `<` or `>`), save it to `<workspace>/next_description.txt`, and register it for the next iteration (which validates the 1024-char limit and safely updates `<path-to-skill>/SKILL.md` frontmatter without shell quoting issues on Windows):
      ```bash
-     python -m scripts.run_loop --set-next-description "<new-description>" --state-file <workspace>/loop_state.json
+     python -m scripts.run_loop --set-next-description-file <workspace>/next_description.txt --state-file <workspace>/loop_state.json
      ```
+     (You can also pass `--set-next-description "<new-description>"` directly for simple descriptions.)
    - Repeat until `--record-iteration` returns `"exit_reason"` (`all_passed` or `max_iterations`) and `"best_description"` (automatically selected by held-out test score; `--record-iteration` automatically restores the original description in `SKILL.md` after each recorded iteration, and if aborted mid-iteration before recording, run `python -m scripts.run_loop --restore-description --state-file <workspace>/loop_state.json` to restore it).
 
 #### In Claude Code (`claude` CLI)

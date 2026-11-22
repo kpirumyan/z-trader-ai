@@ -300,13 +300,12 @@ def _kill_port(port: int) -> None:
             )
             pids: set[int] = set()
             for line in result.stdout.splitlines():
-                if f":{port}" in line and "LISTENING" in line:
-                    parts = line.split()
-                    if parts:
-                        try:
-                            pids.add(int(parts[-1]))
-                        except ValueError:
-                            pass
+                parts = line.split()
+                if len(parts) >= 5 and parts[1].endswith(f":{port}") and parts[3] == "LISTENING":
+                    try:
+                        pids.add(int(parts[-1]))
+                    except ValueError:
+                        pass
             for pid in pids:
                 if pid > 0 and pid != os.getpid():
                     subprocess.run(

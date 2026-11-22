@@ -3,6 +3,7 @@
 Quick validation script for skills - minimal cross-platform version (Linux & Windows)
 """
 
+import json
 import sys
 import re
 from pathlib import Path
@@ -11,6 +12,28 @@ try:
     import yaml
 except ImportError:
     yaml = None
+
+
+def _parse_scalar_fallback(val: str) -> str | None:
+    """Strictly parse a single-line YAML scalar when PyYAML is unavailable."""
+    if not val or val.startswith("#"):
+        return None
+    if len(val) >= 2 and val[0] == '"' and val[-1] == '"':
+        try:
+            parsed = json.loads(val)
+            if isinstance(parsed, str):
+                return parsed
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid double-quoted YAML string: {e}") from e
+    if len(val) >= 2 and val[0] == "'" and val[-1] == "'":
+        return val[1:-1].replace("''", "'")
+    if val[0] in ('"', "'"):
+        raise ValueError(f"Unterminated quoted YAML scalar: {val}")
+    if val[0] in ("[", "{", "*", "&", "!", "@", "`", "%"):
+        raise ValueError(f"Unquoted YAML special token at start of scalar: {val}")
+    if ": " in val or val.endswith(":"):
+        raise ValueError(f"Unquoted colon in YAML scalar (quote the value or use a block scalar): {val}")
+    return val
 
 
 def _parse_frontmatter_fallback(frontmatter_text: str) -> dict:
@@ -29,7 +52,7 @@ def _parse_frontmatter_fallback(frontmatter_text: str) -> dict:
         key, val = line.split(":", 1)
         key = key.strip()
         val = val.strip()
-        if val in (">", "|", ">-", "|-"):
+        if val in (">", "|", ">-", "|-", ">+", "|+"):
             cont: list[str] = []
             i += 1
             while i < len(lines) and (lines[i].startswith("  ") or lines[i].startswith("\t") or not lines[i].strip()):
@@ -46,12 +69,12 @@ def _parse_frontmatter_fallback(frontmatter_text: str) -> dict:
                 nline = lines[i].strip()
                 if ":" in nline:
                     nk, nv = nline.split(":", 1)
-                    nested[nk.strip()] = nv.strip().strip('"').strip("'")
+                    nested[nk.strip()] = _parse_scalar_fallback(nv.strip())
                 i += 1
-            result[key] = nested if nested else ""
+            result[key] = nested if nested else None
             continue
         else:
-            result[key] = val.strip('"').strip("'")
+            result[key] = _parse_scalar_fallback(val)
         i += 1
     return result
 

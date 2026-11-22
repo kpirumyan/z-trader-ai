@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """Run the eval + improve loop until all pass or max iterations reached.
 
-Works on both Linux and Windows, and supports both subscription and API modes:
-1. Antigravity Subscription Step Mode (`--init-split` and `--record-iteration`):
-   Manages the stratified 60%/40% train/test split, blinded history, and live HTML
-   report while the Antigravity agent runs trigger tests and description improvements
-   via native `invoke_subagent` (zero API keys required).
+Works on both Linux and Windows:
+1. Antigravity Step Mode (`--init-split`, `--record-iteration`, `--set-next-description`):
+   Manages the stratified 60%/40% train/test split, updates the candidate description
+   in SKILL.md, inspects real subagent transcripts (`transcript.jsonl`) to check if the
+   first tool call reads `<skill-name>/SKILL.md`, and generates the blinded improvement
+   prompt and live HTML report.
 2. Standalone Loop Mode (default):
-   Combines `run_eval.py` and `improve_description.py` in a loop using `claude -p`
-   (Claude Code subscription) or optional API keys (`GEMINI_API_KEY` / `ANTHROPIC_API_KEY`).
+   Combines `run_eval.py` and `improve_description.py` in a loop using `claude -p`.
 """
 
 import argparse
@@ -22,8 +22,13 @@ from pathlib import Path
 
 from scripts.generate_report import generate_html
 from scripts.improve_description import build_improvement_prompt, improve_description
-from scripts.run_eval import find_project_root, run_eval, score_trigger_counts
-from scripts.utils import ensure_utf8_stdio, parse_skill_md
+from scripts.run_eval import (
+    check_subagent_transcript_trigger,
+    find_project_root,
+    run_eval,
+    score_trigger_counts,
+)
+from scripts.utils import ensure_utf8_stdio, parse_skill_md, update_skill_md_description
 
 
 def split_eval_set(eval_set: list[dict], holdout: float, seed: int = 42) -> tuple[list[dict], list[dict]]:
@@ -89,9 +94,12 @@ def init_split_state(
     trigger_threshold: float,
     report_arg: str,
 ) -> dict:
-    """Initialize stateful train/test split for Antigravity native subagent subscription mode."""
+    """Initialize stateful train/test split for Antigravity native subagent mode."""
     name, original_description, _ = parse_skill_md(skill_path)
     current_description = description_override or original_description
+
+    if description_override:
+        update_skill_md_description(skill_path, current_description)
 
     if holdout > 0 and len(eval_set) >= 4:
         train_set, test_set = split_eval_set(eval_set, holdout)
@@ -144,36 +152,48 @@ def init_split_state(
     }
 
 
+def _resolve_runs_from_entry(item: dict | list, skill_name: str, default_runs: int) -> list[bool]:
+    """Resolve boolean trigger results from subagent conversation_ids, transcripts, or boolean runs."""
+    if isinstance(item, list):
+        if item and isinstance(item[0], str):
+            return [check_subagent_transcript_trigger(cid, skill_name) for cid in item]
+        return [bool(x) for x in item]
+
+    if "conversation_ids" in item:
+        return [check_subagent_transcript_trigger(cid, skill_name) for cid in item["conversation_ids"]]
+    if "transcripts" in item:
+        return [
+            check_subagent_transcript_trigger("", skill_name, transcript_path=Path(tp))
+            for tp in item["transcripts"]
+        ]
+    if "boolean_runs" in item:
+        return [bool(x) for x in item["boolean_runs"]]
+
+    t = int(item.get("triggers", 0))
+    r = int(item.get("runs", default_runs))
+    return ([True] * t) + ([False] * max(0, r - t))
+
+
 def record_iteration_state(
     state_file: Path,
     triggers_file: Path,
     next_description: str | None = None,
 ) -> dict:
-    """Record one iteration's trigger counts in Antigravity subscription mode and update HTML report."""
+    """Record one iteration's trigger results from subagent transcripts and update HTML report."""
     state = json.loads(state_file.read_text(encoding="utf-8-sig"))
     skill_path = Path(state["skill_path"])
     name, _, content = parse_skill_md(skill_path)
+    default_runs = state.get("runs_per_query", 3)
 
     raw_triggers = json.loads(triggers_file.read_text(encoding="utf-8-sig"))
-    # Accept either [{"query": "...", "triggers": 2, "runs": 3}] or {"query": [true, false, true]}
     query_triggers: dict[str, list[bool]] = {}
     if isinstance(raw_triggers, list):
         for item in raw_triggers:
             q = item["query"]
-            if "boolean_runs" in item:
-                query_triggers[q] = [bool(x) for x in item["boolean_runs"]]
-            else:
-                t = int(item.get("triggers", 0))
-                r = int(item.get("runs", state.get("runs_per_query", 3)))
-                query_triggers[q] = ([True] * t) + ([False] * max(0, r - t))
+            query_triggers[q] = _resolve_runs_from_entry(item, name, default_runs)
     elif isinstance(raw_triggers, dict):
         for q, val in raw_triggers.items():
-            if isinstance(val, list):
-                query_triggers[q] = [bool(x) for x in val]
-            elif isinstance(val, dict):
-                t = int(val.get("triggers", 0))
-                r = int(val.get("runs", state.get("runs_per_query", 3)))
-                query_triggers[q] = ([True] * t) + ([False] * max(0, r - t))
+            query_triggers[q] = _resolve_runs_from_entry(val, name, default_runs)
 
     current_description = state["current_description"]
     train_set = state["train_set"]
@@ -250,6 +270,7 @@ def record_iteration_state(
 
     if is_done:
         state["status"] = "completed"
+        update_skill_md_description(skill_path, state["original_description"])
         state_file.write_text(json.dumps(state, indent=2), encoding="utf-8")
         return summary_output
 
@@ -266,7 +287,12 @@ def record_iteration_state(
     )
 
     if next_description:
-        state["current_description"] = next_description.replace("<", "").replace(">", "").strip()
+        clean_next = next_description.replace("<", "").replace(">", "").strip()
+        state["current_description"] = clean_next
+        update_skill_md_description(skill_path, clean_next)
+    else:
+        # Restore original description in SKILL.md between iterations so an aborted loop never leaves a test description
+        update_skill_md_description(skill_path, state["original_description"])
 
     state_file.write_text(json.dumps(state, indent=2), encoding="utf-8")
 
@@ -295,7 +321,6 @@ def run_loop(
     verbose: bool,
     live_report_path: Path | None = None,
     log_dir: Path | None = None,
-    backend: str = "auto",
 ) -> dict:
     """Run the standalone eval + improvement loop."""
     project_root = find_project_root()
@@ -332,7 +357,6 @@ def run_loop(
             runs_per_query=runs_per_query,
             trigger_threshold=trigger_threshold,
             model=model,
-            backend=backend,
         )
         eval_elapsed = time.time() - t0
 
@@ -440,7 +464,6 @@ def run_loop(
             model=model,
             log_dir=log_dir,
             iteration=iteration,
-            backend=backend,
         )
         improve_elapsed = time.time() - t0
 
@@ -479,23 +502,29 @@ def main():
     parser.add_argument("--trigger-threshold", type=float, default=0.5, help="Trigger rate threshold")
     parser.add_argument("--holdout", type=float, default=0.4, help="Fraction of eval set to hold out for testing (0 to disable)")
     parser.add_argument("--model", default=None, help="Model for improvement")
-    parser.add_argument(
-        "--backend",
-        choices=["auto", "claude", "gemini-api", "anthropic-api"],
-        default="auto",
-        help="Execution backend for standalone loop (default: auto)",
-    )
     parser.add_argument("--verbose", action="store_true", help="Print progress to stderr")
     parser.add_argument("--report", default="auto", help="Generate HTML report at this path (default: 'auto' for temp file, 'none' to disable)")
     parser.add_argument("--results-dir", default=None, help="Save all outputs (results.json, report.html, log.txt) to a timestamped subdirectory here")
 
-    # Step-mode arguments for Antigravity native subagent subscription mode
+    # Step-mode arguments for Antigravity native subagent loop
     parser.add_argument("--init-split", action="store_true", help="Initialize train/test split state file for Antigravity native subagent loop")
     parser.add_argument("--record-iteration", action="store_true", help="Record subagent trigger results for one iteration and update report")
-    parser.add_argument("--set-next-description", default=None, help="Set the next candidate description on an existing state file")
+    parser.add_argument("--set-next-description", default=None, help="Set the next candidate description on an existing state file and SKILL.md")
+    parser.add_argument("--restore-description", action="store_true", help="Restore the original description in SKILL.md from --state-file")
     parser.add_argument("--state-file", type=Path, default=None, help="Path to loop_state.json for step mode")
     parser.add_argument("--triggers-file", type=Path, default=None, help="Path to iteration trigger results JSON for --record-iteration")
     args = parser.parse_args()
+
+    # Step mode 0: --restore-description
+    if args.restore_description:
+        if not args.state_file or not args.state_file.exists():
+            print("Error: --restore-description requires an existing --state-file", file=sys.stderr)
+            sys.exit(1)
+        state = json.loads(args.state_file.read_text(encoding="utf-8-sig"))
+        orig_desc = state["original_description"]
+        update_skill_md_description(Path(state["skill_path"]), orig_desc)
+        print(json.dumps({"status": "restored", "original_description": orig_desc}, indent=2))
+        sys.exit(0)
 
     # Step mode 1: --init-split
     if args.init_split:
@@ -525,6 +554,7 @@ def main():
         state = json.loads(args.state_file.read_text(encoding="utf-8-sig"))
         clean_desc = args.set_next_description.replace("<", "").replace(">", "").strip()
         state["current_description"] = clean_desc
+        update_skill_md_description(Path(state["skill_path"]), clean_desc)
         args.state_file.write_text(json.dumps(state, indent=2), encoding="utf-8")
         print(json.dumps({"status": "updated", "current_description": clean_desc}, indent=2))
         sys.exit(0)
@@ -595,7 +625,6 @@ def main():
         verbose=args.verbose,
         live_report_path=live_report_path,
         log_dir=log_dir,
-        backend=args.backend,
     )
 
     json_output = json.dumps(output, indent=2)

@@ -3,11 +3,6 @@
 
 Tests whether a skill's description causes the agent to trigger (read the skill)
 for a set of queries. Works on both Linux and Windows.
-
-Supports:
-1. Antigravity Native Subagent mode (via `run_loop.py --init-split` / `--record-iteration`, using Antigravity subscription without any API keys)
-2. CLI Subscription mode (`claude -p` using Claude Code subscription, cross-platform on Linux & Windows)
-3. Optional API key fallback (`GEMINI_API_KEY` / `GOOGLE_API_KEY` / `ANTHROPIC_API_KEY` via stdlib `urllib.request`)
 """
 
 import argparse
@@ -19,12 +14,11 @@ import subprocess
 import sys
 import threading
 import time
-import urllib.error
-import urllib.request
 import uuid
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from pathlib import Path
 
+from scripts.extract_subagent_metrics import find_transcript_path
 from scripts.utils import ensure_utf8_stdio, parse_skill_md
 
 
@@ -35,19 +29,6 @@ def find_project_root() -> Path:
         if (parent / ".agents").is_dir() or (parent / ".claude").is_dir():
             return parent
     return current
-
-
-def detect_backend(requested: str = "auto") -> str:
-    """Detect which execution backend is available for standalone CLI execution."""
-    if requested != "auto":
-        return requested
-    if shutil.which("claude"):
-        return "claude"
-    if os.environ.get("ANTHROPIC_API_KEY"):
-        return "anthropic-api"
-    if os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"):
-        return "gemini-api"
-    return "claude"
 
 
 def _enqueue_lines(stream, line_queue: "queue.Queue[str | None]") -> None:
@@ -63,7 +44,67 @@ def _enqueue_lines(stream, line_queue: "queue.Queue[str | None]") -> None:
         line_queue.put(None)
 
 
-def run_single_query_claude(
+def check_subagent_transcript_trigger(
+    conversation_id: str,
+    skill_name: str,
+    app_data_dir: Path | None = None,
+    transcript_path: Path | None = None,
+) -> bool:
+    """Check whether an Antigravity subagent triggered the skill on its first action.
+
+    Mirrors the exact 1-to-1 logic of `run_single_query`: inspects the first
+    assistant turn (`PLANNER_RESPONSE`) in the subagent's JSONL transcript and
+    returns True if and only if the first tool call reads `<skill_name>/SKILL.md`.
+    """
+    t_path = find_transcript_path(conversation_id, transcript_path, app_data_dir)
+    lines = t_path.read_text(encoding="utf-8", errors="replace").splitlines()
+
+    target_suffix = f"/{skill_name.lower()}/skill.md"
+
+    for raw_line in lines:
+        raw_line = raw_line.strip()
+        if not raw_line:
+            continue
+        try:
+            step = json.loads(raw_line)
+        except json.JSONDecodeError:
+            continue
+
+        if step.get("type") != "PLANNER_RESPONSE":
+            continue
+
+        tool_calls = step.get("tool_calls") or []
+        if not tool_calls:
+            return False
+
+        first_call = tool_calls[0]
+        tool_name = first_call.get("name") or first_call.get("tool_name") or ""
+        tool_args = first_call.get("arguments") or first_call.get("args") or first_call.get("input") or {}
+        if isinstance(tool_args, str):
+            try:
+                tool_args = json.loads(tool_args)
+            except json.JSONDecodeError:
+                tool_args = {}
+
+        if tool_name in ("read_file", "Read", "view_file"):
+            raw_path = (
+                tool_args.get("Path")
+                or tool_args.get("file_path")
+                or tool_args.get("path")
+                or ""
+            )
+            norm_path = str(raw_path).replace("\\", "/").lower()
+            return norm_path.endswith(target_suffix)
+        if tool_name == "Skill":
+            skill_arg = str(tool_args.get("skill") or "").lower()
+            return skill_name.lower() in skill_arg
+
+        return False
+
+    return False
+
+
+def run_single_query(
     query: str,
     skill_name: str,
     skill_description: str,
@@ -71,10 +112,12 @@ def run_single_query_claude(
     project_root: str,
     model: str | None = None,
 ) -> bool:
-    """Run a single query via `claude -p` (subscription) and return whether the skill was triggered.
+    """Run a single query and return whether the skill was triggered.
 
-    Uses a cross-platform reader thread + queue instead of Unix-only `select.select`
-    so it works on both Linux and Windows.
+    Creates a command file in .claude/commands/ so it is discovered, then runs
+    `claude -p` with the raw query and checks whether the first tool call
+    invokes the skill. Uses a cross-platform reader thread + queue instead of
+    Unix-only `select.select` so it works on both Linux and Windows.
     """
     unique_id = uuid.uuid4().hex[:8]
     clean_name = f"{skill_name}-skill-{unique_id}"
@@ -207,130 +250,6 @@ def run_single_query_claude(
                 pass
 
 
-def _discover_other_skills(project_root: Path, exclude_skill: str) -> list[tuple[str, str]]:
-    """Collect (name, description) of other installed skills in workspace for realistic competition."""
-    skills: list[tuple[str, str]] = []
-    for rel in [".agents/skills", ".claude/skills"]:
-        skills_dir = project_root / rel
-        if not skills_dir.is_dir():
-            continue
-        for child in sorted(skills_dir.iterdir()):
-            if child.is_dir() and (child / "SKILL.md").exists():
-                try:
-                    s_name, s_desc, _ = parse_skill_md(child)
-                    if s_name and s_name != exclude_skill:
-                        skills.append((s_name, s_desc))
-                except Exception:
-                    pass
-    return skills
-
-
-def run_single_query_api(
-    query: str,
-    skill_name: str,
-    skill_description: str,
-    timeout: int,
-    project_root: str,
-    model: str | None = None,
-    backend: str = "gemini-api",
-) -> bool:
-    """Optional API fallback (when running standalone outside subscription CLI/subagents)."""
-    other_skills = _discover_other_skills(Path(project_root), skill_name)
-    all_skills = [(skill_name, skill_description), *other_skills]
-    skills_list_str = "\n".join(
-        f"- {name} (.agents/skills/{name}/SKILL.md): {desc}"
-        for name, desc in all_skills
-    )
-
-    system_instruction = (
-        "You are an AI coding assistant with access to specialized skills.\n"
-        "If a skill is relevant to the user's task, your FIRST action MUST be to read its SKILL.md "
-        "by outputting `<read_skill>SKILL_NAME</read_skill>`. If no skill is needed or the task can be "
-        "handled directly without reading a specialized skill, output `<read_skill>NONE</read_skill>`.\n\n"
-        f"Available skills:\n{skills_list_str}"
-    )
-
-    if backend == "gemini-api":
-        api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-        if not api_key:
-            raise RuntimeError("Neither subscription CLI nor GEMINI_API_KEY/GOOGLE_API_KEY found.")
-        gemini_model = model if (model and "gemini" in model.lower()) else "gemini-2.5-flash"
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{gemini_model}:generateContent?key={api_key}"
-        payload = {
-            "system_instruction": {"parts": [{"text": system_instruction}]},
-            "contents": [{"role": "user", "parts": [{"text": query}]}],
-            "generationConfig": {"temperature": 0.2, "maxOutputTokens": 120},
-        }
-        req = urllib.request.Request(
-            url,
-            data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-        text = (
-            data.get("candidates", [{}])[0]
-            .get("content", {})
-            .get("parts", [{}])[0]
-            .get("text", "")
-        )
-        return f"<read_skill>{skill_name}</read_skill>" in text
-
-    elif backend == "anthropic-api":
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
-        if not api_key:
-            raise RuntimeError("ANTHROPIC_API_KEY not found.")
-        anth_model = model if (model and "claude" in model.lower()) else "claude-sonnet-4-20250514"
-        url = "https://api.anthropic.com/v1/messages"
-        payload = {
-            "model": anth_model,
-            "max_tokens": 120,
-            "system": system_instruction,
-            "messages": [{"role": "user", "content": query}],
-        }
-        req = urllib.request.Request(
-            url,
-            data=json.dumps(payload).encode("utf-8"),
-            headers={
-                "Content-Type": "application/json",
-                "x-api-key": api_key,
-                "anthropic-version": "2023-06-01",
-            },
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-        text = "".join(
-            block.get("text", "")
-            for block in data.get("content", [])
-            if block.get("type") == "text"
-        )
-        return f"<read_skill>{skill_name}</read_skill>" in text
-
-    raise ValueError(f"Unsupported backend: {backend}")
-
-
-def run_single_query(
-    query: str,
-    skill_name: str,
-    skill_description: str,
-    timeout: int,
-    project_root: str,
-    model: str | None = None,
-    backend: str = "auto",
-) -> bool:
-    """Dispatch a single query to the selected backend."""
-    resolved = detect_backend(backend)
-    if resolved == "claude":
-        return run_single_query_claude(
-            query, skill_name, skill_description, timeout, project_root, model
-        )
-    return run_single_query_api(
-        query, skill_name, skill_description, timeout, project_root, model, resolved
-    )
-
-
 def score_trigger_counts(
     eval_set: list[dict],
     query_triggers: dict[str, list[bool]],
@@ -383,7 +302,6 @@ def run_eval(
     runs_per_query: int = 1,
     trigger_threshold: float = 0.5,
     model: str | None = None,
-    backend: str = "auto",
 ) -> dict:
     """Run the full eval set and return results (works on both Linux and Windows)."""
     # Use ThreadPoolExecutor on Windows to avoid multiprocessing spawn overhead with subprocesses
@@ -401,7 +319,6 @@ def run_eval(
                     timeout,
                     str(project_root),
                     model,
-                    backend,
                 )
                 future_to_info[future] = (item, run_idx)
 
@@ -437,12 +354,6 @@ def main():
     parser.add_argument("--runs-per-query", type=int, default=3, help="Number of runs per query")
     parser.add_argument("--trigger-threshold", type=float, default=0.5, help="Trigger rate threshold")
     parser.add_argument("--model", default=None, help="Model identifier")
-    parser.add_argument(
-        "--backend",
-        choices=["auto", "claude", "gemini-api", "anthropic-api"],
-        default="auto",
-        help="Execution backend for standalone CLI usage (default: auto)",
-    )
     parser.add_argument("--verbose", action="store_true", help="Print progress to stderr")
     args = parser.parse_args()
 
@@ -470,7 +381,6 @@ def main():
         runs_per_query=args.runs_per_query,
         trigger_threshold=args.trigger_threshold,
         model=args.model,
-        backend=args.backend,
     )
 
     if args.verbose:

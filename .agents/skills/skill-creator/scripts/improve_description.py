@@ -2,12 +2,10 @@
 """Improve a skill description based on eval results.
 
 Works on both Linux and Windows:
-1. In Antigravity Subscription mode: `build_improvement_prompt` (or `--print-prompt`)
+1. In Antigravity mode: `build_improvement_prompt` (or `--print-prompt`)
    constructs the blinded improvement prompt so the Antigravity agent/subagent
-   can generate the improved description directly on the user's subscription.
-2. In Claude Code CLI Subscription mode: calls `claude -p` as a subprocess.
-3. In optional API mode: uses `GEMINI_API_KEY` / `GOOGLE_API_KEY` or `ANTHROPIC_API_KEY`
-   via stdlib `urllib.request` if no subscription CLI is present.
+   can generate the improved description directly.
+2. In Claude Code CLI mode: calls `claude -p` as a subprocess.
 """
 
 import argparse
@@ -17,95 +15,35 @@ import re
 import shutil
 import subprocess
 import sys
-import urllib.request
 from pathlib import Path
 
-from scripts.run_eval import detect_backend
 from scripts.utils import ensure_utf8_stdio, parse_skill_md
 
 
-def _call_llm(prompt: str, model: str | None, timeout: int = 300, backend: str = "auto") -> str:
-    """Run the prompt via subscription CLI (`claude -p`) or optional API fallback."""
-    resolved = detect_backend(backend)
+def _call_claude(prompt: str, model: str | None, timeout: int = 300) -> str:
+    """Run `claude -p` with the prompt on stdin and return the text response."""
+    claude_bin = shutil.which("claude") or "claude"
+    cmd = [claude_bin, "-p", "--output-format", "text"]
+    if model:
+        cmd.extend(["--model", model])
 
-    if resolved == "claude":
-        claude_bin = shutil.which("claude") or "claude"
-        cmd = [claude_bin, "-p", "--output-format", "text"]
-        if model:
-            cmd.extend(["--model", model])
+    env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
 
-        env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
-
-        result = subprocess.run(
-            cmd,
-            input=prompt,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            env=env,
-            timeout=timeout,
+    result = subprocess.run(
+        cmd,
+        input=prompt,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        env=env,
+        timeout=timeout,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"claude -p exited {result.returncode}\nstderr: {result.stderr}"
         )
-        if result.returncode != 0:
-            raise RuntimeError(
-                f"claude -p exited {result.returncode}\nstderr: {result.stderr}"
-            )
-        return result.stdout
+    return result.stdout
 
-    elif resolved == "gemini-api":
-        api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-        if not api_key:
-            raise RuntimeError("GEMINI_API_KEY or GOOGLE_API_KEY not set")
-        gemini_model = model if (model and "gemini" in model.lower()) else "gemini-2.5-pro"
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{gemini_model}:generateContent?key={api_key}"
-        payload = {
-            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.7, "maxOutputTokens": 1024},
-        }
-        req = urllib.request.Request(
-            url,
-            data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-        return (
-            data.get("candidates", [{}])[0]
-            .get("content", {})
-            .get("parts", [{}])[0]
-            .get("text", "")
-        )
-
-    elif resolved == "anthropic-api":
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
-        if not api_key:
-            raise RuntimeError("ANTHROPIC_API_KEY not set")
-        anth_model = model if (model and "claude" in model.lower()) else "claude-sonnet-4-20250514"
-        url = "https://api.anthropic.com/v1/messages"
-        payload = {
-            "model": anth_model,
-            "max_tokens": 1024,
-            "messages": [{"role": "user", "content": prompt}],
-        }
-        req = urllib.request.Request(
-            url,
-            data=json.dumps(payload).encode("utf-8"),
-            headers={
-                "Content-Type": "application/json",
-                "x-api-key": api_key,
-                "anthropic-version": "2023-06-01",
-            },
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-        return "".join(
-            block.get("text", "")
-            for block in data.get("content", [])
-            if block.get("type") == "text"
-        )
-
-    raise ValueError(f"Unsupported backend: {resolved}")
 
 
 def build_improvement_prompt(
@@ -220,9 +158,8 @@ def improve_description(
     test_results: dict | None = None,
     log_dir: Path | None = None,
     iteration: int | None = None,
-    backend: str = "auto",
 ) -> str:
-    """Call LLM to improve the description based on eval results."""
+    """Call Claude to improve the description based on eval results."""
     prompt = build_improvement_prompt(
         skill_name=skill_name,
         skill_content=skill_content,
@@ -232,7 +169,7 @@ def improve_description(
         test_results=test_results,
     )
 
-    text = _call_llm(prompt, model, backend=backend)
+    text = _call_claude(prompt, model)
     description = parse_new_description(text)
 
     transcript: dict = {
@@ -255,7 +192,7 @@ def improve_description(
             f"important trigger words and intent coverage. Respond with only "
             f"the new description in <new_description> tags."
         )
-        shorten_text = _call_llm(shorten_prompt, model, backend=backend)
+        shorten_text = _call_claude(shorten_prompt, model)
         shortened = parse_new_description(shorten_text)
 
         transcript["rewrite_prompt"] = shorten_prompt
@@ -282,15 +219,9 @@ def main():
     parser.add_argument("--history", default=None, help="Path to history JSON (previous attempts)")
     parser.add_argument("--model", default=None, help="Model for improvement")
     parser.add_argument(
-        "--backend",
-        choices=["auto", "claude", "gemini-api", "anthropic-api"],
-        default="auto",
-        help="Execution backend (default: auto)",
-    )
-    parser.add_argument(
         "--print-prompt",
         action="store_true",
-        help="Print the improvement prompt and exit (for native Antigravity subagent subscription mode)",
+        help="Print the improvement prompt and exit (for native Antigravity subagent mode)",
     )
     parser.add_argument("--verbose", action="store_true", help="Print thinking to stderr")
     args = parser.parse_args()
@@ -331,7 +262,6 @@ def main():
         eval_results=eval_results,
         history=history,
         model=args.model,
-        backend=args.backend,
     )
 
     if args.verbose:

@@ -56,3 +56,53 @@ def parse_skill_md(skill_path: Path) -> tuple[str, str, str]:
 
     return name, description, content
 
+
+def update_skill_md_description(skill_path: Path, new_description: str) -> None:
+    """Update the description field in SKILL.md frontmatter in-place, preserving body and other fields."""
+    skill_file = skill_path / "SKILL.md"
+    content = skill_file.read_text(encoding="utf-8-sig")
+    newline = "\r\n" if "\r\n" in content else "\n"
+    lines = content.splitlines()
+
+    if not lines or lines[0].strip() != "---":
+        raise ValueError("SKILL.md missing frontmatter (no opening ---)")
+
+    end_idx = None
+    for i, line in enumerate(lines[1:], start=1):
+        if line.strip() == "---":
+            end_idx = i
+            break
+
+    if end_idx is None:
+        raise ValueError("SKILL.md missing frontmatter (no closing ---)")
+
+    clean_desc = " ".join(new_description.splitlines()).strip()
+    frontmatter_lines = lines[1:end_idx]
+    new_frontmatter: list[str] = []
+    i = 0
+    replaced = False
+    while i < len(frontmatter_lines):
+        line = frontmatter_lines[i]
+        if line.startswith("description:"):
+            value = line[len("description:"):].strip()
+            new_frontmatter.append(f"description: {clean_desc}")
+            replaced = True
+            if value in (">", "|", ">-", "|-"):
+                i += 1
+                while i < len(frontmatter_lines) and (
+                    frontmatter_lines[i].startswith("  ") or frontmatter_lines[i].startswith("\t")
+                ):
+                    i += 1
+                continue
+        else:
+            new_frontmatter.append(line)
+        i += 1
+
+    if not replaced:
+        new_frontmatter.append(f"description: {clean_desc}")
+
+    updated_lines = ["---", *new_frontmatter, "---", *lines[end_idx + 1 :]]
+    trailing = newline if content.endswith(("\n", "\r\n")) else ""
+    skill_file.write_text(newline.join(updated_lines) + trailing, encoding="utf-8")
+
+

@@ -1,4 +1,11 @@
-import { createTraceId, propagateAttributes, startObservation } from "@langfuse/tracing";
+import {
+  createTraceId,
+  propagateAttributes,
+  startActiveObservation,
+  startObservation,
+} from "@langfuse/tracing";
+
+import { LINK_ANCHOR_SPAN_NAME } from "./instrumentation.ts";
 
 import type {
   ContextAnchor,
@@ -6,7 +13,14 @@ import type {
   ParsedChildObservation,
   ParsedToolObservation,
   ParsedTurnTrace,
+  SubagentLinkRecord,
 } from "./types.ts";
+
+interface SubagentLinkCollectionContext {
+  parentConversationId: string;
+  parentSessionId: string;
+  collectedLinks: SubagentLinkRecord[];
+}
 
 const SYNTHETIC_PARENT_SPAN_ID = "0123456789abcdef";
 
@@ -63,6 +77,7 @@ export async function createTurnTraceId(turn: ParsedTurnTrace): Promise<string> 
 export function emitChildObservations(
   children: ParsedChildObservation[],
   parentSpanContext: ParentSpanContextLike,
+  linkContext?: SubagentLinkCollectionContext,
 ): void {
   for (const child of children) {
     if (child.type === "generation") {
@@ -125,7 +140,27 @@ export function emitChildObservations(
         subagentObs.otelSpan.setAttribute("gen_ai.tool.call.id", child.toolCallId);
       }
 
-      emitChildObservations(child.children, subagentObs.otelSpan.spanContext());
+      const subagentSpanContext = subagentObs.otelSpan.spanContext();
+
+      if (linkContext) {
+        const subagentIds =
+          child.subagentConversationIds ??
+          (child.subagentConversationId ? [child.subagentConversationId] : []);
+
+        for (const subId of subagentIds) {
+          linkContext.collectedLinks.push({
+            subagentConversationId: subId,
+            parentConversationId: linkContext.parentConversationId,
+            parentTraceId: subagentSpanContext.traceId,
+            parentSpanId: subagentSpanContext.spanId,
+            parentSessionId: linkContext.parentSessionId,
+            agentName: child.name,
+            updatedAt: new Date().toISOString(),
+          });
+        }
+      }
+
+      emitChildObservations(child.children, subagentSpanContext, linkContext);
       subagentObs.end(child.endTime);
     } else {
       const toolObs = startToolCategoryObservation(child, parentSpanContext);
@@ -147,7 +182,9 @@ export async function emitRootObservation(
   turn: ParsedTurnTrace,
   contextAnchor: ContextAnchor,
   traceId: string,
-): Promise<void> {
+): Promise<SubagentLinkRecord[]> {
+  const collectedLinks: SubagentLinkRecord[] = [];
+
   await propagateAttributes(
     {
       sessionId: turn.sessionId,
@@ -190,8 +227,54 @@ export async function emitRootObservation(
         },
       );
 
-      emitChildObservations(turn.children, rootObs.otelSpan.spanContext());
+      emitChildObservations(turn.children, rootObs.otelSpan.spanContext(), {
+        parentConversationId: turn.sessionId,
+        parentSessionId: turn.sessionId,
+        collectedLinks,
+      });
+
       rootObs.end(turn.endTime);
     },
   );
+
+  return collectedLinks;
+}
+
+export async function emitLinkedSubagentTurn(
+  turn: ParsedTurnTrace,
+  contextAnchor: ContextAnchor,
+  link: SubagentLinkRecord,
+): Promise<SubagentLinkRecord[]> {
+  const collectedLinks: SubagentLinkRecord[] = [];
+  const linkedParentContext: ParentSpanContextLike = {
+    traceId: link.parentTraceId,
+    spanId: link.parentSpanId,
+    traceFlags: 1,
+  };
+
+  await propagateAttributes(
+    {
+      sessionId: link.parentSessionId,
+      version: contextAnchor.version,
+      attachSkills: true,
+    },
+    async () => {
+      await startActiveObservation(
+        LINK_ANCHOR_SPAN_NAME,
+        async () => {
+          emitChildObservations(turn.children, linkedParentContext, {
+            parentConversationId: turn.sessionId,
+            parentSessionId: link.parentSessionId,
+            collectedLinks,
+          });
+        },
+        {
+          asType: "span",
+          parentSpanContext: linkedParentContext,
+        },
+      );
+    },
+  );
+
+  return collectedLinks;
 }

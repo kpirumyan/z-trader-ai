@@ -15,10 +15,12 @@ import {
   deriveSubagentObservationName,
   deserializeToolArgs,
   extractGenericTimingAndBody,
+  extractParentConversationFromTranscript,
   extractSubagentConversationId,
   extractSystemMessageContent,
   extractUserRequest,
   isClientMetaCommand,
+  isSubagentToolCall,
   matchSkillFilePath,
   normalizeModelIdentifier,
   parseIsoTimestamp,
@@ -2496,6 +2498,175 @@ describe("parseTranscriptTurns evaluation context enrichment", () => {
       expect(turns[1]!.metadata.hasPreviousTurn).toBe(true);
       expect(turns[1]!.metadata.previousTurnInput).toBe("/compact");
       expect(turns[1]!.metadata.previousTurnOutput).toBe("Executed client command: /compact");
+    });
+  });
+
+  describe("reactive wakeup turns and swarm subagent parsing", () => {
+    it("splits SYSTEM_MESSAGE arriving after a completed PLANNER_RESPONSE into a separate reactive turn without duplicating prior steps", () => {
+      const workerId = "05a9b8a6-d0f5-410d-97a9-206aac18256b";
+      const transcript = [
+        JSON.stringify({
+          step_index: 0,
+          source: "USER_EXPLICIT",
+          type: "USER_INPUT",
+          status: "DONE",
+          created_at: "2026-11-23T19:47:43Z",
+          content: "<USER_REQUEST>\nLaunch a worker and say hello\n</USER_REQUEST>",
+        }),
+        JSON.stringify({
+          step_index: 1,
+          source: "MODEL",
+          type: "PLANNER_RESPONSE",
+          status: "DONE",
+          created_at: "2026-11-23T19:47:50Z",
+          input_tokens: 1000,
+          output_tokens: 50,
+          tool_calls: [
+            {
+              name: "swarm",
+              args: {
+                action: '"add"',
+                name: '"worker"',
+                model: '"gemini-3.8-flash-low"',
+                brief: '"Say hello"',
+              },
+            },
+          ],
+        }),
+        JSON.stringify({
+          step_index: 2,
+          source: "MODEL",
+          type: "GENERIC",
+          status: "DONE",
+          created_at: "2026-11-23T19:47:51Z",
+          content: `Created At: 2026-11-23T19:47:51Z\nCompleted At: 2026-11-23T19:47:51Z\n{"status":"added","conversation_id":"${workerId}"}`,
+        }),
+        JSON.stringify({
+          step_index: 3,
+          source: "MODEL",
+          type: "PLANNER_RESPONSE",
+          status: "DONE",
+          created_at: "2026-11-23T19:47:53Z",
+          input_tokens: 1100,
+          output_tokens: 40,
+          content: "Worker launched.",
+        }),
+        JSON.stringify({
+          step_index: 4,
+          source: "SYSTEM",
+          type: "SYSTEM_MESSAGE",
+          status: "DONE",
+          created_at: "2026-11-23T19:48:13Z",
+          content: `<SYSTEM_MESSAGE>\n[Message] timestamp=2026-11-23T19:48:13Z sender=${workerId} content=[swarm] new board message #2\n</SYSTEM_MESSAGE>`,
+        }),
+        JSON.stringify({
+          step_index: 5,
+          source: "MODEL",
+          type: "PLANNER_RESPONSE",
+          status: "DONE",
+          created_at: "2026-11-23T19:48:14Z",
+          input_tokens: 1200,
+          output_tokens: 30,
+          tool_calls: [{ name: "read_board", args: { since: "1" } }],
+        }),
+        JSON.stringify({
+          step_index: 6,
+          source: "MODEL",
+          type: "GENERIC",
+          status: "DONE",
+          created_at: "2026-11-23T19:48:15Z",
+          content: "Hello from worker!",
+        }),
+        JSON.stringify({
+          step_index: 7,
+          source: "MODEL",
+          type: "PLANNER_RESPONSE",
+          status: "DONE",
+          created_at: "2026-11-23T19:48:16Z",
+          input_tokens: 1300,
+          output_tokens: 35,
+          content: "Worker reported back.",
+        }),
+      ].join("\n");
+
+      const allTurns = parseTranscriptTurns(transcript, {
+        conversationId: "conv-swarm-wakeup",
+      });
+
+      expect(allTurns).toHaveLength(2);
+
+      const turn1 = allTurns[0]!;
+      const turn2 = allTurns[1]!;
+
+      expect(turn1.turnIndex).toBe(1);
+      expect(turn1.startStepIndex).toBe(0);
+      expect(turn1.endStepIndex).toBe(3);
+
+      const swarmObs = turn1.children[1]!;
+
+      expect(swarmObs.type).toBe("agent");
+
+      if (swarmObs.type === "agent") {
+        expect(swarmObs.name).toBe("subagent:worker");
+        expect(swarmObs.subagentConversationId).toBe(workerId);
+        expect(swarmObs.subagentType).toBe("swarm");
+      }
+
+      expect(turn2.turnIndex).toBe(2);
+      expect(turn2.startStepIndex).toBe(4);
+      expect(turn2.endStepIndex).toBe(7);
+      expect(turn2.input).toContain("[swarm] new board message #2");
+      expect(turn2.output).toBe("Worker reported back.");
+      expect(turn2.metadata.hasPreviousTurn).toBe(false);
+      expect(turn2.metadata.reactiveWakeup).toBe(true);
+      expect(turn2.metadata.triggerType).toBe("system-wakeup");
+      expect(turn2.tags).toContain("trigger:system-wakeup");
+
+      const incrementalTurn2 = parseTranscriptTurns(transcript, {
+        conversationId: "conv-swarm-wakeup",
+        afterLineIndex: 3,
+      });
+
+      expect(incrementalTurn2).toHaveLength(1);
+      expect(incrementalTurn2[0]!.turnIndex).toBe(2);
+
+      expect(incrementalTurn2[0]!.children.map((c) => `${c.type}:${c.name}`)).toEqual([
+        "event:system:message",
+        "generation:llm-generation",
+        "tool:read_board",
+        "generation:llm-generation",
+      ]);
+    });
+
+    it("detects swarm add calls and extracts parent conversation ID from subagent initial SYSTEM_MESSAGE", () => {
+      expect(isSubagentToolCall("invoke_subagent", { TypeName: "research" })).toBe(true);
+      expect(isSubagentToolCall("swarm", { action: "add", name: "worker" })).toBe(true);
+      expect(isSubagentToolCall("swarm", { action: "status" })).toBe(false);
+
+      const parentId = "3f087a98-f295-4f0a-9d71-46226c1ff802";
+      const subId = "05a9b8a6-d0f5-410d-97a9-206aac18256b";
+
+      const subSteps = parseJsonlSteps(
+        JSON.stringify({
+          step_index: 0,
+          source: "SYSTEM",
+          type: "SYSTEM_MESSAGE",
+          content: `<SYSTEM_MESSAGE>\n[Message] timestamp=2026-11-23T19:48:02Z sender=${parentId} content=Say hello\n</SYSTEM_MESSAGE>`,
+        }),
+      );
+
+      expect(extractParentConversationFromTranscript(subSteps, subId)).toBe(parentId);
+
+      const userSteps = parseJsonlSteps(
+        JSON.stringify({
+          step_index: 0,
+          source: "USER_EXPLICIT",
+          type: "USER_INPUT",
+          content: "<USER_REQUEST>\nHello\n</USER_REQUEST>",
+        }),
+      );
+
+      expect(extractParentConversationFromTranscript(userSteps, subId)).toBeUndefined();
     });
   });
 });

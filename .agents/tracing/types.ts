@@ -141,6 +141,7 @@ export interface ParsedAgentObservation {
   stepIndex: number;
   toolCallId?: string;
   subagentConversationId?: string;
+  subagentConversationIds?: string[];
   role?: string;
   subagentType?: string;
   startTime: Date;
@@ -246,10 +247,21 @@ export interface LangfuseCursorState {
 
 export interface PendingExportSpool {
   conversationId?: string;
+  parentConversationId?: string;
   workspaceRoot?: string;
   cursorPath?: string;
   contextAnchor?: ContextAnchor;
   pendingTurns: ParsedTurnTrace[];
+  updatedAt: string;
+}
+
+export interface SubagentLinkRecord {
+  subagentConversationId: string;
+  parentConversationId: string;
+  parentTraceId: string;
+  parentSpanId: string;
+  parentSessionId: string;
+  agentName: string;
   updatedAt: string;
 }
 
@@ -271,6 +283,8 @@ export interface RunStopHookOptions {
   skillDirs?: string[];
   spoolDir?: string;
   drainBacklog?: boolean;
+  inlineSubagents?: boolean;
+  orphanGraceMs?: number;
   simulateFlushFailure?: Error;
   onWarning?: (message: string) => void;
 }
@@ -303,6 +317,7 @@ export interface DrainSpoolOptions {
   timeoutMs?: number;
   spanExporter?: SpanExporterLike;
   skillDirs?: string[];
+  orphanGraceMs?: number;
   simulateFlushFailure?: Error;
   onWarning?: (message: string) => void;
 }
@@ -322,6 +337,7 @@ export interface RunSessionStartHookOptions {
   spanExporter?: SpanExporterLike;
   skillDirs?: string[];
   spoolDir?: string;
+  orphanGraceMs?: number;
   simulateFlushFailure?: Error;
   onWarning?: (message: string) => void;
 }

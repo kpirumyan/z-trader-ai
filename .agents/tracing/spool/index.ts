@@ -1,5 +1,6 @@
 export { advanceCursorForTurns, readCursorState, writeCursorState } from "./cursor.ts";
 export { drainSpoolDirectory } from "./drain.ts";
+export { readSubagentLink, writeSubagentLink } from "./links.ts";
 
 export {
   getSpoolFilePath,

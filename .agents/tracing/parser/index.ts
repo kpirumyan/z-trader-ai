@@ -8,7 +8,10 @@ export { normalizeModelIdentifier, parseUserSettingsChanges } from "./settings-p
 export {
   createFilesystemSubagentResolver,
   deriveSubagentObservationName,
+  extractParentConversationFromTranscript,
   extractSubagentConversationId,
+  extractSubagentConversationIds,
+  isSubagentToolCall,
 } from "./subagent-resolver.ts";
 
 export {

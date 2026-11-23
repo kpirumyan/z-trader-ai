@@ -7,11 +7,12 @@ import {
   startTracingSession,
   type TracingSession,
 } from "../instrumentation.ts";
-import { createTurnTraceId, emitRootObservation } from "../observations.ts";
+import { createTurnTraceId, emitLinkedSubagentTurn, emitRootObservation } from "../observations.ts";
 import { emitHookWarning, hasLangfuseCredentials, resolveDryRunFlag } from "../runtime.ts";
 import { discoverAvailableSkills, resolveDefaultSkillDirs } from "../skills.ts";
 import { computeContextAnchor } from "../versioning.ts";
 import { advanceCursorForTurns } from "./cursor.ts";
+import { readSubagentLink, writeSubagentLink } from "./links.ts";
 import { getSpoolFilePath, listSpoolFiles, readSpoolEntry, removeSpoolFile } from "./store.ts";
 
 import type {
@@ -19,14 +20,51 @@ import type {
   DrainSpoolOptions,
   DrainSpoolResult,
   PendingExportSpool,
+  SubagentLinkRecord,
 } from "../types.ts";
 
 const MIN_DRAIN_BUDGET_MS = 500;
+const DEFAULT_ORPHAN_PARENT_GRACE_MS = 5 * 60 * 1000;
 
 interface ResolvedDrainItem {
   filePath: string;
   entry: PendingExportSpool;
   anchor: ContextAnchor;
+}
+
+type DrainReadiness = "linked" | "root" | "wait-pending-parent" | "wait-active-parent";
+
+function classifyDrainReadiness(
+  item: ResolvedDrainItem,
+  resolveLink: (conversationId: string) => SubagentLinkRecord | null,
+  pendingConversationIds: Set<string>,
+  orphanGraceMs: number,
+  nowMs: number,
+): DrainReadiness {
+  const convId = item.entry.conversationId;
+
+  if (convId && resolveLink(convId)) {
+    return "linked";
+  }
+
+  const parentId = item.entry.parentConversationId?.toLowerCase();
+
+  if (!parentId) {
+    return "root";
+  }
+
+  if (pendingConversationIds.has(parentId)) {
+    return "wait-pending-parent";
+  }
+
+  const updatedMs = Date.parse(item.entry.updatedAt);
+  const ageMs = Number.isFinite(updatedMs) ? nowMs - updatedMs : orphanGraceMs;
+
+  if (ageMs < orphanGraceMs) {
+    return "wait-active-parent";
+  }
+
+  return "root";
 }
 
 /**
@@ -135,94 +173,176 @@ export async function drainSpoolDirectory(options: DrainSpoolOptions): Promise<D
     };
   }
 
-  const groupsByRelease = new Map<string, ResolvedDrainItem[]>();
-
-  for (const item of itemsToDrain) {
-    const existing = groupsByRelease.get(item.anchor.release);
-
-    if (existing) {
-      existing.push(item);
-    } else {
-      groupsByRelease.set(item.anchor.release, [item]);
-    }
-  }
-
   const skillDirs = options.skillDirs ?? resolveDefaultSkillDirs(options.workspaceRoot);
   const availableSkills = await discoverAvailableSkills(skillDirs);
   const totalBudgetMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const orphanGraceMs = options.orphanGraceMs ?? DEFAULT_ORPHAN_PARENT_GRACE_MS;
   const startedAt = Date.now();
 
   let drainedFiles = 0;
   let drainedTurns = 0;
 
-  for (const [release, group] of groupsByRelease.entries()) {
-    const elapsedMs = Date.now() - startedAt;
-    const remainingMs = totalBudgetMs - elapsedMs;
+  let pendingItems = [...itemsToDrain];
+  const pendingConversationIds = new Set(
+    pendingItems
+      .map((item) => item.entry.conversationId?.toLowerCase())
+      .filter((id): id is string => Boolean(id)),
+  );
+  const ephemeralLinks = new Map<string, SubagentLinkRecord>();
 
-    if (remainingMs < MIN_DRAIN_BUDGET_MS && drainedFiles > 0) {
-      failedFiles += group.length;
-      continue;
-    }
+  const resolveLink = (conversationId: string): SubagentLinkRecord | null => {
+    const key = conversationId.toLowerCase();
 
-    const effectiveTimeoutMs = Math.max(MIN_DRAIN_BUDGET_MS, remainingMs);
-    let session: TracingSession | undefined;
+    return ephemeralLinks.get(key) ?? readSubagentLink(options.spoolDir, key);
+  };
 
-    try {
-      session = startTracingSession({
-        release,
-        dryRun,
-        spanExporter: options.spanExporter,
-        availableSkills,
-      });
+  while (pendingItems.length > 0) {
+    const nowMs = Date.now();
+    const readyItems: ResolvedDrainItem[] = [];
+    const deferredItems: ResolvedDrainItem[] = [];
 
-      for (const item of group) {
-        for (const turn of item.entry.pendingTurns) {
-          const traceId = await createTurnTraceId(turn);
-
-          await emitRootObservation(turn, item.anchor, traceId);
-        }
-      }
-
-      if (options.simulateFlushFailure) {
-        throw options.simulateFlushFailure;
-      }
-
-      await flushAndShutdown(session, effectiveTimeoutMs);
-
-      if (shouldPersistState) {
-        for (const item of group) {
-          if (item.entry.cursorPath) {
-            advanceCursorForTurns(item.entry.cursorPath, item.entry.pendingTurns);
-          }
-
-          removeSpoolFile(item.filePath);
-        }
-      }
-
-      drainedFiles += group.length;
-
-      for (const item of group) {
-        drainedTurns += item.entry.pendingTurns.length;
-      }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-
-      emitHookWarning(
-        options.onWarning,
-        `Failed to drain ${group.length} spooled file(s) from ${options.spoolDir}: ${message}`,
+    for (const item of pendingItems) {
+      const readiness = classifyDrainReadiness(
+        item,
+        resolveLink,
+        pendingConversationIds,
+        orphanGraceMs,
+        nowMs,
       );
 
-      failedFiles += group.length;
+      if (readiness === "linked" || readiness === "root") {
+        readyItems.push(item);
+      } else {
+        deferredItems.push(item);
+      }
+    }
 
-      try {
-        await session?.sdk.shutdown();
-      } catch {
-        // Ignore shutdown error during fail-open
+    if (readyItems.length === 0) {
+      break;
+    }
+
+    const groupsByRelease = new Map<string, ResolvedDrainItem[]>();
+
+    for (const item of readyItems) {
+      const existing = groupsByRelease.get(item.anchor.release);
+
+      if (existing) {
+        existing.push(item);
+      } else {
+        groupsByRelease.set(item.anchor.release, [item]);
+      }
+    }
+
+    let waveProgressed = false;
+    let waveAbortedOnFailure = false;
+
+    for (const [release, group] of groupsByRelease.entries()) {
+      const elapsedMs = Date.now() - startedAt;
+      const remainingMs = totalBudgetMs - elapsedMs;
+
+      if (remainingMs < MIN_DRAIN_BUDGET_MS && drainedFiles > 0) {
+        failedFiles += group.length;
+        waveAbortedOnFailure = true;
+        continue;
       }
 
+      const effectiveTimeoutMs = Math.max(MIN_DRAIN_BUDGET_MS, remainingMs);
+      let session: TracingSession | undefined;
+      const groupCreatedLinks: SubagentLinkRecord[] = [];
+      const groupEphemeralKeys: string[] = [];
+
+      try {
+        session = startTracingSession({
+          release,
+          dryRun,
+          spanExporter: options.spanExporter,
+          availableSkills,
+        });
+
+        for (const item of group) {
+          const itemLink = item.entry.conversationId
+            ? resolveLink(item.entry.conversationId)
+            : null;
+
+          for (const turn of item.entry.pendingTurns) {
+            const links = itemLink
+              ? await emitLinkedSubagentTurn(turn, item.anchor, itemLink)
+              : await emitRootObservation(turn, item.anchor, await createTurnTraceId(turn));
+
+            for (const link of links) {
+              const linkKey = link.subagentConversationId.toLowerCase();
+
+              groupCreatedLinks.push(link);
+              ephemeralLinks.set(linkKey, link);
+              groupEphemeralKeys.push(linkKey);
+            }
+          }
+        }
+
+        if (options.simulateFlushFailure) {
+          throw options.simulateFlushFailure;
+        }
+
+        await flushAndShutdown(session, effectiveTimeoutMs);
+
+        if (shouldPersistState) {
+          for (const link of groupCreatedLinks) {
+            writeSubagentLink(options.spoolDir, link);
+          }
+
+          for (const item of group) {
+            if (item.entry.cursorPath) {
+              advanceCursorForTurns(item.entry.cursorPath, item.entry.pendingTurns);
+            }
+
+            removeSpoolFile(item.filePath);
+          }
+        }
+
+        const drainedFileSet = new Set(group.map((item) => item.filePath));
+
+        for (const item of group) {
+          if (item.entry.conversationId) {
+            pendingConversationIds.delete(item.entry.conversationId.toLowerCase());
+          }
+        }
+
+        pendingItems = pendingItems.filter((item) => !drainedFileSet.has(item.filePath));
+        drainedFiles += group.length;
+        waveProgressed = true;
+
+        for (const item of group) {
+          drainedTurns += item.entry.pendingTurns.length;
+        }
+      } catch (err: unknown) {
+        for (const key of groupEphemeralKeys) {
+          ephemeralLinks.delete(key);
+        }
+
+        const message = err instanceof Error ? err.message : String(err);
+
+        emitHookWarning(
+          options.onWarning,
+          `Failed to drain ${group.length} spooled file(s) from ${options.spoolDir}: ${message}`,
+        );
+
+        failedFiles += group.length;
+        waveAbortedOnFailure = true;
+
+        try {
+          await session?.sdk.shutdown();
+        } catch {
+          // Ignore shutdown error during fail-open
+        }
+
+        break;
+      } finally {
+        resetTracingProvider();
+      }
+    }
+
+    if (waveAbortedOnFailure || !waveProgressed || deferredItems.length === 0) {
       break;
-    } finally {
-      resetTracingProvider();
     }
   }
 

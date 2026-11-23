@@ -1,10 +1,11 @@
-import { LangfuseSpanProcessor } from "@langfuse/otel";
+import { isDefaultExportSpan, LangfuseSpanProcessor } from "@langfuse/otel";
 import { setLangfuseTracerProvider } from "@langfuse/tracing";
 import { NodeSDK } from "@opentelemetry/sdk-node";
 
 import type { SkillReference, SpanExporterLike, TracerProviderLike } from "./types.ts";
 
 export const DEFAULT_TIMEOUT_MS = 4500;
+export const LINK_ANCHOR_SPAN_NAME = "__langfuse_link_anchor__";
 
 export function createNoopSpanExporter(): SpanExporterLike {
   return {
@@ -38,6 +39,8 @@ export function startTracingSession(options: {
     ...(options.availableSkills && options.availableSkills.length > 0
       ? { skills: { available: options.availableSkills } }
       : {}),
+    shouldExportSpan: ({ otelSpan }) =>
+      isDefaultExportSpan(otelSpan) && otelSpan.name !== LINK_ANCHOR_SPAN_NAME,
     mediaUploadEnabled: false,
     timeout: 4,
   });

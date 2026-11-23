@@ -11,6 +11,8 @@ import {
   createTurnTraceId,
   DEFAULT_TIMEOUT_MS,
   discoverAvailableSkills,
+  LINK_ANCHOR_SPAN_NAME,
+  readSubagentLink,
   runStopHook,
 } from "../index.ts";
 
@@ -956,6 +958,262 @@ describe("exporter: end-to-end Langfuse OTel export", () => {
       expect(turn2Root.attributes[LangfuseOtelSpanAttributes.OBSERVATION_STATUS_MESSAGE]).toBe(
         "Turn canceled by user (USER_CANCELED)",
       );
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("links async swarm worker spans as children of parent trace and avoids duplicate root spans on reactive wakeup", async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "z-trader-swarm-link-test-"));
+
+    try {
+      const brainDir = path.join(tempDir, "brain");
+      const parentId = "3f087a98-f295-4f0a-9d71-46226c1ff802";
+      const workerId = "05a9b8a6-d0f5-410d-97a9-206aac18256b";
+      const parentLogsDir = path.join(brainDir, parentId, ".system_generated", "logs");
+      const workerLogsDir = path.join(brainDir, workerId, ".system_generated", "logs");
+
+      fs.mkdirSync(parentLogsDir, { recursive: true });
+      fs.mkdirSync(workerLogsDir, { recursive: true });
+
+      const parentFullPath = path.join(parentLogsDir, "transcript_full.jsonl");
+      const workerFullPath = path.join(workerLogsDir, "transcript_full.jsonl");
+
+      const parentPhase1Lines = [
+        JSON.stringify({
+          step_index: 0,
+          source: "USER_EXPLICIT",
+          type: "USER_INPUT",
+          status: "DONE",
+          created_at: "2026-11-23T19:47:43Z",
+          content: "<USER_REQUEST>\nLaunch worker and greet\n</USER_REQUEST>",
+        }),
+        JSON.stringify({
+          step_index: 1,
+          source: "MODEL",
+          type: "PLANNER_RESPONSE",
+          status: "DONE",
+          created_at: "2026-11-23T19:47:50Z",
+          input_tokens: 1000,
+          output_tokens: 50,
+          tool_calls: [
+            {
+              name: "swarm",
+              args: { action: '"add"', name: '"worker"', brief: '"Say hello"' },
+            },
+          ],
+        }),
+        JSON.stringify({
+          step_index: 2,
+          source: "MODEL",
+          type: "GENERIC",
+          status: "DONE",
+          created_at: "2026-11-23T19:47:51Z",
+          content: `{"status":"added","conversation_id":"${workerId}"}`,
+        }),
+        JSON.stringify({
+          step_index: 3,
+          source: "MODEL",
+          type: "PLANNER_RESPONSE",
+          status: "DONE",
+          created_at: "2026-11-23T19:47:53Z",
+          input_tokens: 1100,
+          output_tokens: 40,
+          content: "Worker launched.",
+        }),
+      ];
+
+      fs.writeFileSync(parentFullPath, parentPhase1Lines.join("\n"), "utf8");
+
+      const exportedSpans: Array<{
+        name: string;
+        traceId: string;
+        spanId: string;
+        parentSpanId?: string;
+        attributes: Record<string, unknown>;
+      }> = [];
+
+      const collectExporter = {
+        export(
+          spans: Array<{
+            name: string;
+            spanContext: () => { traceId: string; spanId: string };
+            parentSpanContext?: { spanId?: string };
+            attributes: Record<string, unknown>;
+          }>,
+          resultCallback: (res: { code: number }) => void,
+        ) {
+          for (const s of spans) {
+            exportedSpans.push({
+              name: s.name,
+              traceId: s.spanContext().traceId,
+              spanId: s.spanContext().spanId,
+              parentSpanId: s.parentSpanContext?.spanId,
+              attributes: { ...s.attributes },
+            });
+          }
+
+          resultCallback({ code: 0 });
+        },
+        shutdown: async () => {},
+      };
+
+      const parentTurn1Res = await runStopHook(
+        {
+          conversationId: parentId,
+          transcriptPath: parentFullPath,
+          modelName: "gemini-3.8-flash-high",
+          cwd: tempDir,
+        },
+        {
+          skillDirs: [],
+          spanExporter: collectExporter,
+        },
+      );
+
+      expect(parentTurn1Res.exportedTurns).toBe(1);
+
+      const expectedTurn1TraceId = await createTraceId(`${parentId}-turn-1`);
+      const workerAgentSpan = exportedSpans.find((s) => s.name === "subagent:worker");
+
+      expect(workerAgentSpan).toBeDefined();
+      expect(workerAgentSpan?.traceId).toBe(expectedTurn1TraceId);
+
+      expect(workerAgentSpan?.attributes[LangfuseOtelSpanAttributes.OBSERVATION_TYPE]).toBe(
+        "agent",
+      );
+
+      const spoolDir = path.join(brainDir, ".langfuse-spool");
+      const savedLink = readSubagentLink(spoolDir, workerId);
+
+      expect(savedLink?.parentTraceId).toBe(expectedTurn1TraceId);
+      expect(savedLink?.parentSpanId).toBe(workerAgentSpan?.spanId);
+
+      // Now worker completes its own turn in its own Stop Hook
+      const workerLines = [
+        JSON.stringify({
+          step_index: 0,
+          source: "SYSTEM",
+          type: "SYSTEM_MESSAGE",
+          status: "DONE",
+          created_at: "2026-11-23T19:48:00Z",
+          content: `<SYSTEM_MESSAGE>\n[Message] sender=${parentId} content=Say hello\n</SYSTEM_MESSAGE>`,
+        }),
+        JSON.stringify({
+          step_index: 1,
+          source: "MODEL",
+          type: "PLANNER_RESPONSE",
+          status: "DONE",
+          created_at: "2026-11-23T19:48:02Z",
+          input_tokens: 500,
+          output_tokens: 30,
+          tool_calls: [{ name: "post_board", args: { message: '"Hello!"' } }],
+        }),
+        JSON.stringify({
+          step_index: 2,
+          source: "MODEL",
+          type: "GENERIC",
+          status: "DONE",
+          created_at: "2026-11-23T19:48:03Z",
+          content: "Posted.",
+        }),
+        JSON.stringify({
+          step_index: 3,
+          source: "MODEL",
+          type: "PLANNER_RESPONSE",
+          status: "DONE",
+          created_at: "2026-11-23T19:48:04Z",
+          input_tokens: 550,
+          output_tokens: 20,
+          content: "Greeted user.",
+        }),
+      ];
+
+      fs.writeFileSync(workerFullPath, workerLines.join("\n"), "utf8");
+
+      const spansBeforeWorker = exportedSpans.length;
+      const workerRes = await runStopHook(
+        {
+          conversationId: workerId,
+          transcriptPath: workerFullPath,
+          modelName: "gemini-3.8-flash-low",
+          cwd: tempDir,
+        },
+        {
+          skillDirs: [],
+          spanExporter: collectExporter,
+        },
+      );
+
+      expect(workerRes.exportedTurns).toBe(1);
+      expect(workerRes.summary[0]?.traceId).toBe(expectedTurn1TraceId);
+
+      const workerSpans = exportedSpans.slice(spansBeforeWorker);
+
+      expect(workerSpans.some((s) => s.name === LINK_ANCHOR_SPAN_NAME)).toBe(false);
+      expect(workerSpans.some((s) => s.name === "agent-turn")).toBe(false);
+      expect(workerSpans.length).toBeGreaterThanOrEqual(4);
+
+      for (const ws of workerSpans) {
+        expect(ws.traceId).toBe(expectedTurn1TraceId);
+        expect(ws.parentSpanId).toBe(workerAgentSpan?.spanId);
+        expect(ws.attributes[LangfuseOtelSpanAttributes.TRACE_SESSION_ID]).toBe(parentId);
+        expect(ws.attributes[LangfuseOtelSpanAttributes.IS_APP_ROOT]).toBeUndefined();
+      }
+
+      // Now coordinator receives reactive wakeup and runs Stop Hook again
+      const parentPhase2Lines = [
+        ...parentPhase1Lines,
+        JSON.stringify({
+          step_index: 4,
+          source: "SYSTEM",
+          type: "SYSTEM_MESSAGE",
+          status: "DONE",
+          created_at: "2026-11-23T19:48:13Z",
+          content: `<SYSTEM_MESSAGE>\n[Message] sender=${workerId} content=[swarm] new board message #2\n</SYSTEM_MESSAGE>`,
+        }),
+        JSON.stringify({
+          step_index: 5,
+          source: "MODEL",
+          type: "PLANNER_RESPONSE",
+          status: "DONE",
+          created_at: "2026-11-23T19:48:14Z",
+          input_tokens: 1200,
+          output_tokens: 25,
+          content: "Worker finished greeting.",
+        }),
+      ];
+
+      fs.writeFileSync(parentFullPath, parentPhase2Lines.join("\n"), "utf8");
+
+      const spansBeforeTurn2 = exportedSpans.length;
+      const parentTurn2Res = await runStopHook(
+        {
+          conversationId: parentId,
+          transcriptPath: parentFullPath,
+          modelName: "gemini-3.8-flash-high",
+          cwd: tempDir,
+        },
+        {
+          skillDirs: [],
+          spanExporter: collectExporter,
+        },
+      );
+
+      expect(parentTurn2Res.exportedTurns).toBe(1);
+
+      const expectedTurn2TraceId = await createTraceId(`${parentId}-turn-2`);
+
+      expect(parentTurn2Res.summary[0]?.traceId).toBe(expectedTurn2TraceId);
+
+      const turn2Spans = exportedSpans.slice(spansBeforeTurn2);
+      const turn2Root = turn2Spans.find((s) => s.name === "agent-turn");
+
+      expect(turn2Root).toBeDefined();
+      expect(turn2Root?.traceId).toBe(expectedTurn2TraceId);
+      expect(turn2Root?.attributes["langfuse.trace.metadata.hasPreviousTurn"]).toBe('"false"');
+      // Ensure Turn 1 steps (swarm call) were NOT re-emitted in Turn 2
+      expect(turn2Spans.some((s) => s.name === "subagent:worker")).toBe(false);
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }

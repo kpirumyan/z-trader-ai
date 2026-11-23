@@ -3,7 +3,8 @@ import { parseJsonlSteps } from "./jsonl-reader.ts";
 import { parseUserSettingsChanges } from "./settings-parser.ts";
 import {
   deriveSubagentObservationName,
-  extractSubagentConversationId,
+  extractSubagentConversationIds,
+  isSubagentToolCall,
 } from "./subagent-resolver.ts";
 import { collectModuleTagsFromToolArgs } from "./tagger.ts";
 import { extractGenericTimingAndBody, parseIsoTimestamp } from "./timing-extractor.ts";
@@ -379,7 +380,7 @@ function parseStepSequence(
       const rawId = tc.id?.trim();
       const toolCallId =
         rawId || buildSyntheticToolCallId(options.conversationId, step.step_index, idx);
-      const isSubagent = tc.name === "invoke_subagent";
+      const isSubagent = isSubagentToolCall(tc.name, deserializedArgs);
       const classification = isSubagent ? null : classifyToolCall(tc.name, deserializedArgs);
       const resolvedName = isSubagent
         ? deriveSubagentObservationName(deserializedArgs)
@@ -511,7 +512,8 @@ function parseStepSequence(
       if (isSubagent) {
         observationCounts.agent++;
 
-        const subagentId = extractSubagentConversationId(deserializedArgs, cleanBody);
+        const subagentIds = extractSubagentConversationIds(deserializedArgs, cleanBody);
+        const subagentId = subagentIds[0];
         let subagentChildren: ParsedChildObservation[] = [];
         let subagentUsage: TokenUsageSummary = {
           input: 0,
@@ -520,29 +522,33 @@ function parseStepSequence(
           total: 0,
         };
 
-        if (
-          subagentId &&
-          !visited.has(subagentId) &&
-          typeof options.resolveSubagentTranscript === "function"
-        ) {
-          const childTranscriptRaw = options.resolveSubagentTranscript(subagentId);
+        if (subagentIds.length > 0 && typeof options.resolveSubagentTranscript === "function") {
+          for (const candidateSubId of subagentIds) {
+            if (visited.has(candidateSubId)) {
+              continue;
+            }
 
-          if (childTranscriptRaw) {
+            const childTranscriptRaw = options.resolveSubagentTranscript(candidateSubId);
+
+            if (!childTranscriptRaw) {
+              continue;
+            }
+
             const nextVisited = new Set(visited);
 
-            nextVisited.add(subagentId);
+            nextVisited.add(candidateSubId);
 
             const subTurns = parseTranscriptTurns(childTranscriptRaw, {
               ...options,
               modelName: effectiveModelName,
-              conversationId: subagentId,
+              conversationId: candidateSubId,
               terminationReason: undefined,
               afterStepIndex: undefined,
               afterLineIndex: undefined,
               visitedConversationIds: nextVisited,
             });
 
-            subagentChildren = subTurns.flatMap((t) => t.children);
+            subagentChildren = [...subagentChildren, ...subTurns.flatMap((t) => t.children)];
 
             for (const st of subTurns) {
               subagentUsage = {
@@ -568,13 +574,26 @@ function parseStepSequence(
                 tags.add(tag);
               }
             }
-
-            usageSummary.input += subagentUsage.input;
-            usageSummary.output += subagentUsage.output;
-            usageSummary.cacheReadInputTokens += subagentUsage.cacheReadInputTokens;
-            usageSummary.total += subagentUsage.total;
           }
+
+          usageSummary.input += subagentUsage.input;
+          usageSummary.output += subagentUsage.output;
+          usageSummary.cacheReadInputTokens += subagentUsage.cacheReadInputTokens;
+          usageSummary.total += subagentUsage.total;
         }
+
+        const resolvedRole =
+          typeof deserializedArgs.Role === "string"
+            ? deserializedArgs.Role
+            : typeof deserializedArgs.name === "string"
+              ? deserializedArgs.name
+              : undefined;
+        const resolvedSubagentType =
+          typeof deserializedArgs.TypeName === "string"
+            ? deserializedArgs.TypeName
+            : tc.name === "swarm"
+              ? "swarm"
+              : undefined;
 
         const agentObs: ParsedAgentObservation = {
           type: "agent",
@@ -582,10 +601,9 @@ function parseStepSequence(
           stepIndex: resultStepIndex,
           toolCallId,
           ...(subagentId ? { subagentConversationId: subagentId } : {}),
-          ...(typeof deserializedArgs.Role === "string" ? { role: deserializedArgs.Role } : {}),
-          ...(typeof deserializedArgs.TypeName === "string"
-            ? { subagentType: deserializedArgs.TypeName }
-            : {}),
+          ...(subagentIds.length > 1 ? { subagentConversationIds: subagentIds } : {}),
+          ...(resolvedRole ? { role: resolvedRole } : {}),
+          ...(resolvedSubagentType ? { subagentType: resolvedSubagentType } : {}),
           startTime,
           endTime,
           input: deserializedArgs,
@@ -599,6 +617,7 @@ function parseStepSequence(
             toolCallIndex: tcIdx,
             toolCallId,
             ...(subagentId ? { subagentConversationId: subagentId } : {}),
+            ...(subagentIds.length > 1 ? { subagentConversationIds: subagentIds } : {}),
           },
         };
 
@@ -676,13 +695,32 @@ export function parseTranscriptTurns(
 
   const turnSlices: RawTranscriptStep[][] = [];
   let currentSlice: RawTranscriptStep[] = [];
+  let sliceCompletedByPlanner = false;
 
   for (const step of steps) {
-    if (step.type === "USER_INPUT" && currentSlice.length > 0) {
+    if (step.type === "USER_INPUT") {
+      if (currentSlice.length > 0) {
+        turnSlices.push(currentSlice);
+      }
+
+      currentSlice = [step];
+      sliceCompletedByPlanner = false;
+      continue;
+    }
+
+    if (step.type === "SYSTEM_MESSAGE" && sliceCompletedByPlanner && currentSlice.length > 0) {
       turnSlices.push(currentSlice);
       currentSlice = [step];
-    } else {
-      currentSlice.push(step);
+      sliceCompletedByPlanner = false;
+      continue;
+    }
+
+    currentSlice.push(step);
+
+    if (step.type === "PLANNER_RESPONSE") {
+      const hasToolCalls = Array.isArray(step.tool_calls) && step.tool_calls.length > 0;
+
+      sliceCompletedByPlanner = !hasToolCalls;
     }
   }
 
@@ -705,7 +743,13 @@ export function parseTranscriptTurns(
     const endLineIndex = lastStep._lineIndex;
 
     const userInputStep = slice.find((s) => s.type === "USER_INPUT");
+    const firstSystemStep = slice.find((s) => s.type === "SYSTEM_MESSAGE");
+    const isReactiveWakeup = !userInputStep && firstSystemStep !== undefined;
     const extractedInput = extractUserRequest(userInputStep?.content ?? "");
+    const systemInputText = firstSystemStep
+      ? extractSystemMessageContent(firstSystemStep.content ?? "")
+      : "";
+    const turnInput = extractedInput.prompt || systemInputText;
     const startTime = parseIsoTimestamp(firstStep.created_at, new Date(0));
 
     const settingsChanges = extractedInput.userSettingsChange
@@ -760,7 +804,7 @@ export function parseTranscriptTurns(
     const priorTurn = previousTurnContext;
 
     previousTurnContext = {
-      input: extractedInput.prompt,
+      input: isReactiveWakeup ? (priorTurn?.input ?? systemInputText) : extractedInput.prompt,
       output,
     };
 
@@ -812,7 +856,7 @@ export function parseTranscriptTurns(
           : undefined;
 
     const gateSummary = buildTurnGateSummary(sequence.children);
-    const hasPreviousTurn = turnIndex > 1 && priorTurn !== undefined;
+    const hasPreviousTurn = turnIndex > 1 && priorTurn !== undefined && !isReactiveWakeup;
 
     const metadata: Record<string, unknown> = {
       turnIndex,
@@ -827,6 +871,7 @@ export function parseTranscriptTurns(
       systemMessageCount: sequence.systemMessageCount,
       observationCounts: sequence.observationCounts,
       hasPreviousTurn,
+      ...(isReactiveWakeup ? { reactiveWakeup: true, triggerType: "system-wakeup" } : {}),
       ...(isClientCommand ? { clientCommand: true } : {}),
       ...(hasPreviousTurn
         ? {
@@ -852,6 +897,10 @@ export function parseTranscriptTurns(
       turnTags.add(`command:${clientCommandName}`);
     }
 
+    if (isReactiveWakeup) {
+      turnTags.add("trigger:system-wakeup");
+    }
+
     parsedTurns.push({
       turnIndex,
       traceSeed: `${options.conversationId}-turn-${turnIndex}`,
@@ -862,7 +911,7 @@ export function parseTranscriptTurns(
       ...(typeof endLineIndex === "number" ? { endLineIndex } : {}),
       startTime,
       endTime,
-      input: extractedInput.prompt,
+      input: turnInput,
       output,
       ...(traceLevel ? { level: traceLevel } : {}),
       ...(traceStatusMessage ? { statusMessage: traceStatusMessage } : {}),

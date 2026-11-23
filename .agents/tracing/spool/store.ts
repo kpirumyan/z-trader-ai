@@ -175,6 +175,9 @@ export function readSpoolEntry(spoolPath: string): PendingExportSpool | null {
         ...(typeof parsed.conversationId === "string"
           ? { conversationId: parsed.conversationId }
           : {}),
+        ...(typeof parsed.parentConversationId === "string"
+          ? { parentConversationId: parsed.parentConversationId }
+          : {}),
         ...(typeof parsed.workspaceRoot === "string"
           ? { workspaceRoot: parsed.workspaceRoot }
           : {}),
@@ -200,6 +203,7 @@ export function writePendingSpool(
   turns: ParsedTurnTrace[],
   metadata?: {
     conversationId?: string;
+    parentConversationId?: string;
     workspaceRoot?: string;
     cursorPath?: string;
     contextAnchor?: ContextAnchor;
@@ -207,6 +211,9 @@ export function writePendingSpool(
 ): void {
   const payload: PendingExportSpool = {
     ...(metadata?.conversationId ? { conversationId: metadata.conversationId } : {}),
+    ...(metadata?.parentConversationId
+      ? { parentConversationId: metadata.parentConversationId }
+      : {}),
     ...(metadata?.workspaceRoot ? { workspaceRoot: metadata.workspaceRoot } : {}),
     ...(metadata?.cursorPath ? { cursorPath: metadata.cursorPath } : {}),
     ...(metadata?.contextAnchor ? { contextAnchor: metadata.contextAnchor } : {}),

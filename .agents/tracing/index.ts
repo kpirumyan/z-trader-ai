@@ -11,14 +11,17 @@ export {
   readCursorState,
   readPendingSpool,
   readSpoolEntry,
+  readSubagentLink,
   removeSpoolFile,
   resolveSpoolDir,
   writeCursorState,
   writePendingSpool,
+  writeSubagentLink,
 } from "./spool/index.ts";
 
 export {
   DEFAULT_TIMEOUT_MS,
+  LINK_ANCHOR_SPAN_NAME,
   createNoopSpanExporter,
   flushAndShutdown,
   resetTracingProvider,
@@ -26,7 +29,12 @@ export {
   type TracingSession,
 } from "./instrumentation.ts";
 
-export { createTurnTraceId, emitChildObservations, emitRootObservation } from "./observations.ts";
+export {
+  createTurnTraceId,
+  emitChildObservations,
+  emitLinkedSubagentTurn,
+  emitRootObservation,
+} from "./observations.ts";
 
 export {
   buildSyntheticToolCallId,
@@ -38,10 +46,13 @@ export {
   deriveSubagentObservationName,
   deserializeToolArgs,
   extractGenericTimingAndBody,
+  extractParentConversationFromTranscript,
   extractSubagentConversationId,
+  extractSubagentConversationIds,
   extractSystemMessageContent,
   extractUserRequest,
   isClientMetaCommand,
+  isSubagentToolCall,
   matchSkillFilePath,
   normalizeModelIdentifier,
   parseIsoTimestamp,
@@ -81,6 +92,7 @@ export type {
   SkillReference,
   SpanExporterLike,
   StopHookInput,
+  SubagentLinkRecord,
   TokenUsageSummary,
   ToolClassificationResult,
   ToolObservationType,

@@ -407,4 +407,231 @@ describe("spool: cursor, write-ahead spool, and cross-session Maildir draining",
       fs.rmSync(tempDir, { recursive: true, force: true });
     }
   });
+
+  it("defers subagent when finishing before parent, links on parent export, and drains offline parent+subagent in topological waves", async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "z-trader-spool-subagent-"));
+
+    try {
+      const brainDir = path.join(tempDir, "brain");
+      const parentId = "aaaa0000-1111-2222-3333-444455556666";
+      const subId = "bbbb0000-1111-2222-3333-444455556666";
+      const otherId = "cccc0000-1111-2222-3333-444455556666";
+
+      const parentLogsDir = path.join(brainDir, parentId, ".system_generated", "logs");
+      const subLogsDir = path.join(brainDir, subId, ".system_generated", "logs");
+      const otherLogsDir = path.join(brainDir, otherId, ".system_generated", "logs");
+
+      fs.mkdirSync(parentLogsDir, { recursive: true });
+      fs.mkdirSync(subLogsDir, { recursive: true });
+      fs.mkdirSync(otherLogsDir, { recursive: true });
+
+      const parentFull = path.join(parentLogsDir, "transcript_full.jsonl");
+      const subFull = path.join(subLogsDir, "transcript_full.jsonl");
+      const otherFull = path.join(otherLogsDir, "transcript_full.jsonl");
+
+      fs.writeFileSync(
+        subFull,
+        [
+          JSON.stringify({
+            step_index: 0,
+            source: "SYSTEM",
+            type: "SYSTEM_MESSAGE",
+            status: "DONE",
+            created_at: "2026-11-23T20:00:01Z",
+            content: `<SYSTEM_MESSAGE>\n[Message] sender=${parentId} content=Do work\n</SYSTEM_MESSAGE>`,
+          }),
+          JSON.stringify({
+            step_index: 1,
+            source: "MODEL",
+            type: "PLANNER_RESPONSE",
+            status: "DONE",
+            created_at: "2026-11-23T20:00:02Z",
+            input_tokens: 200,
+            output_tokens: 20,
+            content: "Subagent work done.",
+          }),
+        ].join("\n"),
+        "utf8",
+      );
+
+      fs.writeFileSync(
+        parentFull,
+        [
+          JSON.stringify({
+            step_index: 0,
+            source: "USER_EXPLICIT",
+            type: "USER_INPUT",
+            status: "DONE",
+            created_at: "2026-11-23T20:00:00Z",
+            content: "<USER_REQUEST>\nDelegate work\n</USER_REQUEST>",
+          }),
+          JSON.stringify({
+            step_index: 1,
+            source: "MODEL",
+            type: "PLANNER_RESPONSE",
+            status: "DONE",
+            created_at: "2026-11-23T20:00:01Z",
+            input_tokens: 300,
+            output_tokens: 30,
+            tool_calls: [
+              {
+                name: "invoke_subagent",
+                args: { TypeName: '"research"', Role: '"Worker"', Prompt: '"Do work"' },
+              },
+            ],
+          }),
+          JSON.stringify({
+            step_index: 2,
+            source: "MODEL",
+            type: "GENERIC",
+            status: "DONE",
+            created_at: "2026-11-23T20:00:03Z",
+            content: `conversationId: ${subId}`,
+          }),
+          JSON.stringify({
+            step_index: 3,
+            source: "MODEL",
+            type: "PLANNER_RESPONSE",
+            status: "DONE",
+            created_at: "2026-11-23T20:00:04Z",
+            input_tokens: 400,
+            output_tokens: 25,
+            content: "Parent finished.",
+          }),
+        ].join("\n"),
+        "utf8",
+      );
+
+      const spoolDir = path.join(brainDir, ".langfuse-spool");
+
+      // Case 1: Subagent finishes BEFORE parent -> spools with parentConversationId, does not export standalone
+      const subEarly = await runStopHook(
+        {
+          conversationId: subId,
+          transcriptPath: subFull,
+          cwd: tempDir,
+        },
+        {
+          skillDirs: [],
+          spanExporter: {
+            export() {
+              throw new Error("Subagent should defer rather than export standalone");
+            },
+            shutdown: async () => {},
+          },
+        },
+      );
+
+      expect(subEarly.exportedTurns).toBe(0);
+      expect(subEarly.spooledTurns).toBe(1);
+
+      const subSpoolPath = getSpoolFilePath(spoolDir, subId);
+      const subSpoolEntry = readSpoolEntry(subSpoolPath);
+
+      expect(subSpoolEntry?.parentConversationId).toBe(parentId);
+
+      // Unrelated SessionStart within grace period leaves deferred child intact for active parent
+      const earlySessionDrain = await runSessionStartHook(
+        {
+          conversationId: otherId,
+          transcriptPath: otherFull,
+          cwd: tempDir,
+        },
+        {
+          skillDirs: [],
+          orphanGraceMs: 60_000,
+          spanExporter: {
+            export() {
+              throw new Error("Should not drain active child within grace window");
+            },
+            shutdown: async () => {},
+          },
+        },
+      );
+
+      expect(earlySessionDrain.drainedFiles).toBe(0);
+      expect(earlySessionDrain.failedFiles).toBe(0);
+      expect(fs.existsSync(subSpoolPath)).toBe(true);
+
+      // Case 2: Parent fails offline too -> both parent & subagent are in spool
+      const parentFail = await runStopHook(
+        {
+          conversationId: parentId,
+          transcriptPath: parentFull,
+          cwd: tempDir,
+        },
+        {
+          skillDirs: [],
+          simulateFlushFailure: new Error("Offline"),
+          onWarning: () => {},
+        },
+      );
+
+      expect(parentFail.exportedTurns).toBe(0);
+      expect(parentFail.spooledTurns).toBe(1);
+      expect(fs.existsSync(getSpoolFilePath(spoolDir, parentId))).toBe(true);
+      expect(fs.existsSync(subSpoolPath)).toBe(true);
+
+      // Next SessionStart drains parent (Wave 0) -> writes link -> drains subagent (Wave 1) under parent span
+      const drainedSpans: Array<{
+        name: string;
+        traceId: string;
+        spanId: string;
+        parentSpanId?: string;
+        attributes: Record<string, unknown>;
+      }> = [];
+
+      const drainBoth = await runSessionStartHook(
+        {
+          conversationId: otherId,
+          transcriptPath: otherFull,
+          cwd: tempDir,
+        },
+        {
+          skillDirs: [],
+          spanExporter: {
+            export(spans, resultCallback) {
+              for (const s of spans) {
+                drainedSpans.push({
+                  name: s.name,
+                  traceId: s.spanContext().traceId,
+                  spanId: s.spanContext().spanId,
+                  parentSpanId: s.parentSpanContext?.spanId,
+                  attributes: { ...s.attributes },
+                });
+              }
+
+              resultCallback({ code: 0 });
+            },
+            shutdown: async () => {},
+          },
+        },
+      );
+
+      expect(drainBoth.drainedFiles).toBe(2);
+      expect(drainBoth.drainedTurns).toBe(2);
+      expect(drainBoth.failedFiles).toBe(0);
+
+      const expectedParentTraceId = await createTraceId(`${parentId}-turn-1`);
+      const workerSpan = drainedSpans.find((s) => s.name === "subagent:worker");
+
+      expect(workerSpan).toBeDefined();
+      expect(workerSpan?.traceId).toBe(expectedParentTraceId);
+
+      // Subagent's generation span was linked under workerSpan without IS_APP_ROOT
+      const subGenSpans = drainedSpans.filter(
+        (s) => s.name === "llm-generation" && s.parentSpanId === workerSpan?.spanId,
+      );
+
+      expect(subGenSpans).toHaveLength(1);
+      expect(subGenSpans[0]?.traceId).toBe(expectedParentTraceId);
+      expect(subGenSpans[0]?.attributes[LangfuseOtelSpanAttributes.IS_APP_ROOT]).toBeUndefined();
+
+      expect(fs.existsSync(getSpoolFilePath(spoolDir, parentId))).toBe(false);
+      expect(fs.existsSync(subSpoolPath)).toBe(false);
+      expect(fs.existsSync(path.join(subLogsDir, ".langfuse-cursor.json"))).toBe(true);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
 });

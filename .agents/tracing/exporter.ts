@@ -8,9 +8,11 @@ import {
   startTracingSession,
   type TracingSession,
 } from "./instrumentation.ts";
-import { createTurnTraceId, emitRootObservation } from "./observations.ts";
+import { createTurnTraceId, emitLinkedSubagentTurn, emitRootObservation } from "./observations.ts";
 import {
   createFilesystemSubagentResolver,
+  extractParentConversationFromTranscript,
+  parseJsonlSteps,
   parseTranscriptTurns,
   resolveFullTranscriptPath,
 } from "./parser/index.ts";
@@ -28,15 +30,48 @@ import {
   mergeTurnsForExport,
   readCursorState,
   readPendingSpool,
+  readSpoolEntry,
+  readSubagentLink,
   removeSpoolFile,
   resolveSpoolDir,
   writePendingSpool,
+  writeSubagentLink,
 } from "./spool/index.ts";
 import { computeContextAnchor } from "./versioning.ts";
 
-import type { RunStopHookOptions, RunStopHookResult, StopHookInput } from "./types.ts";
+import type {
+  RunStopHookOptions,
+  RunStopHookResult,
+  StopHookInput,
+  SubagentLinkRecord,
+} from "./types.ts";
 
 const MIN_REMAINING_BUDGET_MS = 500;
+
+function detectSiblingParentConversationId(
+  transcriptDir: string,
+  rawTranscript: string,
+  conversationId: string,
+): string | undefined {
+  if (
+    path.basename(transcriptDir) !== "logs" ||
+    path.basename(path.dirname(transcriptDir)) !== ".system_generated"
+  ) {
+    return undefined;
+  }
+
+  const steps = parseJsonlSteps(rawTranscript);
+  const candidateParentId = extractParentConversationFromTranscript(steps, conversationId);
+
+  if (!candidateParentId) {
+    return undefined;
+  }
+
+  const brainDir = path.resolve(transcriptDir, "..", "..", "..");
+  const parentDir = path.join(brainDir, candidateParentId);
+
+  return fs.existsSync(parentDir) ? candidateParentId : undefined;
+}
 
 /**
  * Executes the Antigravity Stop hook workflow:
@@ -88,6 +123,7 @@ export async function runStopHook(
       timeoutMs: remainingMs,
       spanExporter: options.spanExporter,
       skillDirs: options.skillDirs,
+      orphanGraceMs: options.orphanGraceMs,
       onWarning: options.onWarning,
     });
 
@@ -127,7 +163,8 @@ export async function runStopHook(
 
   const cursor = readCursorState(cursorPath);
   const legacySpooledTurns = readPendingSpool(legacySpoolPath);
-  const spooledTurns = readPendingSpool(spoolFilePath);
+  const existingSpoolEntry = readSpoolEntry(spoolFilePath);
+  const spooledTurns = existingSpoolEntry?.pendingTurns ?? [];
 
   const rawTranscript = fs.readFileSync(resolvedTranscriptPath, "utf8");
 
@@ -138,7 +175,9 @@ export async function runStopHook(
     ...(typeof cursor?.lastExportedLineIndex === "number"
       ? { afterLineIndex: cursor.lastExportedLineIndex }
       : { afterStepIndex: cursor?.lastExportedStepIndex }),
-    resolveSubagentTranscript: createFilesystemSubagentResolver(resolvedTranscriptPath),
+    ...(options.inlineSubagents === true
+      ? { resolveSubagentTranscript: createFilesystemSubagentResolver(resolvedTranscriptPath) }
+      : {}),
   });
 
   const turnsToExport = mergeTurnsForExport(
@@ -171,10 +210,51 @@ export async function runStopHook(
     };
   }
 
+  const existingLink = readSubagentLink(spoolDir, conversationId);
+  const detectedParentId =
+    existingLink?.parentConversationId ??
+    existingSpoolEntry?.parentConversationId ??
+    detectSiblingParentConversationId(transcriptDir, rawTranscript, conversationId);
+
+  if (!existingLink && detectedParentId && shouldPersistState) {
+    try {
+      writePendingSpool(spoolFilePath, turnsToExport, {
+        conversationId,
+        parentConversationId: detectedParentId,
+        workspaceRoot,
+        cursorPath,
+        contextAnchor,
+      });
+
+      if (fs.existsSync(legacySpoolPath)) {
+        fs.rmSync(legacySpoolPath, { force: true });
+      }
+    } catch {
+      // Ignore spool write failure here
+    }
+
+    const parentSpoolExists = fs.existsSync(getSpoolFilePath(spoolDir, detectedParentId));
+    const drained = await drainBacklogIfEnabled(parentSpoolExists ? [] : [conversationId]);
+
+    return {
+      decision: "allow",
+      exportedTurns: 0,
+      spooledTurns: turnsToExport.length,
+      drainedFiles: drained.drainedFiles,
+      drainedTurns: drained.drainedTurns,
+      spoolDir,
+      release: contextAnchor.release,
+      version: contextAnchor.version,
+      dryRun,
+      summary: [],
+    };
+  }
+
   if (shouldPersistState) {
     try {
       writePendingSpool(spoolFilePath, turnsToExport, {
         conversationId,
+        ...(detectedParentId ? { parentConversationId: detectedParentId } : {}),
         workspaceRoot,
         cursorPath,
         contextAnchor,
@@ -192,6 +272,7 @@ export async function runStopHook(
   const availableSkills = await discoverAvailableSkills(skillDirs);
 
   const summary: RunStopHookResult["summary"] = [];
+  const createdLinks: SubagentLinkRecord[] = [];
   let session: TracingSession | undefined;
 
   try {
@@ -213,17 +294,33 @@ export async function runStopHook(
     });
 
     for (const turn of turnsToExport) {
-      const traceId = await createTurnTraceId(turn);
+      if (existingLink) {
+        const links = await emitLinkedSubagentTurn(turn, contextAnchor, existingLink);
 
-      summary.push({
-        turnIndex: turn.turnIndex,
-        traceId,
-        childCount: turn.children.length,
-        tags: turn.tags,
-        totalTokens: turn.usageSummary.total,
-      });
+        createdLinks.push(...links);
 
-      await emitRootObservation(turn, contextAnchor, traceId);
+        summary.push({
+          turnIndex: turn.turnIndex,
+          traceId: existingLink.parentTraceId,
+          childCount: turn.children.length,
+          tags: turn.tags,
+          totalTokens: turn.usageSummary.total,
+        });
+      } else {
+        const traceId = await createTurnTraceId(turn);
+
+        summary.push({
+          turnIndex: turn.turnIndex,
+          traceId,
+          childCount: turn.children.length,
+          tags: turn.tags,
+          totalTokens: turn.usageSummary.total,
+        });
+
+        const links = await emitRootObservation(turn, contextAnchor, traceId);
+
+        createdLinks.push(...links);
+      }
     }
 
     const effectiveTimeoutMs = Math.max(
@@ -234,6 +331,10 @@ export async function runStopHook(
     await flushAndShutdown(session, effectiveTimeoutMs);
 
     if (shouldPersistState) {
+      for (const link of createdLinks) {
+        writeSubagentLink(spoolDir, link);
+      }
+
       advanceCursorForTurns(cursorPath, turnsToExport);
       removeSpoolFile(spoolFilePath);
 
@@ -270,6 +371,7 @@ export async function runStopHook(
       try {
         writePendingSpool(spoolFilePath, turnsToExport, {
           conversationId,
+          ...(detectedParentId ? { parentConversationId: detectedParentId } : {}),
           workspaceRoot,
           cursorPath,
           contextAnchor,

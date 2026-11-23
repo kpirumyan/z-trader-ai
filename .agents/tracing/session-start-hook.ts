@@ -34,6 +34,7 @@ export async function runSessionStartHook(
     timeoutMs: options.timeoutMs,
     spanExporter: options.spanExporter,
     skillDirs: options.skillDirs,
+    orphanGraceMs: options.orphanGraceMs,
     simulateFlushFailure: options.simulateFlushFailure,
     onWarning: options.onWarning,
   });

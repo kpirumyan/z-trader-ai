@@ -2,11 +2,13 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 import { createTraceId, LangfuseOtelSpanAttributes } from "@langfuse/tracing";
 import { describe, expect, it } from "vitest";
 
 import {
+  acquireSpoolLock,
   advanceCursorForTurns,
   getSpoolFilePath,
   listSpoolFiles,
@@ -14,6 +16,7 @@ import {
   readCursorState,
   readPendingSpool,
   readSpoolEntry,
+  releaseSpoolLock,
   removeSpoolFile,
   resolveSpoolDir,
   runSessionStartHook,
@@ -630,6 +633,471 @@ describe("spool: cursor, write-ahead spool, and cross-session Maildir draining",
       expect(fs.existsSync(getSpoolFilePath(spoolDir, parentId))).toBe(false);
       expect(fs.existsSync(subSpoolPath)).toBe(false);
       expect(fs.existsSync(path.join(subLogsDir, ".langfuse-cursor.json"))).toBe(true);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("skips locked spool files during concurrent drain to prevent duplicate exports", async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "z-trader-spool-lock-test-"));
+
+    try {
+      const brainDir = path.join(tempDir, "brain");
+      const convLogsDir = path.join(brainDir, "conv-locked", ".system_generated", "logs");
+      const otherLogsDir = path.join(brainDir, "conv-other", ".system_generated", "logs");
+
+      fs.mkdirSync(convLogsDir, { recursive: true });
+      fs.mkdirSync(otherLogsDir, { recursive: true });
+
+      const fullPathLocked = path.join(convLogsDir, "transcript_full.jsonl");
+      const fullPathOther = path.join(otherLogsDir, "transcript_full.jsonl");
+
+      fs.writeFileSync(
+        fullPathLocked,
+        buildTranscriptLines("Locked prompt", "Locked response", "2026-11-23T22:06:"),
+        "utf8",
+      );
+
+      // Fail once so conv-locked.json sits in the spool directory
+      await runStopHook(
+        {
+          conversationId: "conv-locked",
+          transcriptPath: fullPathLocked,
+          cwd: tempDir,
+        },
+        {
+          skillDirs: [],
+          simulateFlushFailure: new Error("Simulated offline"),
+          onWarning: () => {},
+        },
+      );
+
+      const spoolDir = path.join(brainDir, ".langfuse-spool");
+      const lock = acquireSpoolLock(spoolDir, "conv-conv-locked");
+
+      expect(lock).not.toBeNull();
+
+      try {
+        // Concurrent SessionStart must skip the locked file instead of double-exporting it
+        const whileLockedDrain = await runSessionStartHook(
+          {
+            conversationId: "conv-other",
+            transcriptPath: fullPathOther,
+            cwd: tempDir,
+          },
+          {
+            skillDirs: [],
+            spanExporter: {
+              export() {
+                throw new Error("Locked spool file should not be drained while in flight");
+              },
+              shutdown: async () => {},
+            },
+          },
+        );
+
+        expect(whileLockedDrain.drainedFiles).toBe(0);
+        expect(fs.existsSync(getSpoolFilePath(spoolDir, "conv-locked"))).toBe(true);
+      } finally {
+        releaseSpoolLock(lock);
+      }
+
+      // Once lock is released, SessionStart drains conv-locked normally
+      const exportedNames: string[] = [];
+      const afterUnlockDrain = await runSessionStartHook(
+        {
+          conversationId: "conv-other",
+          transcriptPath: fullPathOther,
+          cwd: tempDir,
+        },
+        {
+          skillDirs: [],
+          spanExporter: {
+            export(spans, resultCallback) {
+              for (const s of spans) {
+                exportedNames.push(s.name);
+              }
+
+              resultCallback({ code: 0 });
+            },
+            shutdown: async () => {},
+          },
+        },
+      );
+
+      expect(afterUnlockDrain.drainedFiles).toBe(1);
+      expect(afterUnlockDrain.drainedTurns).toBe(1);
+      expect(exportedNames).toContain("agent-turn");
+      expect(fs.existsSync(getSpoolFilePath(spoolDir, "conv-locked"))).toBe(false);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("links run_workflow workers into parent sessionId as separate workflow-worker traces (Option A)", async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "z-trader-workflow-link-test-"));
+
+    try {
+      const brainDir = path.join(tempDir, "brain");
+      const parentId = "ce6cf2f0-8ba6-486d-ab2e-189ea56630eb";
+      const worker1Id = "e1c2439a-0f8f-4b8c-9975-08cdc822686a";
+      const worker2Id = "5cc0b9b8-4fd5-4d0d-985a-0734aa5f1c59";
+
+      const parentLogsDir = path.join(brainDir, parentId, ".system_generated", "logs");
+      const parentTasksDir = path.join(brainDir, parentId, ".system_generated", "tasks");
+      const worker1LogsDir = path.join(brainDir, worker1Id, ".system_generated", "logs");
+      const worker2LogsDir = path.join(brainDir, worker2Id, ".system_generated", "logs");
+
+      fs.mkdirSync(parentLogsDir, { recursive: true });
+      fs.mkdirSync(parentTasksDir, { recursive: true });
+      fs.mkdirSync(worker1LogsDir, { recursive: true });
+      fs.mkdirSync(worker2LogsDir, { recursive: true });
+
+      const taskLogPath = path.join(parentTasksDir, "task-43.log");
+      const taskLogUrl = pathToFileURL(taskLogPath).href;
+      const parentFull = path.join(parentLogsDir, "transcript_full.jsonl");
+      const worker1Full = path.join(worker1LogsDir, "transcript_full.jsonl");
+      const worker2Full = path.join(worker2LogsDir, "transcript_full.jsonl");
+
+      // Parent Turn 1 launches run_workflow asynchronously
+      const parentTurn1Lines = [
+        JSON.stringify({
+          step_index: 0,
+          source: "USER_EXPLICIT",
+          type: "USER_INPUT",
+          status: "DONE",
+          created_at: "2026-11-23T22:00:00Z",
+          content: "<USER_REQUEST>\nCollect cards\n</USER_REQUEST>",
+        }),
+        JSON.stringify({
+          step_index: 1,
+          source: "MODEL",
+          type: "PLANNER_RESPONSE",
+          status: "DONE",
+          created_at: "2026-11-23T22:03:10Z",
+          input_tokens: 500,
+          output_tokens: 40,
+          tool_calls: [
+            {
+              name: "run_workflow",
+              args: { Description: '"Process articles"', ScriptPath: '"workflow.py"' },
+            },
+          ],
+        }),
+        JSON.stringify({
+          step_index: 2,
+          source: "MODEL",
+          type: "GENERIC",
+          status: "RUNNING",
+          created_at: "2026-11-23T22:03:13Z",
+          content: [
+            `Tool is running as a background task with task id: ${parentId}/task-43`,
+            `Task logs are available at: ${taskLogUrl}`,
+          ].join("\n"),
+        }),
+        JSON.stringify({
+          step_index: 3,
+          source: "MODEL",
+          type: "PLANNER_RESPONSE",
+          status: "DONE",
+          created_at: "2026-11-23T22:03:29Z",
+          input_tokens: 600,
+          output_tokens: 30,
+          content: "Started workflow.",
+        }),
+      ];
+
+      fs.writeFileSync(parentFull, parentTurn1Lines.join("\n"), "utf8");
+
+      const exportedSpans: Array<{
+        name: string;
+        traceId: string;
+        attributes: Record<string, unknown>;
+      }> = [];
+      const collector = {
+        export(
+          spans: Array<{
+            name: string;
+            spanContext: () => { traceId: string };
+            attributes: Record<string, unknown>;
+          }>,
+          resultCallback: (res: { code: number }) => void,
+        ) {
+          for (const s of spans) {
+            exportedSpans.push({
+              name: s.name,
+              traceId: s.spanContext().traceId,
+              attributes: { ...s.attributes },
+            });
+          }
+
+          resultCallback({ code: 0 });
+        },
+        shutdown: async () => {},
+      };
+
+      const parentTurn1Res = await runStopHook(
+        {
+          conversationId: parentId,
+          transcriptPath: parentFull,
+          cwd: tempDir,
+        },
+        {
+          skillDirs: [],
+          spanExporter: collector,
+        },
+      );
+
+      expect(parentTurn1Res.exportedTurns).toBe(1);
+
+      const buildWorkerTranscript = (title: string, tsBase: string) =>
+        [
+          JSON.stringify({
+            step_index: 0,
+            source: "USER_EXPLICIT",
+            type: "USER_INPUT",
+            status: "DONE",
+            created_at: `${tsBase}10Z`,
+            content: `<USER_REQUEST>\nRead ${title}\n\nWhen you are done, call the finish tool with your result.\n</USER_REQUEST>`,
+          }),
+          JSON.stringify({
+            step_index: 1,
+            source: "MODEL",
+            type: "PLANNER_RESPONSE",
+            status: "DONE",
+            created_at: `${tsBase}18Z`,
+            input_tokens: 200,
+            output_tokens: 50,
+            tool_calls: [{ name: "finish", args: { result: `{"title":"${title}"}` } }],
+          }),
+          JSON.stringify({
+            step_index: 2,
+            source: "MODEL",
+            type: "GENERIC",
+            status: "DONE",
+            created_at: `${tsBase}29Z`,
+            content: "Task is complete. Summarize what you did and do not call any more tools.",
+          }),
+        ].join("\n");
+
+      fs.writeFileSync(
+        worker1Full,
+        buildWorkerTranscript("Article 1", "2026-11-23T22:06:"),
+        "utf8",
+      );
+
+      fs.writeFileSync(
+        worker2Full,
+        buildWorkerTranscript("Article 2", "2026-11-23T22:06:"),
+        "utf8",
+      );
+
+      // Case 1: Worker 1 finishes BEFORE task-43.log is flushed -> defers in spool
+      const worker1Early = await runStopHook(
+        {
+          conversationId: worker1Id,
+          transcriptPath: worker1Full,
+          cwd: tempDir,
+        },
+        {
+          skillDirs: [],
+          spanExporter: collector,
+        },
+      );
+
+      expect(worker1Early.exportedTurns).toBe(0);
+      expect(worker1Early.spooledTurns).toBe(1);
+
+      // Now task-43.log has worker 2 logged when worker 2 finishes -> exports immediately in parent session
+      fs.writeFileSync(
+        taskLogPath,
+        `- [agent:self] [blog] Article 2: done (${worker2Id}): {"title":"Article 2"}\n`,
+        "utf8",
+      );
+
+      const worker2Res = await runStopHook(
+        {
+          conversationId: worker2Id,
+          transcriptPath: worker2Full,
+          cwd: tempDir,
+        },
+        {
+          skillDirs: [],
+          spanExporter: collector,
+        },
+      );
+
+      expect(worker2Res.exportedTurns).toBe(1);
+
+      const worker2ExpectedTraceId = await createTraceId(`${worker2Id}-turn-1`);
+      const worker2Root = exportedSpans.find(
+        (s) => s.name === "agent-turn" && s.traceId === worker2ExpectedTraceId,
+      );
+
+      expect(worker2Root).toBeDefined();
+      expect(worker2Root?.attributes[LangfuseOtelSpanAttributes.TRACE_SESSION_ID]).toBe(parentId);
+
+      expect(worker2Root?.attributes[LangfuseOtelSpanAttributes.TRACE_NAME]).toBe(
+        "workflow-worker",
+      );
+
+      expect(worker2Root?.attributes["langfuse.observation.metadata.workerConversationId"]).toBe(
+        JSON.stringify(worker2Id),
+      );
+
+      // Finally parent Turn 2 completes task-43 (logging worker 1 too) -> drains worker 1 into parent session
+      fs.writeFileSync(
+        taskLogPath,
+        [
+          `- [agent:self] [blog] Article 2: done (${worker2Id}): {"title":"Article 2"}`,
+          `- [agent:self] [blog] Article 1: done (${worker1Id}): {"title":"Article 1"}`,
+        ].join("\n"),
+        "utf8",
+      );
+
+      const parentTurn2Lines = [
+        ...parentTurn1Lines,
+        JSON.stringify({
+          step_index: 4,
+          source: "SYSTEM",
+          type: "SYSTEM_MESSAGE",
+          status: "DONE",
+          created_at: "2026-11-23T22:06:59Z",
+          content: `<SYSTEM_MESSAGE>\n[Message] sender=${parentId}/task-43 content=Task finished.\n- [agent:self] [blog] Article 1: done (${worker1Id})\nLog: ${taskLogUrl}\n</SYSTEM_MESSAGE>`,
+        }),
+        JSON.stringify({
+          step_index: 5,
+          source: "MODEL",
+          type: "PLANNER_RESPONSE",
+          status: "DONE",
+          created_at: "2026-11-23T22:07:10Z",
+          input_tokens: 700,
+          output_tokens: 40,
+          content: "All cards collected.",
+        }),
+      ];
+
+      fs.writeFileSync(parentFull, parentTurn2Lines.join("\n"), "utf8");
+
+      const parentTurn2Res = await runStopHook(
+        {
+          conversationId: parentId,
+          transcriptPath: parentFull,
+          cwd: tempDir,
+        },
+        {
+          skillDirs: [],
+          spanExporter: collector,
+        },
+      );
+
+      expect(parentTurn2Res.exportedTurns).toBe(1);
+      expect(parentTurn2Res.drainedFiles).toBe(1);
+
+      const worker1ExpectedTraceId = await createTraceId(`${worker1Id}-turn-1`);
+      const worker1Root = exportedSpans.find(
+        (s) => s.name === "agent-turn" && s.traceId === worker1ExpectedTraceId,
+      );
+
+      expect(worker1Root).toBeDefined();
+      expect(worker1Root?.attributes[LangfuseOtelSpanAttributes.TRACE_SESSION_ID]).toBe(parentId);
+
+      expect(worker1Root?.attributes[LangfuseOtelSpanAttributes.TRACE_NAME]).toBe(
+        "workflow-worker",
+      );
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps orphan subagents inside parentSessionId even after orphanGraceMs expires", async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "z-trader-orphan-session-test-"));
+
+    try {
+      const brainDir = path.join(tempDir, "brain");
+      const parentId = "11110000-1111-2222-3333-444455556666";
+      const subId = "22220000-1111-2222-3333-444455556666";
+      const otherId = "33330000-1111-2222-3333-444455556666";
+
+      const parentDir = path.join(brainDir, parentId);
+      const subLogsDir = path.join(brainDir, subId, ".system_generated", "logs");
+      const otherLogsDir = path.join(brainDir, otherId, ".system_generated", "logs");
+
+      fs.mkdirSync(parentDir, { recursive: true });
+      fs.mkdirSync(subLogsDir, { recursive: true });
+      fs.mkdirSync(otherLogsDir, { recursive: true });
+
+      const subFull = path.join(subLogsDir, "transcript_full.jsonl");
+      const otherFull = path.join(otherLogsDir, "transcript_full.jsonl");
+
+      fs.writeFileSync(
+        subFull,
+        [
+          JSON.stringify({
+            step_index: 0,
+            source: "SYSTEM",
+            type: "SYSTEM_MESSAGE",
+            status: "DONE",
+            created_at: "2026-11-23T20:00:01Z",
+            content: `<SYSTEM_MESSAGE>\n[Message] sender=${parentId} content=Do work\n</SYSTEM_MESSAGE>`,
+          }),
+          JSON.stringify({
+            step_index: 1,
+            source: "MODEL",
+            type: "PLANNER_RESPONSE",
+            status: "DONE",
+            created_at: "2026-11-23T20:00:02Z",
+            input_tokens: 100,
+            output_tokens: 20,
+            content: "Done.",
+          }),
+        ].join("\n"),
+        "utf8",
+      );
+
+      // Subagent defers initially
+      await runStopHook(
+        {
+          conversationId: subId,
+          transcriptPath: subFull,
+          cwd: tempDir,
+        },
+        {
+          skillDirs: [],
+        },
+      );
+
+      // Drain with orphanGraceMs: 0 -> exports as orphan fallback inside parentId session
+      const drainedSpans: Array<{ name: string; attributes: Record<string, unknown> }> = [];
+      const drainRes = await runSessionStartHook(
+        {
+          conversationId: otherId,
+          transcriptPath: otherFull,
+          cwd: tempDir,
+        },
+        {
+          skillDirs: [],
+          orphanGraceMs: 0,
+          spanExporter: {
+            export(spans, resultCallback) {
+              for (const s of spans) {
+                drainedSpans.push({ name: s.name, attributes: { ...s.attributes } });
+              }
+
+              resultCallback({ code: 0 });
+            },
+            shutdown: async () => {},
+          },
+        },
+      );
+
+      expect(drainRes.drainedFiles).toBe(1);
+
+      const root = drainedSpans.find((s) => s.name === "agent-turn");
+
+      expect(root).toBeDefined();
+      expect(root?.attributes[LangfuseOtelSpanAttributes.TRACE_SESSION_ID]).toBe(parentId);
+      expect(root?.attributes[LangfuseOtelSpanAttributes.TRACE_TAGS]).toContain("subagent:orphan");
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }

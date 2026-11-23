@@ -1,0 +1,78 @@
+# Чеклист материалов Langfuse для Z-Trader
+
+## Статистика охвата
+
+- **Всего статей в индексах:** 122 (`llms-guides.txt`: 32, `llms-blog.txt`: 90; уникальных URL: 122)
+- **Отсеяно по индексу (Шаг 1):** 49 (`Guides`: 1, `Videos & Workshops`: 1, `Cookbooks`: 6, `Blog`: 41)
+- **Прочитано целиком:** 73 (`Guides`: 4, `Videos & Workshops`: 6, `Cookbooks`: 14, `Blog`: 49)
+- **Вердикты по прочитанным (73):** полезно `[x]` — **25** (`Guides`: 1, `Videos & Workshops`: 4, `Cookbooks`: 6, `Blog`: 14); не полезно `[ ]` — **48** (`Guides`: 3, `Videos & Workshops`: 2, `Cookbooks`: 8, `Blog`: 35)
+- **Полные дубликаты:** 0 (по секции «Полные дубликаты» в `docs/langfuse-articles-cards.md`)
+- **Смысловые дубликаты (~80–90% совпадения):** 1 пара — `Example: Monitoring LLM Security` (`Cookbooks`) ↔ `Monitoring LLM Security & Reducing LLM Risks` (`Blog`, статус `[ ]`, не включена в раздел полезных статей блога)
+
+> **Критерий отбора:** Z-Trader — финансовый терминал (Next.js, TypeScript) без встроенного пользовательского ИИ; Langfuse используется соло-разработчиком для трейсинга траекторий coding-агентов, error analysis, датасетов, evals, улучшения скиллов/промптов/правил и работы через Langfuse CLI / Skill / MCP.
+
+---
+
+## Guides
+
+- [x] [How to calibrate your LLM-as-a-judge with the Langfuse skill](https://langfuse.com/guides/llm-as-a-judge-calibration-skill) — Пошаговая калибровка промптов LLM-as-a-judge через coding-агента, Langfuse Agent Skill (`references/judge-calibration.md`), CLI, Datasets и Experiments с quality gates (TPR/TNR ≥ 0.90).
+- [ ] [Build a human-in-the-loop scoring workflow](https://langfuse.com/guides/human-in-the-loop-scoring) — Интеграция внешнего/кастомного review UI через Observations API v2 и Scores API; в самой статье указано, что без отдельного UI достаточно встроенных Annotation Queues (избыточно для соло-разработки).
+- [ ] [Export self-hosted Langfuse logs to ClickStack](https://langfuse.com/guides/export-self-hosted-langfuse-logs-to-clickstack) — Инфраструктурный туториал по экспорту stdout-логов self-hosted Kubernetes-подов Langfuse в ClickStack/ClickHouse Cloud.
+- [ ] [How to set up a user feedback loop for your application](https://langfuse.com/guides/user-feedback-loop) — Сбор явного и неявного пользовательского фидбека (`@langfuse/browser`, thumbs up/down, диалоговые сигналы) из конечного ИИ-приложения, которого нет в Z-Trader.
+- [ ] [Guides](https://langfuse.com/guides) — Отсеяно на Шаге 1: служебная индексная страница (`guides.md`).
+
+---
+
+## Videos & Workshops
+
+- [x] [Headless Langfuse From Your Coding Agent](https://langfuse.com/guides/videos/headless-langfuse) — Прямой воркфлоу работы с Langfuse из coding-агента: установка Langfuse Agent Skill, выгрузка traces в JSON через CLI, создание датасета `edge-cases`, настройка LLM-as-a-judge и Experiments.
+- [x] [Continuously Improving Agents With Langfuse](https://langfuse.com/guides/videos/continuously-improving-agents) — Цикл непрерывного улучшения агентов: дерево observations (`agent`/`generation`/`tool`), таргетирование 3 типов эвалюаторов и выявление скрытых сбоев (тихие ошибки инструментов, лишние retry) через Langfuse CLI и Agent Skill.
+- [x] [Replace Vibes With Evals: Build an Evaluation Pipeline](https://langfuse.com/guides/videos/replace-vibes-with-evals) — 5-шаговый пайплайн оценки: разбор traces, Code Evaluators и LLM-as-a-judge (JSONPath-маппинг, бинарный pass/fail), поиск скрытых регрессий в Experiments при смене одной переменной и CI/CD на PR.
+- [x] [Evals for High-Stakes AI Agents](https://langfuse.com/guides/videos/evals-for-high-stakes-ai-agents) — Системная сборка eval-контура для критичных агентов: тематические Datasets, кластеризация заметок Error Analysis, связка Code + LLM-as-a-judge, CI/CD-гейты на candidate label (`staging`) и автоматизация экспериментов через Agent Skill/CLI без делегирования суждений.
+- [ ] [Debug a Fan-Out RAG Agent With Tracing](https://langfuse.com/guides/videos/debug-rag-agent-with-tracing) — Узкий кейс отладки бага маршрутизации в fan-out RAG-агенте поддержки (ошибочный фильтр vector store и низкий `retrieval relevance`).
+- [ ] [Beginner's Guide to RAG Evaluation with Langfuse and Ragas](https://langfuse.com/guides/videos/beginners-guide-to-rag-evaluation) — Вводный вебинар по базовой схеме RAG и метрикам Ragas для чат-бота; в Z-Trader нет пользовательского RAG.
+- [ ] [Overview](https://langfuse.com/guides/videos) — Отсеяно на Шаге 1: служебная индексная страница (`videos.md`).
+
+---
+
+## Cookbooks
+
+- [x] [Error Analysis for LLM Applications](https://langfuse.com/guides/cookbook/error-analysis-llm-applications) — Базовая 5-этапная методология Error Analysis (open coding, кластеризация сбоев, Score Configs, расчёт failure rate в Dashboards, правка промптов/инструментов до внедрения судей, нюансы OTel в Annotation Queues) с интерактивным запуском через Langfuse Skill и CLI.
+- [x] [Agent Evaluation - How to Evaluate LLM Agents](https://langfuse.com/guides/cookbook/example_pydantic_ai_mcp_agent_evaluation) — Ключевая методология оценки агентов на 3 уровнях гранулярности (Final Response, Trajectory / tool calls, Single Step) с примером агента поверх MCP, Datasets, LLM-as-a-judge и CI/CD Experiments.
+- [x] [Langfuse JS/TS SDK](https://langfuse.com/guides/cookbook/js_langfuse_sdk) — Справочник современного модульного JS/TS SDK (`@langfuse/otel`, `@langfuse/client`, `@langfuse/tracing`, `propagateAttributes`, `usageDetails`): техническая база для TS-скриптов трейсинга, скоринга и экспериментов в стеке Z-Trader.
+- [x] [Synthetic Dataset Generation for LLM Evaluation](https://langfuse.com/guides/cookbook/example_synthetic_datasets) — Генерация синтетических Datasets по категориям happy path, edge cases и adversarial, включая TypeScript-подход (`@langfuse/client` + декларативный DSL `@qforge/torque` для воспроизводимых сценариев с tool calls).
+- [x] [Query Langfuse Data with Metrics API v2](https://langfuse.com/guides/cookbook/example_metrics_api_v2) — Схема REST-запросов `GET /api/public/v2/metrics` (`observations`, `scores-numeric`, `scores-categorical`) для программной аналитики затрат coding-агентов по моделям, трендов latency и средних eval-оценок.
+- [x] [Evaluate Langfuse LLM Traces with an External Evaluation Pipeline](https://langfuse.com/guides/cookbook/example_external_evaluation_pipelines) — Архитектура внешнего версионируемого в git eval-пайплайна вне ограничений Langfuse UI: инкрементальная выгрузка v4 root observations (`observations.get_many` с cursor-пагинацией) и запись scores с reasoning через `create_score`.
+- [ ] [Migrating Data Between Langfuse Projects (Python SDK v4)](https://langfuse.com/guides/cookbook/example_data_migration) — Инфраструктурный Python-ноутбук миграции данных между проектами Langfuse через OTLP и публичные API.
+- [ ] [Evaluating Multi-Turn Conversations](https://langfuse.com/guides/cookbook/example_evaluating_multi_turn_conversations) — Python-ноутбук по N+1-оценке ответов пользовательского чат-бота в многоходовых диалогах; в Z-Trader нет чат-бота.
+- [ ] [Guide - Building an intent classification pipeline](https://langfuse.com/guides/cookbook/example_intent_classification_pipeline) — Кластеризация и классификация интентов тысяч пользовательских запросов в RAG-приложении (SentenceTransformers, HDBSCAN, scikit-learn).
+- [ ] [Example: Monitoring LLM Security](https://langfuse.com/guides/cookbook/example_llm_security_monitoring) — Мониторинг runtime-сканеров безопасности пользовательского ввода/вывода (PII, toxicity, prompt injection через LLM Guard и Lakera Guard); в Z-Trader нет пользовательского LLM-интерфейса (смысловой дубликат: Monitoring LLM Security & Reducing LLM Risks, ~80–85% совпадения; отличие: в cookbook добавлены 4 дополнительных сценария сканеров LLM Guard, `score_current_span` и тест prompt injection `LLM Guard` vs `Lakera Guard`, а в блог-посте шире обзор библиотек и OWASP Top 10).
+- [ ] [Example: Multi-modality and attachments](https://langfuse.com/guides/cookbook/example_multi_modal_traces) — Прикрепление аудио, изображений и PDF через Python `LangfuseMedia` и Media API; не требуется для текстовых траекторий coding-агентов.
+- [ ] [Evaluating Multi-Turn Conversations (Simulation)](https://langfuse.com/guides/cookbook/example_simulated_multi_turn_conversations) — Симуляция пользовательских персон для оценки диалогового чат-бота через OpenEvals; не применимо к Z-Trader.
+- [ ] [Evaluate and Improve Structured Extraction](https://langfuse.com/guides/cookbook/example_structured_output_extraction) — Узкий Python/Pydantic-кейс оценки structured JSON extraction страховых заявок; общие приёмы (holdout, поиск скрытых регрессий в Compare UI) лучше покрыты профильными статьями по агентам и evals.
+- [ ] [Example: Langfuse Prompt Management for OpenAI functions (Python)](https://langfuse.com/guides/cookbook/prompt_management_openai_functions) — Базовый Python-пример хранения `json_schema` в Prompt Management под OpenAI JSON mode; неактуален для TS-стека и задач coding-агентов.
+- [ ] [Overview](https://langfuse.com/guides/cookbook) — Отсеяно на Шаге 1: служебная индексная страница (`cookbook.md`).
+- [ ] [Langfuseプロジェクト間のデータ移行 (Python SDK v4)](https://langfuse.com/guides/cookbook/example_data_migration-jp) — Отсеяно на Шаге 1: локализованная копия (`-jp`).
+- [ ] [Example - Tracing and Evaluation for the OpenAI-Agents SDK](https://langfuse.com/guides/cookbook/example_evaluating_openai_agents) — Отсеяно на Шаге 1: узкая интеграция не из стека Z-Trader (`OpenAI Agents SDK`).
+- [ ] [Example - Trace and Evaluate LangGraph Agents](https://langfuse.com/guides/cookbook/example_langgraph_agents) — Отсеяно на Шаге 1: узкая интеграция не из стека Z-Trader (`LangGraph`).
+- [ ] [Example - Langfuse Prompt Management with Langchain (JS)](https://langfuse.com/guides/cookbook/js_prompt_management_langchain) — Отсеяно на Шаге 1: узкая интеграция не из стека Z-Trader (`LangChain`).
+- [ ] [Example - Langfuse Prompt Management with Langchain (Python)](https://langfuse.com/guides/cookbook/prompt_management_langchain) — Отсеяно на Шаге 1: узкая интеграция не из стека Z-Trader (`LangChain`).
+
+---
+
+## Blog (только полезные)
+
+- [x] [AI Agent Observability, Tracing & Evaluation with Langfuse](https://langfuse.com/blog/2024-07-ai-agent-observability-with-langfuse) — Даёт полную модель наблюдаемости траекторий агентов Z-Trader: 10 типов observations, связывание субагентов и MCP (`_meta`), Agent Graphs (циклы/DAG), Trace Log View и аналитика `tool_calls`/`toolDefinitions` для поиска зацикливаний и неиспользуемых инструментов.
+- [x] [How we use LLMs to build and scale Langfuse](https://langfuse.com/blog/2025-04-24-how-we-use-llms-to-scale-langfuse) — Практические паттерны автономной разработки в TS/React/Zod-репозитории: сохранение планов в `.md`, потоковое ревью через git stage, автоподдержка правил (`.mdc`) и ссылок в GitHub Actions, а также цикл AI-ревью PR (сужение Zod-типов, мемоизация React) с передачей правок coding-агенту.
+- [x] [Automated Evaluations of LLM Applications](https://langfuse.com/blog/2025-09-05-automated-evaluations) — Помогает правильно строить автоматические проверки Z-Trader: отделять ошибки «Missing Instructions» (правка правил/скиллов) от «Model Limitations», писать LLM-as-a-judge строго под один failure mode и валидировать судей на dev/held-out test выборках до TPR/TNR > 90%.
+- [x] [LLM Testing: A Practical Guide to Automated Testing for LLM Applications](https://langfuse.com/blog/2025-10-21-testing-llm-applications) — Даёт готовый шаблон интеграции Langfuse Experiments в CI/CD (GitHub Actions): item-level и run-level evaluators, бинарные пороги pass/fail (например, 0.95/0.70) и привязка удалённых Datasets с автозапуском UI-судей (схема напрямую переносится на Vitest).
+- [x] [Systematic Evaluation of AI Agents](https://langfuse.com/blog/2025-11-06-experiment-interpretation) — Системная методика чтения результатов Experiments для агентов Z-Trader: изоляция прогонов в среде `experiment`, разбор Baseline vs Candidate в Compare View (Charts, построчные Outputs и регрессии), верификация самого судьи по trace и двухэтапная разметка `failure_mode` в Annotation Mode.
+- [x] [LLM Evaluation: Methods, Best Practices, and a Practical Roadmap](https://langfuse.com/blog/2025-11-12-evals) — Актуальный технический ориентир по eval-инфраструктуре Langfuse: точные ограничения TS/Python Code Evaluators (stdlib, без сети, 2 с), переход с отключаемых trace-level судей на observation-level (v4), GitHub Action `langfuse/experiment-action` (JS SDK v5.3.0+ / Vitest) и `RegressionError`.
+- [x] [Will you be my CLI? Making Agents fall in love with Langfuse.](https://langfuse.com/blog/2026-02-13-will-you-be-my-cli) — Полная карта интерфейсов Langfuse для coding-агентов Z-Trader: `SKILL.md` с progressive disclosure, `npx @langfuse/cli api <resource> <action>` (`--help`, `--curl`), экономичные `.md`-страницы документации, `llms.txt`, публичный Docs MCP и Authenticated MCP для данных проекта.
+- [x] [Using Agent Skills to Automatically Improve your Prompts](https://langfuse.com/blog/2026-02-16-prompt-improvement-claude-skills) — Готовый итеративный цикл доработки промптов и инструкций через coding-агента: разметка проблемных traces в Score Configs с комментариями причин → анализ и публикация новой версии через Langfuse Skill/CLI → закрепление в Datasets/Experiments.
+- [x] [Evaluating AI Agent Skills](https://langfuse.com/blog/2026-02-26-evaluate-ai-agent-skills) — Прямой эталон тестирования и отладки собственных `SKILL.md` в Z-Trader: прогоны агента в изолированных тестовых репозиториях через Datasets/Experiments, трассировка CLI/правок, проверка срабатывания `description`-триггеров и оценка кодовых правок через LLM-as-a-judge.
+- [x] [How We Built an Agent Skill to Synthesize what Langfuse Users want](https://langfuse.com/blog/2026-03-13-weekly-digest-ai-skill) — Полезный цикл быстрой доработки скиллов: трассировка каждого прогона скилла в Langfuse, обновление `SKILL.md` вторым агентом по Trace Comments, регрессионные LLM-as-a-judge и чеклист частых поломок скиллов (тихий пропуск недоступного MCP, неверные ссылки без примеров).
+- [x] [We Used Autoresearch on Our AI Skill, It Taught Us to Write Better Tests](https://langfuse.com/blog/2026-03-24-optimizing-ai-skill-with-autoresearch) — Опыт автоматической оптимизации инструкций скилла через `claude -p` (Autoresearch) и критический урок против reward hacking: агент удаляет непокрытые тестами проверки и чтение документации, поэтому полнота eval-харнеса и cherry-pick правок важнее самого оптимизатора.
+- [x] [AI is eating the AI engineering loop](https://langfuse.com/blog/2026-06-09-ai-is-eating-ai-engineering) — Задаёт правильный баланс автономности в flywheel Z-Trader: полностью автоматизировать Trace и по умолчанию Experiment через CLI/Skill, но сохранять регулярный ручной сэмплинг трейсов в Monitor, Build datasets и Evaluate для защиты от «agent slop» и переобучения evals.
+- [x] [We launched Halo 😇](https://langfuse.com/blog/2026-10-23-halo) — Обзор встроенного ассистента Halo (доступен на всех тарифах Cloud и в self-hosted beta), работающего поверх тех же API/MCP/CLI/skills: ускоряет разбор регрессий в traces, поиск способов снижения затрат, генерацию виджетов дашбордов и настройку первых evals.
+- [x] [Langfuse launches AI Gateway](https://langfuse.com/blog/introducing-gateway) — Прямой способ централизованного трейсинга и контроля затрат coding-агентов (Anthropic/OpenAI без наценки на токены, с сохранением prompt caching и extended thinking) через `base_url` + `LANGFUSE_GATEWAY_KEY`, с режимом Full capture в полноценные traces для Evals, Annotation Queues, Halo, MCP и CLI.

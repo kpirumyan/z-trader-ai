@@ -1,3 +1,5 @@
+import crypto from "node:crypto";
+
 import { isDefaultExportSpan, LangfuseSpanProcessor } from "@langfuse/otel";
 import { setLangfuseTracerProvider } from "@langfuse/tracing";
 import { NodeSDK } from "@opentelemetry/sdk-node";
@@ -6,6 +8,45 @@ import type { SkillReference, SpanExporterLike, TracerProviderLike } from "./typ
 
 export const DEFAULT_TIMEOUT_MS = 4500;
 export const LINK_ANCHOR_SPAN_NAME = "__langfuse_link_anchor__";
+
+type NodeSdkIdGenerator = NonNullable<ConstructorParameters<typeof NodeSDK>[0]>["idGenerator"];
+
+let pendingDeterministicSpanId: string | undefined;
+
+function deriveDeterministicSpanId(seed: string): string {
+  const hex = crypto.createHash("sha256").update(seed).digest("hex").slice(0, 16);
+
+  return hex === "0000000000000000" ? "0000000000000001" : hex;
+}
+
+export function withDeterministicSpanId<T>(seed: string, fn: () => T): T {
+  const prevSpanId = pendingDeterministicSpanId;
+
+  pendingDeterministicSpanId = deriveDeterministicSpanId(seed);
+
+  try {
+    return fn();
+  } finally {
+    pendingDeterministicSpanId = prevSpanId;
+  }
+}
+
+const deterministicIdGenerator: NonNullable<NodeSdkIdGenerator> = {
+  generateTraceId(): string {
+    return crypto.randomBytes(16).toString("hex");
+  },
+  generateSpanId(): string {
+    if (pendingDeterministicSpanId) {
+      const spanId = pendingDeterministicSpanId;
+
+      pendingDeterministicSpanId = undefined;
+
+      return spanId;
+    }
+
+    return crypto.randomBytes(8).toString("hex");
+  },
+};
 
 export function createNoopSpanExporter(): SpanExporterLike {
   return {
@@ -49,6 +90,7 @@ export function startTracingSession(options: {
     spanProcessors: [processor],
     logRecordProcessors: [],
     autoDetectResources: false,
+    idGenerator: deterministicIdGenerator,
   });
 
   sdk.start();
@@ -97,5 +139,6 @@ export async function flushAndShutdown(
 }
 
 export function resetTracingProvider(): void {
+  pendingDeterministicSpanId = undefined;
   setLangfuseTracerProvider(null);
 }

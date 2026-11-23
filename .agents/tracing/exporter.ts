@@ -24,18 +24,25 @@ import {
 } from "./runtime.ts";
 import { discoverAvailableSkills, resolveDefaultSkillDirs } from "./skills.ts";
 import {
+  acquireSpoolLockWithRetry,
   advanceCursorForTurns,
   drainSpoolDirectory,
   getSpoolFilePath,
+  isLikelyWorkflowWorkerTranscript,
+  listActiveWorkflowWatches,
   mergeTurnsForExport,
   readCursorState,
   readPendingSpool,
   readSpoolEntry,
   readSubagentLink,
+  releaseSpoolLock,
   removeSpoolFile,
   resolveSpoolDir,
+  resolveWorkflowLink,
+  syncWorkflowStateFromTranscriptSteps,
   writePendingSpool,
   writeSubagentLink,
+  type SpoolLockHandle,
 } from "./spool/index.ts";
 import { computeContextAnchor } from "./versioning.ts";
 
@@ -124,6 +131,7 @@ export async function runStopHook(
       spanExporter: options.spanExporter,
       skillDirs: options.skillDirs,
       orphanGraceMs: options.orphanGraceMs,
+      workflowGraceMs: options.workflowGraceMs,
       onWarning: options.onWarning,
     });
 
@@ -161,47 +169,25 @@ export async function runStopHook(
     input.conversationId ?? path.basename(path.resolve(transcriptDir, "..", ".."));
   const spoolFilePath = getSpoolFilePath(spoolDir, conversationId);
 
-  const cursor = readCursorState(cursorPath);
-  const legacySpooledTurns = readPendingSpool(legacySpoolPath);
-  const existingSpoolEntry = readSpoolEntry(spoolFilePath);
-  const spooledTurns = existingSpoolEntry?.pendingTurns ?? [];
-
-  const rawTranscript = fs.readFileSync(resolvedTranscriptPath, "utf8");
-
-  const newlyParsedTurns = parseTranscriptTurns(rawTranscript, {
-    conversationId,
-    modelName: input.modelName,
-    ...(input.terminationReason ? { terminationReason: input.terminationReason } : {}),
-    ...(typeof cursor?.lastExportedLineIndex === "number"
-      ? { afterLineIndex: cursor.lastExportedLineIndex }
-      : { afterStepIndex: cursor?.lastExportedStepIndex }),
-    ...(options.inlineSubagents === true
-      ? { resolveSubagentTranscript: createFilesystemSubagentResolver(resolvedTranscriptPath) }
-      : {}),
-  });
-
-  const turnsToExport = mergeTurnsForExport(
-    mergeTurnsForExport(legacySpooledTurns, spooledTurns),
-    newlyParsedTurns,
+  const lockWaitBudgetMs = Math.min(1000, Math.max(100, Math.floor(totalBudgetMs / 3)));
+  let conversationLock: SpoolLockHandle | null = await acquireSpoolLockWithRetry(
+    spoolDir,
+    `conv-${conversationId}`,
+    lockWaitBudgetMs,
   );
 
-  if (turnsToExport.length === 0) {
-    if (shouldPersistState) {
-      removeSpoolFile(spoolFilePath);
-
-      if (fs.existsSync(legacySpoolPath)) {
-        fs.rmSync(legacySpoolPath, { force: true });
-      }
-    }
-
-    const drained = await drainBacklogIfEnabled([conversationId]);
+  if (!conversationLock) {
+    emitHookWarning(
+      options.onWarning,
+      `Skipped concurrent export for ${conversationId} while another process holds the spool lock`,
+    );
 
     return {
       decision: "allow",
       exportedTurns: 0,
       spooledTurns: 0,
-      drainedFiles: drained.drainedFiles,
-      drainedTurns: drained.drainedTurns,
+      drainedFiles: 0,
+      drainedTurns: 0,
       spoolDir,
       release: contextAnchor.release,
       version: contextAnchor.version,
@@ -210,142 +196,326 @@ export async function runStopHook(
     };
   }
 
-  const existingLink = readSubagentLink(spoolDir, conversationId);
-  const detectedParentId =
-    existingLink?.parentConversationId ??
-    existingSpoolEntry?.parentConversationId ??
-    detectSiblingParentConversationId(transcriptDir, rawTranscript, conversationId);
-
-  if (!existingLink && detectedParentId && shouldPersistState) {
-    try {
-      writePendingSpool(spoolFilePath, turnsToExport, {
-        conversationId,
-        parentConversationId: detectedParentId,
-        workspaceRoot,
-        cursorPath,
-        contextAnchor,
-      });
-
-      if (fs.existsSync(legacySpoolPath)) {
-        fs.rmSync(legacySpoolPath, { force: true });
-      }
-    } catch {
-      // Ignore spool write failure here
-    }
-
-    const parentSpoolExists = fs.existsSync(getSpoolFilePath(spoolDir, detectedParentId));
-    const drained = await drainBacklogIfEnabled(parentSpoolExists ? [] : [conversationId]);
-
-    return {
-      decision: "allow",
-      exportedTurns: 0,
-      spooledTurns: turnsToExport.length,
-      drainedFiles: drained.drainedFiles,
-      drainedTurns: drained.drainedTurns,
-      spoolDir,
-      release: contextAnchor.release,
-      version: contextAnchor.version,
-      dryRun,
-      summary: [],
-    };
-  }
-
-  if (shouldPersistState) {
-    try {
-      writePendingSpool(spoolFilePath, turnsToExport, {
-        conversationId,
-        ...(detectedParentId ? { parentConversationId: detectedParentId } : {}),
-        workspaceRoot,
-        cursorPath,
-        contextAnchor,
-      });
-
-      if (fs.existsSync(legacySpoolPath)) {
-        fs.rmSync(legacySpoolPath, { force: true });
-      }
-    } catch {
-      // Ignore write-ahead failure here; catch block will retry spool write if export fails
-    }
-  }
-
-  const skillDirs = options.skillDirs ?? resolveDefaultSkillDirs(workspaceRoot);
-  const availableSkills = await discoverAvailableSkills(skillDirs);
-
-  const summary: RunStopHookResult["summary"] = [];
-  const createdLinks: SubagentLinkRecord[] = [];
-  let session: TracingSession | undefined;
+  let shouldDrainAfterUnlock = false;
+  let drainExcludeIds: string[] = [conversationId];
 
   try {
-    if (options.simulateFlushFailure) {
-      throw options.simulateFlushFailure;
-    }
+    const cursor = readCursorState(cursorPath);
+    const legacySpooledTurns = readPendingSpool(legacySpoolPath);
+    const existingSpoolEntry = readSpoolEntry(spoolFilePath);
+    const spooledTurns = existingSpoolEntry?.pendingTurns ?? [];
 
-    if (!dryRun && !options.spanExporter && !hasLangfuseCredentials()) {
-      throw new Error(
-        "Missing LANGFUSE_PUBLIC_KEY or LANGFUSE_SECRET_KEY; turns spooled for later retry",
-      );
-    }
+    const rawTranscript = fs.readFileSync(resolvedTranscriptPath, "utf8");
 
-    session = startTracingSession({
-      release: contextAnchor.release,
-      dryRun,
-      spanExporter: options.spanExporter,
-      availableSkills,
+    const newlyParsedTurns = parseTranscriptTurns(rawTranscript, {
+      conversationId,
+      modelName: input.modelName,
+      ...(input.terminationReason ? { terminationReason: input.terminationReason } : {}),
+      ...(typeof cursor?.lastExportedLineIndex === "number"
+        ? { afterLineIndex: cursor.lastExportedLineIndex }
+        : { afterStepIndex: cursor?.lastExportedStepIndex }),
+      ...(options.inlineSubagents === true
+        ? { resolveSubagentTranscript: createFilesystemSubagentResolver(resolvedTranscriptPath) }
+        : {}),
     });
 
-    for (const turn of turnsToExport) {
-      if (existingLink) {
-        const links = await emitLinkedSubagentTurn(turn, contextAnchor, existingLink);
-
-        createdLinks.push(...links);
-
-        summary.push({
-          turnIndex: turn.turnIndex,
-          traceId: existingLink.parentTraceId,
-          childCount: turn.children.length,
-          tags: turn.tags,
-          totalTokens: turn.usageSummary.total,
-        });
-      } else {
-        const traceId = await createTurnTraceId(turn);
-
-        summary.push({
-          turnIndex: turn.turnIndex,
-          traceId,
-          childCount: turn.children.length,
-          tags: turn.tags,
-          totalTokens: turn.usageSummary.total,
-        });
-
-        const links = await emitRootObservation(turn, contextAnchor, traceId);
-
-        createdLinks.push(...links);
-      }
-    }
-
-    const effectiveTimeoutMs = Math.max(
-      MIN_REMAINING_BUDGET_MS,
-      totalBudgetMs - (Date.now() - startedAt),
+    const turnsToExport = mergeTurnsForExport(
+      mergeTurnsForExport(legacySpooledTurns, spooledTurns),
+      newlyParsedTurns,
     );
 
-    await flushAndShutdown(session, effectiveTimeoutMs);
+    if (turnsToExport.length === 0) {
+      if (shouldPersistState) {
+        removeSpoolFile(spoolFilePath);
 
-    if (shouldPersistState) {
-      for (const link of createdLinks) {
-        writeSubagentLink(spoolDir, link);
+        if (fs.existsSync(legacySpoolPath)) {
+          fs.rmSync(legacySpoolPath, { force: true });
+        }
       }
 
-      advanceCursorForTurns(cursorPath, turnsToExport);
-      removeSpoolFile(spoolFilePath);
+      releaseSpoolLock(conversationLock);
+      conversationLock = null;
 
-      if (fs.existsSync(legacySpoolPath)) {
-        fs.rmSync(legacySpoolPath, { force: true });
+      const drained = await drainBacklogIfEnabled([conversationId]);
+
+      return {
+        decision: "allow",
+        exportedTurns: 0,
+        spooledTurns: 0,
+        drainedFiles: drained.drainedFiles,
+        drainedTurns: drained.drainedTurns,
+        spoolDir,
+        release: contextAnchor.release,
+        version: contextAnchor.version,
+        dryRun,
+        summary: [],
+      };
+    }
+
+    const turnTraceIds = new Map<number, string>();
+
+    for (const turn of turnsToExport) {
+      turnTraceIds.set(turn.turnIndex, await createTurnTraceId(turn));
+    }
+
+    const existingLink = readSubagentLink(spoolDir, conversationId);
+    const existingWorkflowLink = existingLink
+      ? null
+      : resolveWorkflowLink(spoolDir, conversationId);
+    const effectiveParentSessionId =
+      existingLink?.parentSessionId ?? existingWorkflowLink?.parentSessionId ?? conversationId;
+
+    if (shouldPersistState) {
+      syncWorkflowStateFromTranscriptSteps(parseJsonlSteps(rawTranscript), {
+        spoolDir,
+        parentConversationId: conversationId,
+        parentSessionId: effectiveParentSessionId,
+        turns: turnsToExport,
+        turnTraceIds,
+      });
+    }
+
+    const detectedParentId =
+      existingLink?.parentConversationId ??
+      existingSpoolEntry?.parentConversationId ??
+      detectSiblingParentConversationId(transcriptDir, rawTranscript, conversationId);
+
+    if (!existingLink && !existingWorkflowLink && detectedParentId && shouldPersistState) {
+      try {
+        writePendingSpool(spoolFilePath, turnsToExport, {
+          conversationId,
+          parentConversationId: detectedParentId,
+          workspaceRoot,
+          cursorPath,
+          contextAnchor,
+        });
+
+        if (fs.existsSync(legacySpoolPath)) {
+          fs.rmSync(legacySpoolPath, { force: true });
+        }
+      } catch {
+        // Ignore spool write failure here
+      }
+
+      const parentSpoolExists = fs.existsSync(getSpoolFilePath(spoolDir, detectedParentId));
+
+      releaseSpoolLock(conversationLock);
+      conversationLock = null;
+
+      const drained = await drainBacklogIfEnabled(parentSpoolExists ? [] : [conversationId]);
+
+      return {
+        decision: "allow",
+        exportedTurns: 0,
+        spooledTurns: turnsToExport.length,
+        drainedFiles: drained.drainedFiles,
+        drainedTurns: drained.drainedTurns,
+        spoolDir,
+        release: contextAnchor.release,
+        version: contextAnchor.version,
+        dryRun,
+        summary: [],
+      };
+    }
+
+    const activeWorkflows =
+      !existingLink && !existingWorkflowLink && !detectedParentId
+        ? listActiveWorkflowWatches(spoolDir)
+        : [];
+    const shouldDeferForWorkflow =
+      !existingLink &&
+      !existingWorkflowLink &&
+      !detectedParentId &&
+      options.workflowGraceMs !== 0 &&
+      isLikelyWorkflowWorkerTranscript(rawTranscript, turnsToExport, activeWorkflows);
+
+    if (shouldDeferForWorkflow && shouldPersistState) {
+      try {
+        writePendingSpool(spoolFilePath, turnsToExport, {
+          conversationId,
+          awaitingWorkflowMatch: true,
+          workspaceRoot,
+          cursorPath,
+          contextAnchor,
+        });
+
+        if (fs.existsSync(legacySpoolPath)) {
+          fs.rmSync(legacySpoolPath, { force: true });
+        }
+      } catch {
+        // Ignore spool write failure here
+      }
+
+      releaseSpoolLock(conversationLock);
+      conversationLock = null;
+
+      const drained = await drainBacklogIfEnabled([conversationId]);
+
+      return {
+        decision: "allow",
+        exportedTurns: 0,
+        spooledTurns: turnsToExport.length,
+        drainedFiles: drained.drainedFiles,
+        drainedTurns: drained.drainedTurns,
+        spoolDir,
+        release: contextAnchor.release,
+        version: contextAnchor.version,
+        dryRun,
+        summary: [],
+      };
+    }
+
+    if (shouldPersistState) {
+      try {
+        writePendingSpool(spoolFilePath, turnsToExport, {
+          conversationId,
+          ...(detectedParentId ? { parentConversationId: detectedParentId } : {}),
+          workspaceRoot,
+          cursorPath,
+          contextAnchor,
+        });
+
+        if (fs.existsSync(legacySpoolPath)) {
+          fs.rmSync(legacySpoolPath, { force: true });
+        }
+      } catch {
+        // Ignore write-ahead failure here; catch block will retry spool write if export fails
       }
     }
 
-    resetTracingProvider();
+    const skillDirs = options.skillDirs ?? resolveDefaultSkillDirs(workspaceRoot);
+    const availableSkills = await discoverAvailableSkills(skillDirs);
 
-    const drained = await drainBacklogIfEnabled([conversationId]);
+    const summary: RunStopHookResult["summary"] = [];
+    const createdLinks: SubagentLinkRecord[] = [];
+    let session: TracingSession | undefined;
+
+    try {
+      if (options.simulateFlushFailure) {
+        throw options.simulateFlushFailure;
+      }
+
+      if (!dryRun && !options.spanExporter && !hasLangfuseCredentials()) {
+        throw new Error(
+          "Missing LANGFUSE_PUBLIC_KEY or LANGFUSE_SECRET_KEY; turns spooled for later retry",
+        );
+      }
+
+      session = startTracingSession({
+        release: contextAnchor.release,
+        dryRun,
+        spanExporter: options.spanExporter,
+        availableSkills,
+      });
+
+      for (const turn of turnsToExport) {
+        if (existingLink) {
+          const links = await emitLinkedSubagentTurn(turn, contextAnchor, existingLink);
+
+          createdLinks.push(...links);
+
+          summary.push({
+            turnIndex: turn.turnIndex,
+            traceId: existingLink.parentTraceId,
+            childCount: turn.children.length,
+            tags: turn.tags,
+            totalTokens: turn.usageSummary.total,
+          });
+        } else {
+          const traceId = turnTraceIds.get(turn.turnIndex) ?? (await createTurnTraceId(turn));
+
+          summary.push({
+            turnIndex: turn.turnIndex,
+            traceId,
+            childCount: turn.children.length,
+            tags: turn.tags,
+            totalTokens: turn.usageSummary.total,
+          });
+
+          const links = await emitRootObservation(
+            turn,
+            contextAnchor,
+            traceId,
+            existingWorkflowLink ? { workflowLink: existingWorkflowLink } : undefined,
+          );
+
+          createdLinks.push(...links);
+        }
+      }
+
+      const effectiveTimeoutMs = Math.max(
+        MIN_REMAINING_BUDGET_MS,
+        totalBudgetMs - (Date.now() - startedAt),
+      );
+
+      await flushAndShutdown(session, effectiveTimeoutMs);
+
+      if (shouldPersistState) {
+        for (const link of createdLinks) {
+          writeSubagentLink(spoolDir, link);
+        }
+
+        advanceCursorForTurns(cursorPath, turnsToExport);
+        removeSpoolFile(spoolFilePath);
+
+        if (fs.existsSync(legacySpoolPath)) {
+          fs.rmSync(legacySpoolPath, { force: true });
+        }
+      }
+
+      resetTracingProvider();
+      shouldDrainAfterUnlock = true;
+      drainExcludeIds = [conversationId];
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+
+      emitHookWarning(
+        options.onWarning,
+        `Failed to export ${turnsToExport.length} turn(s) to Langfuse: ${message}`,
+      );
+
+      if (shouldPersistState) {
+        try {
+          writePendingSpool(spoolFilePath, turnsToExport, {
+            conversationId,
+            ...(detectedParentId ? { parentConversationId: detectedParentId } : {}),
+            workspaceRoot,
+            cursorPath,
+            contextAnchor,
+          });
+        } catch {
+          // Ignore secondary spool write failure
+        }
+      }
+
+      try {
+        await session?.sdk.shutdown();
+      } catch {
+        // Ignore shutdown error during fail-open
+      }
+
+      return {
+        decision: "allow",
+        exportedTurns: 0,
+        spooledTurns: shouldPersistState ? turnsToExport.length : 0,
+        drainedFiles: 0,
+        drainedTurns: 0,
+        spoolDir,
+        release: contextAnchor.release,
+        version: contextAnchor.version,
+        dryRun,
+        summary,
+      };
+    } finally {
+      resetTracingProvider();
+    }
+
+    releaseSpoolLock(conversationLock);
+    conversationLock = null;
+
+    const drained = shouldDrainAfterUnlock
+      ? await drainBacklogIfEnabled(drainExcludeIds)
+      : { drainedFiles: 0, drainedTurns: 0 };
 
     return {
       decision: "allow",
@@ -359,47 +529,7 @@ export async function runStopHook(
       dryRun,
       summary,
     };
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-
-    emitHookWarning(
-      options.onWarning,
-      `Failed to export ${turnsToExport.length} turn(s) to Langfuse: ${message}`,
-    );
-
-    if (shouldPersistState) {
-      try {
-        writePendingSpool(spoolFilePath, turnsToExport, {
-          conversationId,
-          ...(detectedParentId ? { parentConversationId: detectedParentId } : {}),
-          workspaceRoot,
-          cursorPath,
-          contextAnchor,
-        });
-      } catch {
-        // Ignore secondary spool write failure
-      }
-    }
-
-    try {
-      await session?.sdk.shutdown();
-    } catch {
-      // Ignore shutdown error during fail-open
-    }
-
-    return {
-      decision: "allow",
-      exportedTurns: 0,
-      spooledTurns: shouldPersistState ? turnsToExport.length : 0,
-      drainedFiles: 0,
-      drainedTurns: 0,
-      spoolDir,
-      release: contextAnchor.release,
-      version: contextAnchor.version,
-      dryRun,
-      summary,
-    };
   } finally {
-    resetTracingProvider();
+    releaseSpoolLock(conversationLock);
   }
 }

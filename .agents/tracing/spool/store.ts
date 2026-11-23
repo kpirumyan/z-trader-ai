@@ -178,6 +178,9 @@ export function readSpoolEntry(spoolPath: string): PendingExportSpool | null {
         ...(typeof parsed.parentConversationId === "string"
           ? { parentConversationId: parsed.parentConversationId }
           : {}),
+        ...(typeof parsed.awaitingWorkflowMatch === "boolean"
+          ? { awaitingWorkflowMatch: parsed.awaitingWorkflowMatch }
+          : {}),
         ...(typeof parsed.workspaceRoot === "string"
           ? { workspaceRoot: parsed.workspaceRoot }
           : {}),
@@ -204,6 +207,7 @@ export function writePendingSpool(
   metadata?: {
     conversationId?: string;
     parentConversationId?: string;
+    awaitingWorkflowMatch?: boolean;
     workspaceRoot?: string;
     cursorPath?: string;
     contextAnchor?: ContextAnchor;
@@ -214,6 +218,7 @@ export function writePendingSpool(
     ...(metadata?.parentConversationId
       ? { parentConversationId: metadata.parentConversationId }
       : {}),
+    ...(metadata?.awaitingWorkflowMatch ? { awaitingWorkflowMatch: true } : {}),
     ...(metadata?.workspaceRoot ? { workspaceRoot: metadata.workspaceRoot } : {}),
     ...(metadata?.cursorPath ? { cursorPath: metadata.cursorPath } : {}),
     ...(metadata?.contextAnchor ? { contextAnchor: metadata.contextAnchor } : {}),

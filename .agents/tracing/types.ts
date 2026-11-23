@@ -248,6 +248,7 @@ export interface LangfuseCursorState {
 export interface PendingExportSpool {
   conversationId?: string;
   parentConversationId?: string;
+  awaitingWorkflowMatch?: boolean;
   workspaceRoot?: string;
   cursorPath?: string;
   contextAnchor?: ContextAnchor;
@@ -262,6 +263,32 @@ export interface SubagentLinkRecord {
   parentSpanId: string;
   parentSessionId: string;
   agentName: string;
+  updatedAt: string;
+}
+
+export interface WorkflowWatchRecord {
+  taskKey: string;
+  taskId: string;
+  parentConversationId: string;
+  parentSessionId: string;
+  parentTraceId: string;
+  parentSpanId: string;
+  taskLogPath?: string;
+  description?: string;
+  status: "running" | "completed";
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string;
+}
+
+export interface WorkflowLinkRecord {
+  workerConversationId: string;
+  parentConversationId: string;
+  parentSessionId: string;
+  parentTraceId?: string;
+  parentSpanId?: string;
+  taskId: string;
+  taskLogPath?: string;
   updatedAt: string;
 }
 
@@ -285,6 +312,7 @@ export interface RunStopHookOptions {
   drainBacklog?: boolean;
   inlineSubagents?: boolean;
   orphanGraceMs?: number;
+  workflowGraceMs?: number;
   simulateFlushFailure?: Error;
   onWarning?: (message: string) => void;
 }
@@ -318,6 +346,7 @@ export interface DrainSpoolOptions {
   spanExporter?: SpanExporterLike;
   skillDirs?: string[];
   orphanGraceMs?: number;
+  workflowGraceMs?: number;
   simulateFlushFailure?: Error;
   onWarning?: (message: string) => void;
 }
@@ -338,6 +367,7 @@ export interface RunSessionStartHookOptions {
   skillDirs?: string[];
   spoolDir?: string;
   orphanGraceMs?: number;
+  workflowGraceMs?: number;
   simulateFlushFailure?: Error;
   onWarning?: (message: string) => void;
 }

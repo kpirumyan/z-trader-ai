@@ -1218,4 +1218,106 @@ describe("exporter: end-to-end Langfuse OTel export", () => {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }
   });
+
+  it("emits deterministic spanIds across repeated exports of the same turn", async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "z-trader-deterministic-span-test-"));
+
+    try {
+      const logsDir = path.join(tempDir, "conv-det-1", ".system_generated", "logs");
+
+      fs.mkdirSync(logsDir, { recursive: true });
+
+      const fullPath = path.join(logsDir, "transcript_full.jsonl");
+      const cursorPath = path.join(logsDir, ".langfuse-cursor.json");
+
+      const lines = [
+        JSON.stringify({
+          step_index: 0,
+          source: "USER_EXPLICIT",
+          type: "USER_INPUT",
+          status: "DONE",
+          created_at: "2026-11-23T22:06:10Z",
+          content: "<USER_REQUEST>\nRead doc\n</USER_REQUEST>",
+        }),
+        JSON.stringify({
+          step_index: 1,
+          source: "MODEL",
+          type: "PLANNER_RESPONSE",
+          status: "DONE",
+          created_at: "2026-11-23T22:06:18Z",
+          input_tokens: 100,
+          output_tokens: 20,
+          tool_calls: [{ id: "call-read-1", name: "read_file", args: { Path: '"README.md"' } }],
+        }),
+        JSON.stringify({
+          step_index: 2,
+          source: "MODEL",
+          type: "GENERIC",
+          status: "DONE",
+          created_at: "2026-11-23T22:06:20Z",
+          content: "# Readme",
+        }),
+        JSON.stringify({
+          step_index: 3,
+          source: "MODEL",
+          type: "PLANNER_RESPONSE",
+          status: "DONE",
+          created_at: "2026-11-23T22:06:22Z",
+          input_tokens: 150,
+          output_tokens: 30,
+          content: "Done.",
+        }),
+      ].join("\n");
+
+      fs.writeFileSync(fullPath, lines, "utf8");
+
+      const captureRun = async () => {
+        const captured: Array<{
+          name: string;
+          traceId: string;
+          spanId: string;
+          parentSpanId?: string;
+        }> = [];
+
+        await runStopHook(
+          {
+            conversationId: "conv-det-1",
+            transcriptPath: fullPath,
+            cwd: tempDir,
+          },
+          {
+            skillDirs: [],
+            spanExporter: {
+              export(spans, resultCallback) {
+                for (const s of spans) {
+                  captured.push({
+                    name: s.name,
+                    traceId: s.spanContext().traceId,
+                    spanId: s.spanContext().spanId,
+                    parentSpanId: s.parentSpanContext?.spanId,
+                  });
+                }
+
+                resultCallback({ code: 0 });
+              },
+              shutdown: async () => {},
+            },
+          },
+        );
+
+        return captured;
+      };
+
+      const first = await captureRun();
+
+      fs.rmSync(cursorPath, { force: true });
+
+      const second = await captureRun();
+
+      expect(first).toHaveLength(4);
+      expect(second).toEqual(first);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
 });

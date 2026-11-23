@@ -4,6 +4,7 @@ export { discoverAvailableSkills, resolveDefaultSkillDirs } from "./skills.ts";
 export { computeContextAnchor } from "./versioning.ts";
 
 export {
+  acquireSpoolLock,
   advanceCursorForTurns,
   getSpoolFilePath,
   listSpoolFiles,
@@ -12,8 +13,12 @@ export {
   readPendingSpool,
   readSpoolEntry,
   readSubagentLink,
+  readWorkflowLink,
+  readWorkflowWatch,
+  releaseSpoolLock,
   removeSpoolFile,
   resolveSpoolDir,
+  resolveWorkflowLink,
   writeCursorState,
   writePendingSpool,
   writeSubagentLink,
@@ -98,4 +103,6 @@ export type {
   ToolObservationType,
   TracerProviderLike,
   TurnGateSummary,
+  WorkflowLinkRecord,
+  WorkflowWatchRecord,
 } from "./types.ts";

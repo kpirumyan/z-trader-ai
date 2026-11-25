@@ -148,7 +148,7 @@ describe("spool: cursor, write-ahead spool, and cross-session Maildir draining",
       const rehydrated = readPendingSpool(spoolPath);
 
       expect(rehydrated).toHaveLength(1);
-      expect(rehydrated[0]!.startTime).toBeInstanceOf(Date);
+      expect(rehydrated[0].startTime).toBeInstanceOf(Date);
 
       const merged = mergeTurnsForExport(rehydrated, [
         { ...sampleTurn, output: "Updated Output 1" },
@@ -156,8 +156,8 @@ describe("spool: cursor, write-ahead spool, and cross-session Maildir draining",
       ]);
 
       expect(merged).toHaveLength(2);
-      expect(merged[0]!.output).toBe("Updated Output 1");
-      expect(merged[1]!.turnIndex).toBe(2);
+      expect(merged[0].output).toBe("Updated Output 1");
+      expect(merged[1].turnIndex).toBe(2);
 
       expect(removeSpoolFile(spoolPath)).toBe(true);
       expect(removeSpoolFile(spoolPath)).toBe(false);

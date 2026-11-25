@@ -412,7 +412,7 @@ test.describe("Pre-hydration theme painting & storage fallback", () => {
         await expectShell(page, sample.expected);
 
         await expect
-          .poll(() => page.evaluate(() => Reflect.get(window, "__shellFirstFrame")))
+          .poll(() => page.evaluate(() => Reflect.get(window, "__shellFirstFrame") as unknown))
           .toEqual({
             theme: sample.expected,
             canvas: sample.expected === "dark" ? "rgb(14, 14, 14)" : "rgb(255, 255, 255)",

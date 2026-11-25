@@ -307,7 +307,7 @@ export function isLikelyWorkflowWorkerTranscript(
     return false;
   }
 
-  const turn = turns[0]!;
+  const turn = turns[0];
 
   if (turn.turnIndex !== 1 || Boolean(turn.metadata.userSettingsChange)) {
     return false;
@@ -362,7 +362,7 @@ export function syncWorkflowStateFromTranscriptSteps(
   const nowIso = new Date().toISOString();
 
   for (let i = 0; i < steps.length; i++) {
-    const step = steps[i]!;
+    const step = steps[i];
 
     if (step.type === "PLANNER_RESPONSE" && Array.isArray(step.tool_calls)) {
       const workflowCalls = step.tool_calls.filter((tc) => tc.name === "run_workflow");
@@ -374,11 +374,11 @@ export function syncWorkflowStateFromTranscriptSteps(
       let lookahead = i + 1;
 
       for (let callIdx = 0; callIdx < step.tool_calls.length; callIdx++) {
-        const tc = step.tool_calls[callIdx]!;
+        const tc = step.tool_calls[callIdx];
 
         const genericStep =
-          lookahead < steps.length && steps[lookahead]!.type === "GENERIC"
-            ? steps[lookahead]!
+          lookahead < steps.length && steps[lookahead].type === "GENERIC"
+            ? steps[lookahead]
             : undefined;
 
         if (genericStep) {

@@ -200,7 +200,7 @@ export function parseFrontmatter(raw: string): {
     }
   }
 
-  return { frontmatter: data as Partial<AdrFrontmatter>, body };
+  return { frontmatter: data, body };
 }
 
 export function serializeFrontmatter(data: Partial<AdrFrontmatter>, body: string): string {

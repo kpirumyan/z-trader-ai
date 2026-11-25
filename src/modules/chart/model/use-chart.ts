@@ -188,7 +188,7 @@ export function useChart({
       const nextTheme =
         storageEvent.key === THEME_STORAGE_KEY &&
         (storageEvent.newValue === "light" || storageEvent.newValue === "dark")
-          ? (storageEvent.newValue as Theme)
+          ? storageEvent.newValue
           : getDomTheme();
 
       if (chartRef.current && themeRef.current !== nextTheme) {

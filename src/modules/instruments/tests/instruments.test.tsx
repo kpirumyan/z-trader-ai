@@ -116,9 +116,9 @@ function renderSearchDialog(options?: {
   );
 
   const dialog = screen.getByRole("dialog");
-  const input = within(dialog).getByRole("combobox", {
+  const input = within(dialog).getByRole<HTMLInputElement>("combobox", {
     name: "Search instruments",
-  }) as HTMLInputElement;
+  });
 
   return { dialog, input, onSelect, onCancel };
 }

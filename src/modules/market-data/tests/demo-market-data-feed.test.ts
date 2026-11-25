@@ -41,14 +41,14 @@ describe("demo-market-data-feed: DemoMarketDataFeed", () => {
       expect(feed.getStatus()).toBe("idle");
 
       // When: connect is called
-      feed.connect();
+      void feed.connect();
 
       // Then: status transitions to connected
       expect(feed.getStatus()).toBe("connected");
       expect(statuses).toEqual(["connected"]);
 
       // When: disconnect is called
-      feed.disconnect();
+      void feed.disconnect();
 
       // Then: status transitions to disconnected
       expect(feed.getStatus()).toBe("disconnected");

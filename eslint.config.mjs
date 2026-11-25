@@ -4,9 +4,8 @@ import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 import prettierConfig from "eslint-config-prettier";
 import boundaries from "eslint-plugin-boundaries";
-import importPlugin from "eslint-plugin-import";
-import reactCompiler from "eslint-plugin-react-compiler";
 import reactHooks from "eslint-plugin-react-hooks";
+import tseslint from "typescript-eslint";
 
 const englishCodePlugin = {
   rules: {
@@ -52,14 +51,31 @@ const englishCodePlugin = {
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
-  reactCompiler.configs.recommended,
+  {
+    files: ["**/*.{ts,tsx,mts,cts}"],
+    extends: [...tseslint.configs.recommendedTypeCheckedOnly],
+    languageOptions: {
+      parserOptions: {
+        projectService: {
+          allowDefaultProject: [
+            "vitest.config.mts",
+            ".agents/evals/*.ts",
+            ".agents/evals/tests/*.ts",
+          ],
+        },
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    rules: {
+      "@typescript-eslint/require-await": "off",
+    },
+  },
   {
     files: ["**/*.{js,jsx,mjs,ts,tsx,mts,cts}"],
     plugins: {
       "@stylistic": stylistic,
       "english-code": englishCodePlugin,
       boundaries,
-      import: importPlugin,
     },
     settings: {
       "import/internal-regex": "^@/",
@@ -351,6 +367,12 @@ const eslintConfig = defineConfig([
           ],
         },
       ],
+    },
+  },
+  {
+    files: ["**/*.test.{ts,tsx,mts,cts}", "**/*.spec.{ts,tsx,mts,cts}"],
+    rules: {
+      "@typescript-eslint/unbound-method": "off",
     },
   },
   prettierConfig,

@@ -320,7 +320,7 @@ describe("parseTranscriptTurns", () => {
 
     expect(turns).toHaveLength(2);
 
-    const turn1 = turns[0]!;
+    const turn1 = turns[0];
 
     expect(turn1.turnIndex).toBe(1);
     expect(turn1.traceName).toBe("agent-turn");
@@ -358,7 +358,7 @@ describe("parseTranscriptTurns", () => {
       "generation:llm-generation",
     ]);
 
-    const gen1 = turn1.children[0]!;
+    const gen1 = turn1.children[0];
 
     expect(gen1.type).toBe("generation");
 
@@ -387,7 +387,7 @@ describe("parseTranscriptTurns", () => {
       ]);
     }
 
-    const gen2 = turn1.children[4]!;
+    const gen2 = turn1.children[4];
 
     expect(gen2.type).toBe("generation");
 
@@ -421,7 +421,7 @@ describe("parseTranscriptTurns", () => {
       });
     }
 
-    const tool1 = turn1.children[1]!;
+    const tool1 = turn1.children[1];
 
     expect(tool1.type).toBe("retriever");
 
@@ -440,7 +440,7 @@ describe("parseTranscriptTurns", () => {
       expect(tool1.endTime.toISOString()).toBe("2026-11-11T16:46:50.000Z");
     }
 
-    const skillTool = turn1.children[2]!;
+    const skillTool = turn1.children[2];
 
     expect(skillTool.type).toBe("tool");
 
@@ -458,7 +458,7 @@ describe("parseTranscriptTurns", () => {
       expect(skillTool.metadata.skillPath).toBe("SKILL.md");
     }
 
-    const failedTool = turn1.children[3]!;
+    const failedTool = turn1.children[3];
 
     expect(failedTool.type).toBe("retriever");
 
@@ -467,8 +467,8 @@ describe("parseTranscriptTurns", () => {
       expect(failedTool.statusMessage).toBe("file does not exist");
     }
 
-    const turn2 = turns[1]!;
-    const turn2Gen = turn2.children[0]!;
+    const turn2 = turns[1];
+    const turn2Gen = turn2.children[0];
 
     expect(turn2Gen.type).toBe("generation");
 
@@ -493,10 +493,10 @@ describe("parseTranscriptTurns", () => {
     });
 
     expect(incrementalTurns).toHaveLength(1);
-    expect(incrementalTurns[0]!.turnIndex).toBe(2);
-    expect(incrementalTurns[0]!.traceSeed).toBe(`${conversationId}-turn-2`);
+    expect(incrementalTurns[0].turnIndex).toBe(2);
+    expect(incrementalTurns[0].traceSeed).toBe(`${conversationId}-turn-2`);
 
-    const incGen = incrementalTurns[0]!.children[0]!;
+    const incGen = incrementalTurns[0].children[0];
 
     expect(incGen.type).toBe("generation");
 
@@ -613,7 +613,7 @@ describe("parseTranscriptTurns", () => {
 
     expect(turns).toHaveLength(3);
 
-    const abandonedTurn = turns[0]!;
+    const abandonedTurn = turns[0];
 
     expect(abandonedTurn.startStepIndex).toBe(12);
     expect(abandonedTurn.endStepIndex).toBe(12);
@@ -621,11 +621,11 @@ describe("parseTranscriptTurns", () => {
     expect(abandonedTurn.level).toBe("WARNING");
     expect(abandonedTurn.children).toHaveLength(0);
 
-    const firstTurn = turns[1]!;
+    const firstTurn = turns[1];
 
     expect(firstTurn.children).toHaveLength(5);
 
-    const firstTurnGen = firstTurn.children[0]!;
+    const firstTurnGen = firstTurn.children[0];
 
     expect(firstTurnGen.type).toBe("generation");
 
@@ -633,7 +633,7 @@ describe("parseTranscriptTurns", () => {
       expect(firstTurnGen.input).toEqual([{ role: "user", content: "git status" }]);
     }
 
-    const firstTool = firstTurn.children[1]!;
+    const firstTool = firstTurn.children[1];
 
     expect(firstTool.type).toBe("tool");
 
@@ -643,7 +643,7 @@ describe("parseTranscriptTurns", () => {
       );
     }
 
-    const secondTool = firstTurn.children[3]!;
+    const secondTool = firstTurn.children[3];
 
     expect(secondTool.type).toBe("tool");
 
@@ -651,11 +651,11 @@ describe("parseTranscriptTurns", () => {
       expect(secondTool.output).toBe("On branch main\nnothing to commit");
     }
 
-    const secondTurn = turns[2]!;
+    const secondTurn = turns[2];
 
     expect(secondTurn.children).toHaveLength(3);
 
-    const retryTool = secondTurn.children[1]!;
+    const retryTool = secondTurn.children[1];
 
     expect(retryTool.type).toBe("tool");
 
@@ -776,7 +776,7 @@ describe("parseTranscriptTurns", () => {
 
     expect(turns).toHaveLength(1);
 
-    const turn = turns[0]!;
+    const turn = turns[0];
 
     expect(turn.children.map((c) => `${c.type}:${c.name}`)).toEqual([
       "generation:llm-generation",
@@ -784,7 +784,7 @@ describe("parseTranscriptTurns", () => {
       "generation:llm-generation",
     ]);
 
-    const agentObs = turn.children[1]!;
+    const agentObs = turn.children[1];
 
     expect(agentObs.type).toBe("agent");
 
@@ -799,7 +799,7 @@ describe("parseTranscriptTurns", () => {
         "generation:llm-generation",
       ]);
 
-      const subagentTool = agentObs.children[1]!;
+      const subagentTool = agentObs.children[1];
 
       expect(subagentTool.type).toBe("retriever");
 
@@ -899,8 +899,8 @@ describe("parseTranscriptTurns", () => {
 
     expect(turns).toHaveLength(1);
 
-    const turn = turns[0]!;
-    const gen2 = turn.children[2]!;
+    const turn = turns[0];
+    const gen2 = turn.children[2];
 
     expect(gen2.type).toBe("generation");
 
@@ -988,7 +988,7 @@ describe("parseTranscriptTurns", () => {
 
     expect(turns).toHaveLength(1);
 
-    const turn = turns[0]!;
+    const turn = turns[0];
 
     expect(turn.metadata.systemMessageCount).toBe(3);
 
@@ -1011,7 +1011,7 @@ describe("parseTranscriptTurns", () => {
       "generation:llm-generation",
     ]);
 
-    const noticeEvent = turn.children[0]!;
+    const noticeEvent = turn.children[0];
 
     expect(noticeEvent.type).toBe("event");
 
@@ -1022,7 +1022,7 @@ describe("parseTranscriptTurns", () => {
       });
     }
 
-    const gen1 = turn.children[1]!;
+    const gen1 = turn.children[1];
 
     expect(gen1.type).toBe("generation");
 
@@ -1033,7 +1033,7 @@ describe("parseTranscriptTurns", () => {
       ]);
     }
 
-    const gen2 = turn.children[5]!;
+    const gen2 = turn.children[5];
 
     expect(gen2.type).toBe("generation");
 
@@ -1095,9 +1095,9 @@ describe("parseTranscriptTurns", () => {
       conversationId: "conv-huge-system",
     });
 
-    const turn = turns[0]!;
-    const evt = turn.children[0]!;
-    const gen = turn.children[1]!;
+    const turn = turns[0];
+    const evt = turn.children[0];
+    const gen = turn.children[1];
 
     expect(evt.type).toBe("event");
     expect(gen.type).toBe("generation");
@@ -1187,7 +1187,7 @@ describe("parseTranscriptTurns", () => {
 
     expect(turns).toHaveLength(1);
 
-    const children = turns[0]!.children;
+    const children = turns[0].children;
 
     expect(children).toHaveLength(5);
 
@@ -1199,11 +1199,11 @@ describe("parseTranscriptTurns", () => {
       "generation:llm-generation",
     ]);
 
-    const gen1 = children[0]!;
-    const tool1 = children[1]!;
-    const gen2 = children[2]!;
-    const tool2 = children[3]!;
-    const gen3 = children[4]!;
+    const gen1 = children[0];
+    const tool1 = children[1];
+    const gen2 = children[2];
+    const tool2 = children[3];
+    const gen3 = children[4];
 
     expect(gen1.startTime.toISOString()).toBe("2026-11-12T14:26:59.000Z");
     expect(gen1.endTime.toISOString()).toBe("2026-11-12T14:27:02.000Z");
@@ -1222,9 +1222,7 @@ describe("parseTranscriptTurns", () => {
 
     // Every consecutive observation must have strictly ascending start time
     for (let k = 0; k < children.length - 1; k++) {
-      expect(children[k + 1]!.startTime.getTime()).toBeGreaterThan(
-        children[k]!.startTime.getTime(),
-      );
+      expect(children[k + 1].startTime.getTime()).toBeGreaterThan(children[k].startTime.getTime());
     }
   });
 });
@@ -1509,10 +1507,10 @@ describe("USER_SETTINGS_CHANGE parsing and model tracking", () => {
 
     expect(turns).toHaveLength(4);
 
-    const turn1 = turns[0]!;
-    const turn2 = turns[1]!;
-    const turn3 = turns[2]!;
-    const turn4 = turns[3]!;
+    const turn1 = turns[0];
+    const turn2 = turns[1];
+    const turn3 = turns[2];
+    const turn4 = turns[3];
 
     expect(turn1.metadata.model).toBe("gemini-3.8-flash-low");
 
@@ -1547,7 +1545,7 @@ describe("USER_SETTINGS_CHANGE parsing and model tracking", () => {
       "event:settings:model-change",
     ]);
 
-    const modelEvent = turn2.children[0]!;
+    const modelEvent = turn2.children[0];
 
     expect(modelEvent.type).toBe("event");
 
@@ -1569,7 +1567,7 @@ describe("USER_SETTINGS_CHANGE parsing and model tracking", () => {
     expect(turn3.metadata.model).toBe("gemini-3.8-flash-high");
     expect(turn3.children.map((c) => `${c.type}:${c.name}`)).toEqual(["generation:llm-generation"]);
 
-    const turn3Gen = turn3.children[0]!;
+    const turn3Gen = turn3.children[0];
 
     expect(turn3Gen.type).toBe("generation");
 
@@ -1587,7 +1585,7 @@ describe("USER_SETTINGS_CHANGE parsing and model tracking", () => {
     expect(turn4.metadata.model).toBe("gemini-3.8-flash-high");
     expect(turn4.children.map((c) => `${c.type}:${c.name}`)).toEqual(["generation:llm-generation"]);
 
-    const turn4Gen = turn4.children[0]!;
+    const turn4Gen = turn4.children[0];
 
     if (turn4Gen.type === "generation") {
       expect(turn4Gen.model).toBe("gemini-3.8-flash-high");
@@ -1601,10 +1599,10 @@ describe("USER_SETTINGS_CHANGE parsing and model tracking", () => {
     });
 
     expect(incremental).toHaveLength(1);
-    expect(incremental[0]!.turnIndex).toBe(4);
-    expect(incremental[0]!.metadata.model).toBe("gemini-3.8-flash-high");
+    expect(incremental[0].turnIndex).toBe(4);
+    expect(incremental[0].metadata.model).toBe("gemini-3.8-flash-high");
 
-    const incGen = incremental[0]!.children[0]!;
+    const incGen = incremental[0].children[0];
 
     if (incGen.type === "generation") {
       expect(incGen.model).toBe("gemini-3.8-flash-high");
@@ -1691,7 +1689,7 @@ describe("USER_SETTINGS_CHANGE parsing and model tracking", () => {
 
     expect(turns).toHaveLength(4);
 
-    const interruptedTurn = turns[1]!;
+    const interruptedTurn = turns[1];
 
     expect(interruptedTurn.turnIndex).toBe(2);
     expect(interruptedTurn.startStepIndex).toBe(22);
@@ -1704,7 +1702,7 @@ describe("USER_SETTINGS_CHANGE parsing and model tracking", () => {
     expect(interruptedTurn.metadata.interrupted).toBe(true);
     expect(interruptedTurn.metadata.generationCount).toBe(0);
 
-    const nextTurn = turns[2]!;
+    const nextTurn = turns[2];
 
     expect(nextTurn.turnIndex).toBe(3);
     expect(nextTurn.startStepIndex).toBe(23);
@@ -1727,7 +1725,7 @@ describe("USER_SETTINGS_CHANGE parsing and model tracking", () => {
       ]);
     }
 
-    const reusedStepTurn = turns[3]!;
+    const reusedStepTurn = turns[3];
 
     expect(reusedStepTurn.turnIndex).toBe(4);
     expect(reusedStepTurn.endStepIndex).toBe(24);
@@ -1740,8 +1738,8 @@ describe("USER_SETTINGS_CHANGE parsing and model tracking", () => {
     });
 
     expect(incrementalByLine).toHaveLength(1);
-    expect(incrementalByLine[0]!.turnIndex).toBe(4);
-    expect(incrementalByLine[0]!.output).toBe("Observed random messages.");
+    expect(incrementalByLine[0].turnIndex).toBe(4);
+    expect(incrementalByLine[0].output).toBe("Observed random messages.");
   });
 
   it("propagates ERROR and WARNING trace levels from failed or interrupted executions", () => {
@@ -1794,10 +1792,10 @@ describe("USER_SETTINGS_CHANGE parsing and model tracking", () => {
     });
 
     expect(turns).toHaveLength(2);
-    expect(turns[0]!.level).toBe("WARNING");
-    expect(turns[0]!.metadata.interrupted).toBe(true);
-    expect(turns[1]!.level).toBe("ERROR");
-    expect(turns[1]!.statusMessage).toBe("Rate limit exceeded");
+    expect(turns[0].level).toBe("WARNING");
+    expect(turns[0].metadata.interrupted).toBe(true);
+    expect(turns[1].level).toBe("ERROR");
+    expect(turns[1].statusMessage).toBe("Rate limit exceeded");
   });
 });
 
@@ -1854,11 +1852,11 @@ describe("parseTranscriptTurns evaluation context enrichment", () => {
 
     expect(canceledTurns).toHaveLength(2);
 
-    expect(canceledTurns[0]!.metadata.terminationReason).toBeUndefined();
-    expect(canceledTurns[0]!.metadata.interrupted).toBeUndefined();
-    expect(canceledTurns[0]!.level).toBeUndefined();
+    expect(canceledTurns[0].metadata.terminationReason).toBeUndefined();
+    expect(canceledTurns[0].metadata.interrupted).toBeUndefined();
+    expect(canceledTurns[0].level).toBeUndefined();
 
-    const lastCanceledTurn = canceledTurns[1]!;
+    const lastCanceledTurn = canceledTurns[1];
 
     expect(lastCanceledTurn.metadata.terminationReason).toBe("USER_CANCELED");
     expect(lastCanceledTurn.metadata.interrupted).toBe(true);
@@ -1889,10 +1887,10 @@ describe("parseTranscriptTurns evaluation context enrichment", () => {
       terminationReason: "END_TURN",
     });
 
-    expect(normalTurns[0]!.metadata.terminationReason).toBe("END_TURN");
-    expect(normalTurns[0]!.metadata.interrupted).toBeUndefined();
-    expect(normalTurns[0]!.level).toBeUndefined();
-    expect(normalTurns[0]!.statusMessage).toBeUndefined();
+    expect(normalTurns[0].metadata.terminationReason).toBe("END_TURN");
+    expect(normalTurns[0].metadata.interrupted).toBeUndefined();
+    expect(normalTurns[0].level).toBeUndefined();
+    expect(normalTurns[0].statusMessage).toBeUndefined();
   });
 
   it("collects failedTools across direct tool calls and nested subagents consistently with errorCount", () => {
@@ -2000,9 +1998,9 @@ describe("parseTranscriptTurns evaluation context enrichment", () => {
     });
 
     expect(turns).toHaveLength(1);
-    expect(turns[0]!.metadata.errorCount).toBe(3);
+    expect(turns[0].metadata.errorCount).toBe(3);
 
-    expect(turns[0]!.metadata.failedTools).toEqual([
+    expect(turns[0].metadata.failedTools).toEqual([
       "edit_file (step 4)",
       "run_command:vitest (step 7)",
       "read_file (step 2)",
@@ -2031,8 +2029,8 @@ describe("parseTranscriptTurns evaluation context enrichment", () => {
       conversationId: "conv-no-failed-tools",
     });
 
-    expect(cleanTurns[0]!.metadata.errorCount).toBe(0);
-    expect(cleanTurns[0]!.metadata.failedTools).toEqual([]);
+    expect(cleanTurns[0].metadata.errorCount).toBe(0);
+    expect(cleanTurns[0].metadata.failedTools).toEqual([]);
   });
 
   it("computes gateSummary for turns without gates, first-try passes, retries, and nested subagent gates", () => {
@@ -2069,7 +2067,7 @@ describe("parseTranscriptTurns evaluation context enrichment", () => {
       failedGates: [],
     };
 
-    expect(noGatesTurns[0]!.metadata.gateSummary).toEqual(expectedNoGates);
+    expect(noGatesTurns[0].metadata.gateSummary).toEqual(expectedNoGates);
 
     const firstTryTranscript = [
       JSON.stringify({
@@ -2121,7 +2119,7 @@ describe("parseTranscriptTurns evaluation context enrichment", () => {
       conversationId: "conv-first-try",
     });
 
-    expect(firstTryTurns[0]!.metadata.gateSummary).toEqual({
+    expect(firstTryTurns[0].metadata.gateSummary).toEqual({
       totalRuns: 2,
       firstTryPassed: true,
       finalPassed: true,
@@ -2196,7 +2194,7 @@ describe("parseTranscriptTurns evaluation context enrichment", () => {
       conversationId: "conv-retry-pass",
     });
 
-    expect(retryPassTurns[0]!.metadata.gateSummary).toEqual({
+    expect(retryPassTurns[0].metadata.gateSummary).toEqual({
       totalRuns: 3,
       firstTryPassed: false,
       finalPassed: true,
@@ -2304,7 +2302,7 @@ describe("parseTranscriptTurns evaluation context enrichment", () => {
       resolveSubagentTranscript: (id) => (id === subagentId ? nestedSubagentTranscript : null),
     });
 
-    expect(nestedTurns[0]!.metadata.gateSummary).toEqual({
+    expect(nestedTurns[0].metadata.gateSummary).toEqual({
       totalRuns: 3,
       firstTryPassed: false,
       finalPassed: false,
@@ -2358,16 +2356,16 @@ describe("parseTranscriptTurns evaluation context enrichment", () => {
 
     expect(allTurns).toHaveLength(2);
 
-    expect(allTurns[0]!.metadata.hasPreviousTurn).toBe(false);
-    expect(allTurns[0]!.metadata.previousTurnInput).toBeUndefined();
-    expect(allTurns[0]!.metadata.previousTurnOutput).toBeUndefined();
+    expect(allTurns[0].metadata.hasPreviousTurn).toBe(false);
+    expect(allTurns[0].metadata.previousTurnInput).toBeUndefined();
+    expect(allTurns[0].metadata.previousTurnOutput).toBeUndefined();
 
-    expect(allTurns[1]!.metadata.hasPreviousTurn).toBe(true);
-    expect(typeof allTurns[1]!.metadata.previousTurnInput).toBe("string");
-    expect(typeof allTurns[1]!.metadata.previousTurnOutput).toBe("string");
+    expect(allTurns[1].metadata.hasPreviousTurn).toBe(true);
+    expect(typeof allTurns[1].metadata.previousTurnInput).toBe("string");
+    expect(typeof allTurns[1].metadata.previousTurnOutput).toBe("string");
 
-    const prevInput = allTurns[1]!.metadata.previousTurnInput as string;
-    const prevOutput = allTurns[1]!.metadata.previousTurnOutput as string;
+    const prevInput = allTurns[1].metadata.previousTurnInput as string;
+    const prevOutput = allTurns[1].metadata.previousTurnOutput as string;
 
     expect(prevInput.length).toBeLessThanOrEqual(4000);
     expect(prevInput.startsWith("I".repeat(100))).toBe(true);
@@ -2380,10 +2378,10 @@ describe("parseTranscriptTurns evaluation context enrichment", () => {
     });
 
     expect(incrementalTurns).toHaveLength(1);
-    expect(incrementalTurns[0]!.turnIndex).toBe(2);
-    expect(incrementalTurns[0]!.metadata.hasPreviousTurn).toBe(true);
-    expect(incrementalTurns[0]!.metadata.previousTurnInput).toBe(prevInput);
-    expect(incrementalTurns[0]!.metadata.previousTurnOutput).toBe(prevOutput);
+    expect(incrementalTurns[0].turnIndex).toBe(2);
+    expect(incrementalTurns[0].metadata.hasPreviousTurn).toBe(true);
+    expect(incrementalTurns[0].metadata.previousTurnInput).toBe(prevInput);
+    expect(incrementalTurns[0].metadata.previousTurnOutput).toBe(prevOutput);
   });
 
   describe("client meta command handling (/compact, /clear, etc.)", () => {
@@ -2420,7 +2418,7 @@ describe("parseTranscriptTurns evaluation context enrichment", () => {
 
       expect(turns).toHaveLength(1);
 
-      const compactTurn = turns[0]!;
+      const compactTurn = turns[0];
 
       expect(compactTurn.turnIndex).toBe(1);
       expect(compactTurn.input).toBe("/compact");
@@ -2452,7 +2450,7 @@ describe("parseTranscriptTurns evaluation context enrichment", () => {
 
       expect(turns).toHaveLength(1);
 
-      const compactTurn = turns[0]!;
+      const compactTurn = turns[0];
 
       expect(compactTurn.metadata.terminationReason).toBe("USER_CANCELED");
       expect(compactTurn.metadata.interrupted).toBe(true);
@@ -2494,10 +2492,10 @@ describe("parseTranscriptTurns evaluation context enrichment", () => {
       });
 
       expect(turns).toHaveLength(2);
-      expect(turns[0]!.metadata.interrupted).toBeUndefined();
-      expect(turns[1]!.metadata.hasPreviousTurn).toBe(true);
-      expect(turns[1]!.metadata.previousTurnInput).toBe("/compact");
-      expect(turns[1]!.metadata.previousTurnOutput).toBe("Executed client command: /compact");
+      expect(turns[0].metadata.interrupted).toBeUndefined();
+      expect(turns[1].metadata.hasPreviousTurn).toBe(true);
+      expect(turns[1].metadata.previousTurnInput).toBe("/compact");
+      expect(turns[1].metadata.previousTurnOutput).toBe("Executed client command: /compact");
     });
   });
 
@@ -2595,14 +2593,14 @@ describe("parseTranscriptTurns evaluation context enrichment", () => {
 
       expect(allTurns).toHaveLength(2);
 
-      const turn1 = allTurns[0]!;
-      const turn2 = allTurns[1]!;
+      const turn1 = allTurns[0];
+      const turn2 = allTurns[1];
 
       expect(turn1.turnIndex).toBe(1);
       expect(turn1.startStepIndex).toBe(0);
       expect(turn1.endStepIndex).toBe(3);
 
-      const swarmObs = turn1.children[1]!;
+      const swarmObs = turn1.children[1];
 
       expect(swarmObs.type).toBe("agent");
 
@@ -2628,9 +2626,9 @@ describe("parseTranscriptTurns evaluation context enrichment", () => {
       });
 
       expect(incrementalTurn2).toHaveLength(1);
-      expect(incrementalTurn2[0]!.turnIndex).toBe(2);
+      expect(incrementalTurn2[0].turnIndex).toBe(2);
 
-      expect(incrementalTurn2[0]!.children.map((c) => `${c.type}:${c.name}`)).toEqual([
+      expect(incrementalTurn2[0].children.map((c) => `${c.type}:${c.name}`)).toEqual([
         "event:system:message",
         "generation:llm-generation",
         "tool:read_board",

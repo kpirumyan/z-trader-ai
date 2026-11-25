@@ -112,7 +112,7 @@ describe("Terminal Composition (Integration)", () => {
 
         expect(options.length).toBeGreaterThan(0);
 
-        return options[0]!;
+        return options[0];
       });
 
       const optionButton = within(firstInstrumentOption).getByRole("button");

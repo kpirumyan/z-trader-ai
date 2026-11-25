@@ -82,7 +82,7 @@ export function emitChildObservations(
   seedPrefix = "turn",
 ): void {
   for (let idx = 0; idx < children.length; idx++) {
-    const child = children[idx]!;
+    const child = children[idx];
     const childIdPart =
       child.type === "agent" ||
       child.type === "tool" ||

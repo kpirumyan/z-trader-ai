@@ -19,7 +19,7 @@ export function parseJsonlSteps(jsonlContent: string): RawTranscriptStep[] {
   const steps: RawTranscriptStep[] = [];
 
   for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
-    const trimmed = lines[lineIdx]!.trim();
+    const trimmed = lines[lineIdx].trim();
 
     if (!trimmed) {
       continue;

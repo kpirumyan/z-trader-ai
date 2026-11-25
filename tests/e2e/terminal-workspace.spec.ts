@@ -251,14 +251,16 @@ test.describe("Terminal Multi-Window Workspace E2E Scenarios", () => {
           if (!raw) return null;
 
           try {
-            const data = JSON.parse(raw);
+            const data = JSON.parse(raw) as {
+              workspaces?: Array<{
+                windows?: Array<{ kind?: string; instrument?: { symbol?: string } }>;
+              }>;
+            };
 
-            return data?.workspaces?.[0]?.windows?.map(
-              (w: { kind?: string; instrument?: { symbol?: string } }) => ({
-                kind: w.kind,
-                symbol: w.instrument?.symbol,
-              }),
-            );
+            return data?.workspaces?.[0]?.windows?.map((w) => ({
+              kind: w.kind,
+              symbol: w.instrument?.symbol,
+            }));
           } catch {
             return null;
           }

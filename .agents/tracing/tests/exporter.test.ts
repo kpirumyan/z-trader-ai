@@ -915,8 +915,8 @@ describe("exporter: end-to-end Langfuse OTel export", () => {
 
       expect(rootSpans).toHaveLength(2);
 
-      const turn1Root = rootSpans[0]!;
-      const turn2Root = rootSpans[1]!;
+      const turn1Root = rootSpans[0];
+      const turn2Root = rootSpans[1];
 
       expect(turn1Root.attributes["langfuse.trace.metadata.hasPreviousTurn"]).toBe('"false"');
 

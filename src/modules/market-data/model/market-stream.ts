@@ -154,7 +154,7 @@ export class MarketDataStreamServiceImpl implements MarketStreamService {
     }
 
     if (this.feed.getStatus?.() === "idle" && typeof this.feed.connect === "function") {
-      this.feed.connect();
+      void this.feed.connect();
     }
 
     if (isFirstSubscriber) {
@@ -223,7 +223,7 @@ export class MarketDataStreamServiceImpl implements MarketStreamService {
     }
 
     try {
-      this.feed.disconnect();
+      void this.feed.disconnect();
     } catch (err) {
       console.error("[MarketStreamService] Error disconnecting feed:", err);
     }

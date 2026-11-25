@@ -95,7 +95,7 @@ function splitShellSegments(commandLine: string): string[] {
   let quoteChar: '"' | "'" | null = null;
 
   for (let i = 0; i < commandLine.length; i++) {
-    const ch = commandLine[i]!;
+    const ch = commandLine[i];
     const next = commandLine[i + 1];
 
     if (quoteChar) {
@@ -164,7 +164,7 @@ function stripLeadingEnvAndExecWrappers(segment: string): string {
 
 function extractFirstSubcommand(tokens: string[]): string | undefined {
   for (let i = 1; i < tokens.length; i++) {
-    const token = tokens[i]!.replace(/^["']|["']$/g, "");
+    const token = tokens[i].replace(/^["']|["']$/g, "");
 
     if (!token) {
       continue;
@@ -196,7 +196,7 @@ function deriveGeneralCommandLabel(normalizedSegment: string): string {
     return "run_command";
   }
 
-  const rawCmd = tokens[0]!.replace(/^["']|["']$/g, "");
+  const rawCmd = tokens[0].replace(/^["']|["']$/g, "");
   const baseName = rawCmd.split(/[\\/]/).pop() ?? rawCmd;
   const binary = baseName
     .replace(/\.(?:exe|cmd|bat|ps1)$/i, "")
@@ -387,7 +387,7 @@ function classifyRunCommand(args: Record<string, unknown>): ToolClassificationRe
 
   if (evaluators.length > 0) {
     const distinctLabels = Array.from(new Set(evaluators.map((e) => e.label)));
-    const primaryLabel = distinctLabels.length === 1 ? distinctLabels[0]! : "eval-suite";
+    const primaryLabel = distinctLabels.length === 1 ? distinctLabels[0] : "eval-suite";
 
     return {
       type: "evaluator",
@@ -400,7 +400,7 @@ function classifyRunCommand(args: Record<string, unknown>): ToolClassificationRe
   );
   const distinctGuardrailLabels = Array.from(new Set(guardrails.map((g) => g.label)));
   const guardrailLabel =
-    distinctGuardrailLabels.length === 1 ? distinctGuardrailLabels[0]! : "guardrail-checks";
+    distinctGuardrailLabels.length === 1 ? distinctGuardrailLabels[0] : "guardrail-checks";
 
   return {
     type: "guardrail",

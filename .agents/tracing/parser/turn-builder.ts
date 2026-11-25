@@ -74,7 +74,7 @@ function buildTurnGateSummary(children: ParsedChildObservation[]): TurnGateSumma
 
   const firstFailureIndex = gates.findIndex((gate) => gate.level === "ERROR");
   const firstTryPassed = firstFailureIndex === -1;
-  const finalPassed = gates[totalRuns - 1]!.level !== "ERROR";
+  const finalPassed = gates[totalRuns - 1].level !== "ERROR";
   const retryCount = firstFailureIndex === -1 ? 0 : totalRuns - 1 - firstFailureIndex;
   const failedGates = Array.from(
     new Set(gates.filter((gate) => gate.level === "ERROR").map((gate) => gate.name)),
@@ -98,7 +98,7 @@ export function extractUserRequest(rawContent: string): ExtractedUserRequest {
     /<USER_SETTINGS_CHANGE>\s*([\s\S]*?)\s*<\/USER_SETTINGS_CHANGE>/,
   );
 
-  const prompt = userRequestMatch ? userRequestMatch[1]!.trim() : rawContent.trim();
+  const prompt = userRequestMatch ? userRequestMatch[1].trim() : rawContent.trim();
   const result: ExtractedUserRequest = { prompt };
 
   if (metadataMatch && metadataMatch[1]?.trim()) {
@@ -123,7 +123,7 @@ const SYSTEM_MESSAGE_TAG_REGEX = /(?:^|\n)\s*<SYSTEM_MESSAGE>\s*([\s\S]*?)\s*<\/
 export function extractSystemMessageContent(rawContent: string): string {
   const match = rawContent.match(SYSTEM_MESSAGE_TAG_REGEX);
 
-  return match ? match[1]!.trim() : rawContent.trim();
+  return match ? match[1].trim() : rawContent.trim();
 }
 
 export function buildSyntheticToolCallId(
@@ -247,7 +247,7 @@ function parseStepSequence(
   }
 
   while (i < steps.length) {
-    const step = steps[i]!;
+    const step = steps[i];
 
     if (step.type === "SYSTEM_MESSAGE") {
       systemMessageCount++;
@@ -344,9 +344,9 @@ function parseStepSequence(
     while (
       lookahead < steps.length &&
       matchingGenerics.length < rawToolCalls.length &&
-      steps[lookahead]!.type === "GENERIC"
+      steps[lookahead].type === "GENERIC"
     ) {
-      matchingGenerics.push(steps[lookahead]!);
+      matchingGenerics.push(steps[lookahead]);
       lookahead++;
     }
 
@@ -354,15 +354,15 @@ function parseStepSequence(
 
     if (matchingGenerics.length > 0) {
       const firstTiming = extractGenericTimingAndBody(
-        matchingGenerics[0]!.content,
-        parseIsoTimestamp(matchingGenerics[0]!.created_at, genStartTime),
+        matchingGenerics[0].content,
+        parseIsoTimestamp(matchingGenerics[0].created_at, genStartTime),
       );
 
       if (firstTiming.startTime.getTime() >= genStartTime.getTime()) {
         rawGenEndTime = firstTiming.startTime;
       }
     } else if (i + 1 < steps.length) {
-      const nextTime = parseIsoTimestamp(steps[i + 1]!.created_at, genStartTime);
+      const nextTime = parseIsoTimestamp(steps[i + 1].created_at, genStartTime);
 
       if (nextTime.getTime() >= genStartTime.getTime()) {
         rawGenEndTime = nextTime;
@@ -459,7 +459,7 @@ function parseStepSequence(
 
     for (let tcIdx = 0; tcIdx < preparedToolCalls.length; tcIdx++) {
       const { tc, deserializedArgs, toolCallId, isSubagent, classification, resolvedName } =
-        preparedToolCalls[tcIdx]!;
+        preparedToolCalls[tcIdx];
       const genericResult = matchingGenerics[tcIdx];
 
       collectModuleTagsFromToolArgs(deserializedArgs, tags);
@@ -734,10 +734,10 @@ export function parseTranscriptTurns(
   let previousTurnContext: { input: string; output: string } | undefined;
 
   for (let idx = 0; idx < turnSlices.length; idx++) {
-    const slice = turnSlices[idx]!;
+    const slice = turnSlices[idx];
     const turnIndex = idx + 1;
-    const firstStep = slice[0]!;
-    const lastStep = slice[slice.length - 1]!;
+    const firstStep = slice[0];
+    const lastStep = slice[slice.length - 1];
     const startStepIndex = firstStep.step_index;
     const endStepIndex = lastStep.step_index;
     const endLineIndex = lastStep._lineIndex;
@@ -782,7 +782,7 @@ export function parseTranscriptTurns(
     const supersededBeforeGeneration =
       sequence.generationCount === 0 &&
       nextSlice !== undefined &&
-      nextSlice[0]!.step_index <= startStepIndex;
+      nextSlice[0].step_index <= startStepIndex;
 
     if (!supersededBeforeGeneration) {
       cumulativeSessionHistory = sequence.history;

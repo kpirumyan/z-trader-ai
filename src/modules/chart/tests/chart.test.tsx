@@ -512,9 +512,9 @@ describe("Chart Module: Behavioral Component Scenarios (ChartWidget)", () => {
         layout: expect.objectContaining({
           background: expect.objectContaining({
             color: CHART_PALETTES.light.background,
-          }),
+          }) as unknown,
           textColor: CHART_PALETTES.light.textColor,
-        }),
+        }) as unknown,
       }),
     );
 

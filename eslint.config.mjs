@@ -195,29 +195,29 @@ const eslintConfig = defineConfig([
     },
   },
   {
-    files: ["src/modules/*/index.ts"],
+    files: ["src/modules/*/index.ts", "src/shared/*/index.ts", "src/composition/index.ts"],
     rules: {
       "no-restricted-syntax": [
         "error",
         {
           selector: "FunctionDeclaration",
           message:
-            "Do not declare functions in module index.ts. Re-export from implementation files.",
+            "Do not declare functions in public barrel index.ts. Re-export from implementation files.",
         },
         {
           selector: "VariableDeclaration",
           message:
-            "Do not declare variables in module index.ts. Re-export from implementation files.",
+            "Do not declare variables in public barrel index.ts. Re-export from implementation files.",
         },
         {
           selector: "ClassDeclaration",
           message:
-            "Do not declare classes in module index.ts. Re-export from implementation files.",
+            "Do not declare classes in public barrel index.ts. Re-export from implementation files.",
         },
         {
           selector: "ExportDefaultDeclaration",
           message:
-            "Do not use default export in module index.ts. Export named public contract symbols.",
+            "Do not use default export in public barrel index.ts. Export named public contract symbols.",
         },
       ],
     },
@@ -229,6 +229,11 @@ const eslintConfig = defineConfig([
         "error",
         {
           patterns: [
+            {
+              group: ["@/.agents/**", "**/.agents/**"],
+              message:
+                "Quarantine violation: runtime code in src/ must not import dev-time files from .agents/.",
+            },
             {
               group: ["@/tests/*", "**/tests/*"],
               message: "Production code in app/ must not import from tests/.",
@@ -242,6 +247,11 @@ const eslintConfig = defineConfig([
               group: ["@/src/modules/*/*", "**/src/modules/*/*"],
               message:
                 "Deep imports into modules are forbidden. Import only from public entry point '@/src/modules/<name>'.",
+            },
+            {
+              group: ["@/src/shared/*/*", "**/src/shared/*/*"],
+              message:
+                "Deep imports into shared segments are forbidden. Import only from public entry point '@/src/shared/<segment>'.",
             },
           ],
         },
@@ -269,6 +279,11 @@ const eslintConfig = defineConfig([
                 "Layer violation: code in src/ must not import from app/ (app/ is Next.js shell and routing only).",
             },
             {
+              group: ["@/.agents/**", "**/.agents/**"],
+              message:
+                "Quarantine violation: runtime code in src/ must not import dev-time files from .agents/.",
+            },
+            {
               group: ["@/tests/*", "**/tests/*"],
               message: "Production code in src/ must not import from tests/.",
             },
@@ -281,6 +296,11 @@ const eslintConfig = defineConfig([
               group: ["@/src/modules/*/*", "**/src/modules/*/*"],
               message:
                 "Deep imports into modules are forbidden. Import only from public entry point '@/src/modules/<name>'.",
+            },
+            {
+              group: ["@/src/shared/*/*", "**/src/shared/*/*"],
+              message:
+                "Deep imports into shared segments are forbidden. Import only from public entry point '@/src/shared/<segment>'.",
             },
           ],
         },
@@ -301,8 +321,11 @@ const eslintConfig = defineConfig([
           patterns: [
             {
               group: [
+                "@/.agents/**",
+                "**/.agents/**",
                 "@/src/composition/*",
                 "@/src/modules/*/*",
+                "@/src/shared/*/*",
                 // 1 level up (e.g. tests/*.test.ts)
                 "../terminal*",
                 "../widgets*",

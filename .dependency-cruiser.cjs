@@ -95,12 +95,51 @@ module.exports = {
       name: "market-data-service-isolation",
       severity: "error",
       comment:
-        "Service isolation: market-data stream service must not depend on UI widgets or workspace manager.",
+        "Service isolation: market-data stream service must not depend on any other domain module.",
       from: {
         path: "^src/modules/market-data",
       },
       to: {
-        path: "^src/modules/(chart|order-book|time-and-sales|workspace)",
+        path: "^src/modules",
+        pathNot: "^src/modules/market-data",
+      },
+    },
+    {
+      name: "indicators-isolation",
+      severity: "error",
+      comment:
+        "Engine isolation: indicators is a pure calculation module and must not depend on other domain modules.",
+      from: {
+        path: "^src/modules/indicators",
+      },
+      to: {
+        path: "^src/modules",
+        pathNot: "^src/modules/indicators",
+      },
+    },
+    {
+      name: "instruments-isolation",
+      severity: "error",
+      comment:
+        "Catalog isolation: instruments must not depend on widgets, workspace, or other domain modules.",
+      from: {
+        path: "^src/modules/instruments",
+      },
+      to: {
+        path: "^src/modules",
+        pathNot: "^src/modules/instruments",
+      },
+    },
+    {
+      name: "src-no-agents",
+      severity: "error",
+      comment:
+        "Quarantine violation: runtime code in src/ must not import dev-time tooling or tracing from .agents/.",
+      from: {
+        path: "^src",
+      },
+      to: {
+        path: "^\\.agents",
       },
     },
     {

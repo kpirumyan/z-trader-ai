@@ -2,8 +2,7 @@
 
 import Image from "next/image";
 
-import { ThemeToggle } from "@/src/shared/theme";
-
+import { ThemeToggle } from "./theme-toggle";
 import styles from "./top-bar.module.css";
 
 import type { TopBarProps } from "../types";

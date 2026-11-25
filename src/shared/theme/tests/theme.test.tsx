@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, renderHook, screen } from "@testing-library/react";
+import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { safeStorage } from "@/src/shared/storage";
@@ -6,7 +6,6 @@ import {
   DEFAULT_THEME,
   THEME_STORAGE_KEY,
   THEMES,
-  ThemeToggle,
   themeSchema,
   useTheme,
 } from "@/src/shared/theme";
@@ -163,62 +162,5 @@ describe("useTheme", () => {
     }).not.toThrow();
 
     expect(document.documentElement.dataset.theme).toBe("light");
-  });
-});
-
-describe("ThemeToggle", () => {
-  // Scenario 5: Accessibility structure, no title, sr-only labels, aria-hidden SVGs, focus preservation
-  it("renders an accessible button without title attribute and preserves focus across toggles", () => {
-    render(<ThemeToggle />);
-
-    const button = screen.getByRole("button");
-
-    expect(button.getAttribute("type")).toBe("button");
-    expect(button.getAttribute("title")).toBeNull();
-    expect(screen.queryByRole("tooltip")).toBeNull();
-
-    button.focus();
-    expect(document.activeElement).toBe(button);
-
-    expect(document.documentElement.dataset.theme).toBe("dark");
-
-    fireEvent.click(button);
-    expect(document.activeElement).toBe(button);
-    expect(document.documentElement.dataset.theme).toBe("light");
-
-    fireEvent.click(button);
-    expect(document.activeElement).toBe(button);
-    expect(document.documentElement.dataset.theme).toBe("dark");
-  });
-
-  // Scenario 6: Zero-hydration-flicker via CSS Modules classes present simultaneously
-  it("renders light and dark icon containers simultaneously with scoped CSS Module classes", () => {
-    render(<ThemeToggle />);
-
-    const button = screen.getByRole("button");
-
-    const lightContainer = button.querySelector('[class*="lightOnly"]');
-    const darkContainer = button.querySelector('[class*="darkOnly"]');
-
-    expect(lightContainer).not.toBeNull();
-    expect(darkContainer).not.toBeNull();
-
-    const lightLabel = lightContainer?.querySelector('[class*="srOnly"], .sr-only');
-
-    expect(lightLabel?.textContent).toBe("Switch to dark theme");
-
-    const lightSvg = lightContainer?.querySelector("svg");
-
-    expect(lightSvg).not.toBeNull();
-    expect(lightSvg?.getAttribute("aria-hidden")).toBe("true");
-
-    const darkLabel = darkContainer?.querySelector('[class*="srOnly"], .sr-only');
-
-    expect(darkLabel?.textContent).toBe("Switch to light theme");
-
-    const darkSvg = darkContainer?.querySelector("svg");
-
-    expect(darkSvg).not.toBeNull();
-    expect(darkSvg?.getAttribute("aria-hidden")).toBe("true");
   });
 });

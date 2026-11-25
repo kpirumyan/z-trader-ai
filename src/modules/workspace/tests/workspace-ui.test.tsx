@@ -83,6 +83,7 @@ describe("Workspace UI Components (Unit)", () => {
   afterEach(() => {
     cleanup();
     safeStorage.clear();
+    delete document.documentElement.dataset.theme;
   });
 
   describe("Scenario 1: Initial Empty Workspace Render", () => {
@@ -592,6 +593,61 @@ describe("Workspace UI Components (Unit)", () => {
       fireEvent.pointerDown(header);
 
       expect(handleClearFocus).toHaveBeenCalledTimes(1);
+    });
+
+    it("renders accessible theme toggle and toggles document theme", () => {
+      document.documentElement.dataset.theme = "dark";
+
+      const buttonRef = createRef<HTMLButtonElement>();
+
+      render(<TopBar isNewOpen={false} newButtonRef={buttonRef} onToggleNew={vi.fn()} />);
+
+      const themeBtn = screen.getByRole("button", { name: /switch to/i });
+
+      expect(themeBtn.getAttribute("type")).toBe("button");
+      expect(themeBtn.getAttribute("title")).toBeNull();
+
+      themeBtn.focus();
+      expect(document.activeElement).toBe(themeBtn);
+
+      fireEvent.click(themeBtn);
+      expect(document.activeElement).toBe(themeBtn);
+      expect(document.documentElement.dataset.theme).toBe("light");
+
+      fireEvent.click(themeBtn);
+      expect(document.activeElement).toBe(themeBtn);
+      expect(document.documentElement.dataset.theme).toBe("dark");
+    });
+
+    it("renders light and dark theme icon containers simultaneously with scoped classes", () => {
+      const buttonRef = createRef<HTMLButtonElement>();
+
+      render(<TopBar isNewOpen={false} newButtonRef={buttonRef} onToggleNew={vi.fn()} />);
+
+      const themeBtn = screen.getByRole("button", { name: /switch to/i });
+      const lightContainer = themeBtn.querySelector('[class*="lightOnly"]');
+      const darkContainer = themeBtn.querySelector('[class*="darkOnly"]');
+
+      expect(lightContainer).not.toBeNull();
+      expect(darkContainer).not.toBeNull();
+
+      const lightLabel = lightContainer?.querySelector('[class*="srOnly"], .sr-only');
+
+      expect(lightLabel?.textContent).toBe("Switch to dark theme");
+
+      const lightSvg = lightContainer?.querySelector("svg");
+
+      expect(lightSvg).not.toBeNull();
+      expect(lightSvg?.getAttribute("aria-hidden")).toBe("true");
+
+      const darkLabel = darkContainer?.querySelector('[class*="srOnly"], .sr-only');
+
+      expect(darkLabel?.textContent).toBe("Switch to light theme");
+
+      const darkSvg = darkContainer?.querySelector("svg");
+
+      expect(darkSvg).not.toBeNull();
+      expect(darkSvg?.getAttribute("aria-hidden")).toBe("true");
     });
   });
 

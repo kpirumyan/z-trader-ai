@@ -1,6 +1,6 @@
 {
   "langfuse-export": {
-    "enabled": true,
+    "enabled": false,
     "SessionStart": [
       {
         "type": "command",

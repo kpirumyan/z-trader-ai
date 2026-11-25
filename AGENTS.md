@@ -1,43 +1,30 @@
 # Z-Trader
 
-**Z-Trader** is a high-performance, multi-window financial trading and market analysis terminal (charts, order book, time & sales, indicators) running in Next.js.
+Multi-window trading and market-analysis terminal (charts, order book, time & sales, indicators). All code is written by AI agents: you own each task end-to-end, including tests and verification.
 
-## Technology Stack
+## Stack
 
-- **Core Framework & Language**: Next.js & TypeScript
-- **Boundary Validation**: Zod (runtime validation at system boundaries: ingress market streaming and storage persistence)
-- **State Management**: Zustand (modular, domain-scoped stores)
-- **Testing**: Vitest (unit & integration testing) and Playwright (end-to-end browser automation)
-- **Architectural Boundaries & Hygiene**: `dependency-cruiser` & `eslint-plugin-boundaries` (architectural boundary governance), Knip (unused dependency & dead code elimination)
-- **AI Infrastructure**: Langfuse (tracing, dataset curation, experiments & observability)
+- pnpm · Next.js 16 · React 19 (React Compiler) · TypeScript
+- Charts: lightweight-charts v5 (TradingView)
+- Styling: CSS Modules · clsx (no Tailwind / UI kits)
+- State: Zustand 5 (domain-scoped stores) · Validation: Zod 4 at system boundaries (market-data ingress, storage persistence)
+- Tests: Vitest 5 + Testing Library (unit, integration) · Playwright (E2E)
+- Boundaries & hygiene: dependency-cruiser · eslint-plugin-boundaries · Knip
+- Agent observability: Langfuse
 
-## Autonomous Zero-Code Development
+## Rules
 
-Z-Trader is engineered entirely by AI agents without manual code authoring. Engineering operates as a self-improving flywheel:
+- A change is done only when `pnpm check:fast` passes; UI or user-flow changes also require `pnpm test:e2e`.
 
-- **Autonomous Execution**: Agents deliver end-to-end tasks against strict ADRs and modular perimeters.
-- **Deep Tracing**: Langfuse captures complete reasoning trajectories, tool invocations, and LLM telemetry.
-- **Automated Evals**: Vitest, Playwright, and Langfuse Experiments enforce quality gates and catch regressions.
-- **Distilled Memory**: Edge cases, failure modes, and architectural decisions persist into rules, skills, and ADRs.
-- **Compounding Flywheel**: Evaluation feedback and trace insights continuously refine agent context, compounding accuracy and velocity.
+## Context Map
 
-## Architecture & Conventions
+Open a file only when its trigger applies; treat links inside it the same way.
 
-- **Domain Topology & Overview**: [docs/project-overview.md](docs/project-overview.md)
-- **Architectural Decision Records**: [docs/adr/README.md](docs/adr/README.md)
-- **UI Design System & Tokens**: [DESIGN.md](DESIGN.md)
-- **Modular Codebase Rules**: [.agents/rules/codebase-layout.md](.agents/rules/codebase-layout.md)
-
-## Core Reasoning Rules
-
-- Think carefully & step-by-step.
-- Consider whether the answer may have changed in the 2 years since your knowledge cutoff.
-- If you are not confident in your answer, begin your response with "Unsure".
-- In /grill-me mode first, provide explanations for the options so I understand what’s being discussed.
-
-**Common Rules**
-
-- DO NOT check .env files for langfuse variables. They are all set!
+- [ARCHITECTURE.md](ARCHITECTURE.md) — brainstorming or designing a solution; adding a new feature or refactoring; changing cross-module data flow; creating, moving or deleting files; locating where code lives.
+- [docs/adr/README.md](docs/adr/README.md) — before proposing/designing an approach or changing a module's behavior, dependencies, patterns, or cross-module contracts (check active rules and prior accepted/rejected/superseded decisions); making or reversing an architectural decision.
+- [DESIGN.md](DESIGN.md) — changing anything visible: styles, colors, typography, layout, component appearance, logos.
+- [PLANS.md](PLANS.md) — only when the user explicitly refers to a plan, roadmap, or this file.
+- [TASKS.md](TASKS.md) — only when the user explicitly asks to check, pick up from, or update the task list / backlog.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

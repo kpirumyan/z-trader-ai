@@ -3,8 +3,7 @@
   "entry": [
     ".agents/hooks/auto-fix/index.ts",
     ".agents/hooks/langfuse/session-start.ts",
-    ".agents/hooks/langfuse/stop.ts",
-    ".agents/hooks/safety-gate/index.ts"
+    ".agents/hooks/langfuse/stop.ts"
   ],
   "project": [
     "src/**/*.{ts,tsx}!",

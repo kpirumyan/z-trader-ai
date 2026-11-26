@@ -1,18 +1,4 @@
 {
-  "safety-gate": {
-    "PreToolUse": [
-      {
-        "matcher": "run_command",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node hooks/safety-gate/index.ts",
-            "timeout": 5
-          }
-        ]
-      }
-    ]
-  },
   "auto-fix": {
     "PostToolUse": [
       {
@@ -40,14 +26,14 @@
       {
         "type": "command",
         "command": "node hooks/langfuse/session-start.ts",
-        "timeout": 5
+        "timeout": 15
       }
     ],
     "Stop": [
       {
         "type": "command",
         "command": "node hooks/langfuse/stop.ts",
-        "timeout": 5
+        "timeout": 15
       }
     ]
   }

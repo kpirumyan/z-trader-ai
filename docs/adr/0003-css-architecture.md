@@ -19,6 +19,8 @@ applies_to:
 enforced_by:
   - "src/shared/theme/tests/theme.test.tsx"
   - "src/shared/lib/tests/cn.test.ts"
+  - "stylelint.config.mjs"
+  - "eslint.config.mjs"
 supersedes: null
 superseded_by: null
 ---

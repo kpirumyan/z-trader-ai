@@ -14,6 +14,7 @@ enforced_by:
   - "src/shared/storage/tests/storage.test.ts"
   - "src/modules/workspace/tests/workspace-store.test.ts"
   - "src/modules/workspace/tests/workspace-ui.test.tsx"
+  - "eslint.config.mjs"
 supersedes: null
 superseded_by: null
 ---

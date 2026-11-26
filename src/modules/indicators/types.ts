@@ -2,7 +2,7 @@ import type { Candle } from "@/src/shared/contracts";
 
 export type IndicatorType = "sma" | "ema";
 export type IndicatorSourceKey = "close" | "open" | "high" | "low" | "hl2" | "hlc3" | "ohlc4";
-export type IndicatorOverlayType = "overlay" | "pane";
+type IndicatorOverlayType = "overlay" | "pane";
 
 export interface IndicatorPoint {
   readonly time: number;
@@ -19,7 +19,7 @@ export interface EmaConfig {
   readonly source: IndicatorSourceKey;
 }
 
-export type IndicatorConfig = SmaConfig | EmaConfig;
+type IndicatorConfig = SmaConfig | EmaConfig;
 
 export interface IndicatorDefinition {
   readonly id: IndicatorType;

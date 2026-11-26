@@ -29,11 +29,11 @@ export interface OrderBookWindowState {
   readonly lastUpdated: number | null;
 }
 
-export interface OrderBookStoreState {
+interface OrderBookStoreState {
   readonly windows: Readonly<Record<string, OrderBookWindowState>>;
 }
 
-export interface OrderBookStoreActions {
+interface OrderBookStoreActions {
   readonly initWindow: (windowId: string, symbol: string, depthLimit?: OrderBookDepthLimit) => void;
   readonly updateSnapshot: (windowId: string, snapshot: OrderBookSnapshot) => void;
   readonly setDepthLimit: (windowId: string, limit: OrderBookDepthLimit) => void;

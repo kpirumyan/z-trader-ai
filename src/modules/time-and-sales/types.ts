@@ -30,11 +30,11 @@ export interface TimeAndSalesWindowState {
   readonly lastUpdated: number | null;
 }
 
-export interface TimeAndSalesStoreState {
+interface TimeAndSalesStoreState {
   readonly windows: Readonly<Record<string, TimeAndSalesWindowState>>;
 }
 
-export interface TimeAndSalesStoreActions {
+interface TimeAndSalesStoreActions {
   readonly initWindow: (
     windowId: string,
     symbol: string,

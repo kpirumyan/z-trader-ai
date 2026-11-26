@@ -17,7 +17,7 @@ Provides the vertical Level 2 Order Book (Depth of Market / DOM ladder) domain m
 
 Exported via `@/src/modules/order-book`:
 
-- **Types**: `OrderBookDepthLimit`, `OrderBookRow`, `OrderBookStore`, `OrderBookStoreActions`, `OrderBookStoreState`, `OrderBookWidgetProps`, `OrderBookWindowState`
+- **Types**: `OrderBookDepthLimit`, `OrderBookRow`, `OrderBookStore`, `OrderBookWidgetProps`, `OrderBookWindowState`
 - **Schemas**: `orderBookDepthLimitSchema`, `orderBookRowSchema`
 - **Constants**: `DEFAULT_DEPTH_LIMIT`, `DEPTH_LIMIT_OPTIONS`, `ORDER_BOOK_WIDGET_KIND`, `ORDER_BOOK_WIDGET_TITLE`
 - **Model / State**: `useOrderBookStore`
@@ -47,6 +47,6 @@ Exported via `@/src/modules/order-book`:
 ## Governing ADRs
 
 - [ADR-0001: Modular Architecture & Vertical Domain Slices](../../../docs/adr/0001-modular-architecture.md) — Architecture & Layout
-- [ADR-0002: Automated Architectural Boundary Enforcement](../../../docs/adr/0002-boundary-enforcement-and-quarantine.md) — Tooling & Governance
 - [ADR-0003: CSS Modules, Design Tokens & Styling Standard](../../../docs/adr/0003-css-architecture.md) — UI & Styling
 - [ADR-0005: Out-of-React Market Data Streaming & Transport Separation](../../../docs/adr/0005-market-data-streaming-and-transport-separation.md) — Market Data & Streaming
+- [ADR-0010: Single-Owner Architectural Boundary Enforcement](../../../docs/adr/0010-single-owner-architectural-boundary-enforcement.md) — Tooling & Governance

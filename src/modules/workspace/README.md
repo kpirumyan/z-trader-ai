@@ -27,7 +27,7 @@ Provides the modular multi-window workspace manager and terminal shell (`src/mod
 
 Exported via `@/src/modules/workspace`:
 
-- **Types**: `NewMenuPopoverProps`, `StatusBarProps`, `TerminalShellProps`, `TerminalWindowProps`, `TopBarProps`, `WindowPosition`, `WindowSize`, `WorkspaceCanvasProps`, `WorkspaceRecord`, `WorkspaceStorageEnvelope`, `WorkspaceStore`, `WorkspaceStoreActions`, `WorkspaceStoreState`, `WorkspaceWindow`
+- **Types**: `WindowPosition`, `WindowSize`, `WorkspaceStorageEnvelope`, `WorkspaceWindow`
 - **Schemas**: `windowPositionSchema`, `windowSizeSchema`, `workspaceInstrumentSchema`, `workspaceRecordSchema`, `workspaceStorageSchema`, `workspaceWindowSchema`
 - **Constants**: `CURRENT_WORKSPACE_VERSION`, `DEFAULT_WINDOW_HEIGHT`, `DEFAULT_WINDOW_KIND_LABELS`, `DEFAULT_WINDOW_WIDTH`, `DEFAULT_WORKSPACE_ID`, `EMPTY_WORKSPACE_INSTRUCTION`, `EMPTY_WORKSPACE_TITLE`, `MIN_WINDOW_HEIGHT`, `MIN_WINDOW_WIDTH`, `MINIMIZED_WINDOW_GAP`, `MINIMIZED_WINDOW_HEIGHT`, `MINIMIZED_WINDOW_MARGIN`, `MINIMIZED_WINDOW_WIDTH`, `WINDOW_CASCADE_MAX_SLOTS`, `WINDOW_CASCADE_OFFSET`, `WINDOW_CASCADE_STEP`, `WORKSPACE_STORAGE_KEY`
 - **Model / State**: `useWorkspaceStore`
@@ -58,7 +58,7 @@ Exported via `@/src/modules/workspace`:
 ## Governing ADRs
 
 - [ADR-0001: Modular Architecture & Vertical Domain Slices](../../../docs/adr/0001-modular-architecture.md) — Architecture & Layout
-- [ADR-0002: Automated Architectural Boundary Enforcement](../../../docs/adr/0002-boundary-enforcement-and-quarantine.md) — Tooling & Governance
 - [ADR-0003: CSS Modules, Design Tokens & Styling Standard](../../../docs/adr/0003-css-architecture.md) — UI & Styling
 - [ADR-0004: Resilient Silent Storage & Terminal Status Bar](../../../docs/adr/0004-resilient-storage-and-terminal-status-bar.md) — Storage & UI Layout
 - [ADR-0007: CME Futures Market Data via NinjaTrader 8 Dual-Workflow Architecture](../../../docs/adr/0007-ninjatrader-cme-market-data.md) — Market Data & Replay
+- [ADR-0010: Single-Owner Architectural Boundary Enforcement](../../../docs/adr/0010-single-owner-architectural-boundary-enforcement.md) — Tooling & Governance

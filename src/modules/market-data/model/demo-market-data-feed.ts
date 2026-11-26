@@ -6,6 +6,7 @@ import {
 } from "../constants";
 
 import type {
+  DemoMarketDataFeedOptions,
   ErrorHandler,
   FeedStatus,
   MarketDataFeed,
@@ -27,10 +28,6 @@ import type {
 
 export function serializeTopic(topic: MarketTopic): string {
   return `${topic.symbol}:${topic.channel}:${topic.timeframe ?? ""}`;
-}
-
-export interface DemoMarketDataFeedOptions {
-  readonly initialPrices?: Readonly<Record<string, number>>;
 }
 
 function isDemoFeedOptions(

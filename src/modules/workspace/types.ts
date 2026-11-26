@@ -21,7 +21,7 @@ export interface WorkspaceWindow {
   readonly isMinimized?: boolean;
 }
 
-export interface WorkspaceRecord {
+interface WorkspaceRecord {
   readonly id: string;
   readonly title?: string;
   readonly windows: readonly WorkspaceWindow[];
@@ -33,13 +33,13 @@ export interface WorkspaceStorageEnvelope {
   readonly workspaces: readonly WorkspaceRecord[];
 }
 
-export interface WorkspaceStoreState {
+interface WorkspaceStoreState {
   readonly windows: readonly WorkspaceWindow[];
   readonly activeWindowId: string | null;
   readonly isInitialized: boolean;
 }
 
-export interface WorkspaceStoreActions {
+interface WorkspaceStoreActions {
   readonly addWindow: (kind: WindowKind, instrument: Instrument) => string;
   readonly closeWindow: (id: string) => void;
   readonly focusWindow: (id: string) => void;

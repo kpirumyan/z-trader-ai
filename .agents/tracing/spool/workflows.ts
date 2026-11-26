@@ -87,7 +87,7 @@ function scanWorkflowLogForWorkerIds(taskLogPath: string | undefined): string[] 
   }
 }
 
-export function readWorkflowWatch(spoolDir: string, taskKey: string): WorkflowWatchRecord | null {
+function readWorkflowWatch(spoolDir: string, taskKey: string): WorkflowWatchRecord | null {
   const watchPath = getWorkflowWatchPath(spoolDir, taskKey);
 
   if (!fs.existsSync(watchPath)) {
@@ -215,7 +215,7 @@ export function listActiveWorkflowWatches(
   return listWorkflowWatches(spoolDir, nowMs).filter((w) => w.status === "running");
 }
 
-export function readWorkflowLink(
+function readWorkflowLink(
   spoolDir: string,
   workerConversationId: string,
 ): WorkflowLinkRecord | null {

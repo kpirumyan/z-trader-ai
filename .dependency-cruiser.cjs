@@ -23,7 +23,7 @@ module.exports = {
       },
     },
     {
-      name: "shared-no-modules-or-composition",
+      name: "shared-no-modules-composition-or-app",
       severity: "error",
       comment: "Layer violation: src/shared must not depend on modules, composition root, or app.",
       from: {
@@ -131,15 +131,96 @@ module.exports = {
       },
     },
     {
-      name: "src-no-agents",
+      name: "no-deep-imports-composition",
       severity: "error",
       comment:
-        "Quarantine violation: runtime code in src/ must not import dev-time tooling or tracing from .agents/.",
+        "Deep imports into composition are forbidden. Import only from public entry point '@/src/composition' (src/composition/index.ts).",
       from: {
-        path: "^src",
+        pathNot: "^src/composition/(?!tests/)",
       },
       to: {
-        path: "^\\.agents",
+        path: "^src/composition/",
+        pathNot: "^src/composition/index\\.ts$",
+      },
+    },
+    {
+      name: "no-deep-imports-modules-external",
+      severity: "error",
+      comment:
+        "Deep imports into modules are forbidden. Import only from public entry point '@/src/modules/<name>' (src/modules/<name>/index.ts).",
+      from: {
+        pathNot: "^src/modules/",
+      },
+      to: {
+        path: "^src/modules/[^/]+/",
+        pathNot: "^src/modules/[^/]+/index\\.ts$",
+      },
+    },
+    {
+      name: "no-deep-imports-modules-cross",
+      severity: "error",
+      comment:
+        "Cross-module deep imports are forbidden. Import other modules only via their public entry point '@/src/modules/<name>'.",
+      from: {
+        path: "^src/modules/([^/]+)/",
+        pathNot: "^src/modules/[^/]+/tests/",
+      },
+      to: {
+        path: "^src/modules/[^/]+/",
+        pathNot: ["^src/modules/$1/", "^src/modules/[^/]+/index\\.ts$"],
+      },
+    },
+    {
+      name: "no-deep-imports-modules-tests",
+      severity: "error",
+      comment:
+        "Module tests must import only from public module contract ('@/src/modules/<name>' or '../index'). Internal implementation imports are forbidden.",
+      from: {
+        path: "^src/modules/([^/]+)/tests/",
+      },
+      to: {
+        path: "^src/modules/[^/]+/",
+        pathNot: ["^src/modules/[^/]+/index\\.ts$", "^src/modules/$1/tests/"],
+      },
+    },
+    {
+      name: "no-deep-imports-shared-external",
+      severity: "error",
+      comment:
+        "Deep imports into shared segments are forbidden. Import only from public entry point '@/src/shared/<segment>' (src/shared/<segment>/index.ts).",
+      from: {
+        pathNot: "^src/shared/",
+      },
+      to: {
+        path: "^src/shared/[^/]+/",
+        pathNot: "^src/shared/[^/]+/index\\.ts$",
+      },
+    },
+    {
+      name: "no-deep-imports-shared-cross",
+      severity: "error",
+      comment:
+        "Cross-segment deep imports in shared are forbidden. Import other shared segments only via '@/src/shared/<segment>'.",
+      from: {
+        path: "^src/shared/([^/]+)/",
+        pathNot: "^src/shared/[^/]+/tests/",
+      },
+      to: {
+        path: "^src/shared/[^/]+/",
+        pathNot: ["^src/shared/$1/", "^src/shared/[^/]+/index\\.ts$"],
+      },
+    },
+    {
+      name: "no-deep-imports-shared-tests",
+      severity: "error",
+      comment:
+        "Shared tests must import only from public shared contract ('@/src/shared/<segment>' or '../index'). Internal implementation imports are forbidden.",
+      from: {
+        path: "^src/shared/([^/]+)/tests/",
+      },
+      to: {
+        path: "^src/shared/[^/]+/",
+        pathNot: ["^src/shared/[^/]+/index\\.ts$", "^src/shared/$1/tests/"],
       },
     },
     {
@@ -147,7 +228,7 @@ module.exports = {
       severity: "error",
       comment: "Production code must not import from test files or test suites.",
       from: {
-        path: "^(src|\\.agents/tracing)",
+        path: "^src",
         pathNot: "tests?/",
       },
       to: {
@@ -162,6 +243,7 @@ module.exports = {
     tsConfig: {
       fileName: "tsconfig.json",
     },
+    tsPreCompilationDeps: true,
     enhancedResolveOptions: {
       exportsFields: ["exports"],
       conditionNames: ["import", "require", "node", "default"],

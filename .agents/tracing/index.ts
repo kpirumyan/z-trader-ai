@@ -1,6 +1,7 @@
 export { runStopHook } from "./exporter.ts";
+export { createTurnTraceId } from "./observations.ts";
 export { runSessionStartHook } from "./session-start-hook.ts";
-export { discoverAvailableSkills, resolveDefaultSkillDirs } from "./skills.ts";
+export { discoverAvailableSkills } from "./skills.ts";
 export { computeContextAnchor } from "./versioning.ts";
 
 export {
@@ -13,33 +14,18 @@ export {
   readPendingSpool,
   readSpoolEntry,
   readSubagentLink,
-  readWorkflowLink,
-  readWorkflowWatch,
   releaseSpoolLock,
   removeSpoolFile,
   resolveSpoolDir,
-  resolveWorkflowLink,
   writeCursorState,
   writePendingSpool,
-  writeSubagentLink,
 } from "./spool/index.ts";
 
 export {
   DEFAULT_TIMEOUT_MS,
   LINK_ANCHOR_SPAN_NAME,
   createNoopSpanExporter,
-  flushAndShutdown,
-  resetTracingProvider,
-  startTracingSession,
-  type TracingSession,
 } from "./instrumentation.ts";
-
-export {
-  createTurnTraceId,
-  emitChildObservations,
-  emitLinkedSubagentTurn,
-  emitRootObservation,
-} from "./observations.ts";
 
 export {
   buildSyntheticToolCallId,
@@ -53,7 +39,6 @@ export {
   extractGenericTimingAndBody,
   extractParentConversationFromTranscript,
   extractSubagentConversationId,
-  extractSubagentConversationIds,
   extractSystemMessageContent,
   extractUserRequest,
   isClientMetaCommand,
@@ -68,41 +53,9 @@ export {
 } from "./parser/index.ts";
 
 export type {
-  AssistantToolCallOutput,
-  ChatMessage,
-  ChatRole,
-  ContextAnchor,
-  ExtractedUserRequest,
-  LangfuseCursorState,
-  ObservationCounts,
-  ParentSpanContextLike,
-  ParsedAgentObservation,
-  ParsedChildObservation,
-  ParsedEventObservation,
-  ParsedGenerationObservation,
   ParsedSettingsChange,
-  ParsedToolObservation,
   ParsedTurnTrace,
-  ParseTranscriptOptions,
-  PendingExportSpool,
-  RawToolCall,
-  RawTranscriptStep,
-  ReleaseContext,
-  RunSessionStartHookOptions,
-  RunSessionStartHookResult,
-  RunStopHookOptions,
-  RunStopHookResult,
   SessionStartHookInput,
-  SkillFileMatch,
-  SkillReference,
-  SpanExporterLike,
   StopHookInput,
-  SubagentLinkRecord,
-  TokenUsageSummary,
-  ToolClassificationResult,
-  ToolObservationType,
-  TracerProviderLike,
   TurnGateSummary,
-  WorkflowLinkRecord,
-  WorkflowWatchRecord,
 } from "./types.ts";

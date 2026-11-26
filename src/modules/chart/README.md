@@ -16,7 +16,7 @@ Provides the vertical candlestick and volume charting domain module powered by T
 
 Exported via `@/src/modules/chart`:
 
-- **Types**: `ChartConfig`, `ChartIndicatorType`, `ChartStore`, `ChartThemeColors`, `ChartType`, `ChartWidgetDefinition`, `ChartWidgetProps`, `ChartWindowState`
+- **Types**: `ChartConfig`, `ChartThemeColors`
 - **Schemas**: `chartConfigSchema`, `chartIndicatorTypeSchema`, `chartTypeSchema`
 - **Constants**: `AVAILABLE_CHART_TYPES`, `AVAILABLE_INDICATORS`, `CHART_PALETTES`, `DEFAULT_CHART_CONFIG`, `DEFAULT_INITIAL_CANDLE_COUNT`
 - **Model / State**: `useChartStore`
@@ -49,7 +49,7 @@ Exported via `@/src/modules/chart`:
 ## Governing ADRs
 
 - [ADR-0001: Modular Architecture & Vertical Domain Slices](../../../docs/adr/0001-modular-architecture.md) — Architecture & Layout
-- [ADR-0002: Automated Architectural Boundary Enforcement](../../../docs/adr/0002-boundary-enforcement-and-quarantine.md) — Tooling & Governance
 - [ADR-0003: CSS Modules, Design Tokens & Styling Standard](../../../docs/adr/0003-css-architecture.md) — UI & Styling
 - [ADR-0005: Out-of-React Market Data Streaming & Transport Separation](../../../docs/adr/0005-market-data-streaming-and-transport-separation.md) — Market Data & Streaming
 - [ADR-0006: High-Performance Canvas Charting via Lightweight Charts & Theme Integration](../../../docs/adr/0006-canvas-charting-and-lightweight-charts.md) — Charting & Performance
+- [ADR-0010: Single-Owner Architectural Boundary Enforcement](../../../docs/adr/0010-single-owner-architectural-boundary-enforcement.md) — Tooling & Governance

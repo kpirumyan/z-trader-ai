@@ -30,7 +30,7 @@ interface TopicSubscriptionState {
   readonly errorHandlers: Set<ErrorHandler>;
 }
 
-export class MarketDataStreamServiceImpl implements MarketStreamService {
+class MarketDataStreamServiceImpl implements MarketStreamService {
   private readonly feed: MarketDataFeed;
   private readonly topics = new Map<string, TopicSubscriptionState>();
   private unsubscribeFeedMessage?: Unsubscribe;

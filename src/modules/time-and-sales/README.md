@@ -18,7 +18,7 @@ Provides the vertical Time & Sales (market tape / executed trades feed) domain m
 
 Exported via `@/src/modules/time-and-sales`:
 
-- **Types**: `FilterPresetOption`, `TimeAndSalesRow`, `TimeAndSalesStore`, `TimeAndSalesStoreActions`, `TimeAndSalesStoreState`, `TimeAndSalesWidgetProps`, `TimeAndSalesWindowState`, `TradeBufferLimit`, `TradeSizeFilter`
+- **Types**: `FilterPresetOption`, `TimeAndSalesRow`, `TimeAndSalesWidgetProps`, `TimeAndSalesWindowState`, `TradeBufferLimit`, `TradeSizeFilter`
 - **Schemas**: `tradeBufferLimitSchema`, `tradeSizeFilterSchema`
 - **Constants**: `DEFAULT_TRADE_BUFFER_LIMIT`, `DEFAULT_TRADE_SIZE_FILTER`, `LARGE_TRADE_THRESHOLD`, `SIZE_FILTER_PRESETS`, `TIME_AND_SALES_WIDGET_KIND`, `TIME_AND_SALES_WIDGET_TITLE`, `TRADE_BUFFER_LIMIT_OPTIONS`
 - **Model / State**: `useTimeAndSalesStore`
@@ -48,6 +48,6 @@ Exported via `@/src/modules/time-and-sales`:
 ## Governing ADRs
 
 - [ADR-0001: Modular Architecture & Vertical Domain Slices](../../../docs/adr/0001-modular-architecture.md) — Architecture & Layout
-- [ADR-0002: Automated Architectural Boundary Enforcement](../../../docs/adr/0002-boundary-enforcement-and-quarantine.md) — Tooling & Governance
 - [ADR-0003: CSS Modules, Design Tokens & Styling Standard](../../../docs/adr/0003-css-architecture.md) — UI & Styling
 - [ADR-0005: Out-of-React Market Data Streaming & Transport Separation](../../../docs/adr/0005-market-data-streaming-and-transport-separation.md) — Market Data & Streaming
+- [ADR-0010: Single-Owner Architectural Boundary Enforcement](../../../docs/adr/0010-single-owner-architectural-boundary-enforcement.md) — Tooling & Governance

@@ -1,9 +1,6 @@
 export type {
   FilterPresetOption,
   TimeAndSalesRow,
-  TimeAndSalesStore,
-  TimeAndSalesStoreActions,
-  TimeAndSalesStoreState,
   TimeAndSalesWidgetProps,
   TimeAndSalesWindowState,
   TradeBufferLimit,

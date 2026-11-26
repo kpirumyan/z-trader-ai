@@ -75,7 +75,7 @@ export async function createTurnTraceId(turn: ParsedTurnTrace): Promise<string> 
   return createTraceId(turn.traceSeed);
 }
 
-export function emitChildObservations(
+function emitChildObservations(
   children: ParsedChildObservation[],
   parentSpanContext: ParentSpanContextLike,
   linkContext?: SubagentLinkCollectionContext,

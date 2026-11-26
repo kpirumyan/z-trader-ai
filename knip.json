@@ -1,20 +1,18 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": [
-    ".agents/hooks/langfuse-session-start.ts",
-    ".agents/hooks/langfuse-stop.ts",
-    ".agents/tracing/index.ts",
-    "src/composition/widgets.ts",
-    "src/modules/*/index.ts",
-    "src/shared/*/index.ts"
+    ".agents/hooks/auto-fix/index.ts",
+    ".agents/hooks/langfuse/session-start.ts",
+    ".agents/hooks/langfuse/stop.ts"
   ],
-  "ignoreDependencies": ["agent-browser"],
-  "rules": {
-    "files": "error",
-    "dependencies": "error",
-    "unlisted": "error",
-    "unresolved": "error",
-    "exports": "error",
-    "types": "error"
-  }
+  "project": [
+    "src/**/*.{ts,tsx}!",
+    "!src/modules/indicators/**!",
+    "src/modules/indicators/**/*.{ts,tsx}",
+    ".agents/**/*.{ts,tsx}",
+    "tests/**/*.{ts,tsx}"
+  ],
+  "includeEntryExports": true,
+  "treatConfigHintsAsErrors": true,
+  "ignoreDependencies": ["agent-browser"]
 }

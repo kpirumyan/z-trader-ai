@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import { parseArgs } from "node:util";
 
-import { runStopHook, type StopHookInput } from "../tracing/index.ts";
+import { runSessionStartHook, type SessionStartHookInput } from "../../tracing/index.ts";
 
 const HOOK_WALL_BUDGET_MS = 4000;
 
@@ -23,16 +23,12 @@ async function main(): Promise<void> {
     const data = raw.trim() ? (JSON.parse(raw) as Record<string, unknown>) : {};
 
     const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
-    const bool = (v: unknown): boolean | undefined => (typeof v === "boolean" ? v : undefined);
 
-    const input: StopHookInput = {
+    const input: SessionStartHookInput = {
       conversationId: str(values["conversation-id"]) ?? str(data.conversationId ?? data.session_id),
       transcriptPath: str(values.transcript) ?? str(data.transcriptPath ?? data.transcript_path),
       artifactDirectoryPath: str(data.artifactDirectoryPath),
       modelName: str(data.modelName),
-      terminationReason: str(data.terminationReason),
-      fullyIdle: bool(data.fullyIdle),
-      continuationActive: bool(data.continuationActive),
       cwd: str(data.cwd),
       workspacePaths: Array.isArray(data.workspacePaths)
         ? data.workspacePaths.filter((p): p is string => typeof p === "string")
@@ -41,22 +37,22 @@ async function main(): Promise<void> {
 
     const remainingMs = Math.max(1000, HOOK_WALL_BUDGET_MS - (Date.now() - startedAt));
 
-    const result = await runStopHook(input, {
+    const result = await runSessionStartHook(input, {
       dryRun: values["dry-run"] ? true : undefined,
       spoolDir: str(values["spool-dir"]),
       timeoutMs: remainingMs,
     });
 
     if (values["dry-run"]) {
-      process.stderr.write(`[langfuse-stop] ${JSON.stringify(result, null, 2)}\n`);
+      process.stderr.write(`[langfuse-session-start] ${JSON.stringify(result, null, 2)}\n`);
     }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
 
-    process.stderr.write(`[langfuse-stop] ${message}\n`);
+    process.stderr.write(`[langfuse-session-start] ${message}\n`);
   }
 
-  process.stdout.write(`${JSON.stringify({ decision: "allow" })}\n`);
+  process.stdout.write(`${JSON.stringify({})}\n`);
 }
 
 void main();

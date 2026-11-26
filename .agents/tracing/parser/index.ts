@@ -10,7 +10,6 @@ export {
   deriveSubagentObservationName,
   extractParentConversationFromTranscript,
   extractSubagentConversationId,
-  extractSubagentConversationIds,
   isSubagentToolCall,
 } from "./subagent-resolver.ts";
 

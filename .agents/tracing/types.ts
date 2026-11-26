@@ -5,7 +5,7 @@ import type {
   startObservation,
 } from "@langfuse/tracing";
 
-export interface RawToolCall {
+interface RawToolCall {
   id?: string;
   name: string;
   args?: Record<string, unknown>;
@@ -61,7 +61,7 @@ export interface AssistantToolCallOutput {
   };
 }
 
-export type ChatRole = "system" | "user" | "assistant" | "tool";
+type ChatRole = "system" | "user" | "assistant" | "tool";
 
 export interface ChatMessage {
   role: ChatRole;
@@ -70,7 +70,7 @@ export interface ChatMessage {
   tool_call_id?: string;
 }
 
-export type ToolObservationType = "tool" | "retriever" | "evaluator" | "guardrail";
+type ToolObservationType = "tool" | "retriever" | "evaluator" | "guardrail";
 
 export interface SkillFileMatch {
   skillName: string;
@@ -235,8 +235,6 @@ export interface ContextAnchor {
   release: string;
   version: string;
 }
-
-export type ReleaseContext = ContextAnchor;
 
 export interface LangfuseCursorState {
   lastExportedStepIndex: number;

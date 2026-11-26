@@ -2,8 +2,6 @@ export type {
   OrderBookDepthLimit,
   OrderBookRow,
   OrderBookStore,
-  OrderBookStoreActions,
-  OrderBookStoreState,
   OrderBookWidgetProps,
   OrderBookWindowState,
 } from "./types";

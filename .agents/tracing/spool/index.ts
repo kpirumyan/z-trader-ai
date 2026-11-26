@@ -23,8 +23,6 @@ export {
 export {
   isLikelyWorkflowWorkerTranscript,
   listActiveWorkflowWatches,
-  readWorkflowLink,
-  readWorkflowWatch,
   resolveWorkflowLink,
   syncWorkflowStateFromTranscriptSteps,
 } from "./workflows.ts";

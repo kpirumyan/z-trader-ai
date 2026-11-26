@@ -14,10 +14,10 @@ Provides the market data streaming domain module for financial quotes, L2 order 
 
 Exported via `@/src/modules/market-data`:
 
-- **Types**: `CandleSubscriptionOptions`, `DemoMarketDataFeedOptions`, `ErrorHandler`, `FeedStatus`, `MarketDataFeed`, `MarketDataMessage`, `MarketStreamService`, `MarketTopic`, `MessageHandler`, `StatusHandler`, `SubscriptionOptions`, `Unsubscribe`
+- **Types**: `ErrorHandler`, `FeedStatus`, `MarketDataFeed`, `MarketDataMessage`, `MarketStreamService`, `MarketTopic`, `MessageHandler`, `StatusHandler`, `SubscriptionOptions`, `Unsubscribe`
 - **Schemas**: `marketChannelSchema`, `marketTopicSchema`
-- **Constants**: `DEFAULT_TIMEFRAME`, `DEMO_FEED_INTERVALS`, `DEMO_INITIAL_PRICES`, `TIMEFRAMES`
-- **Components / Entry Points**: `DemoMarketDataFeed`, `MarketDataStreamServiceImpl`, `createDemoMarketDataFeed`, `createMarketStreamService`, `marketStreamService`
+- **Constants**: `DEMO_FEED_INTERVALS`, `DEMO_INITIAL_PRICES`
+- **Components / Entry Points**: `DemoMarketDataFeed`, `createDemoMarketDataFeed`, `createMarketStreamService`, `marketStreamService`
 
 ## Allowed Dependencies
 
@@ -41,6 +41,6 @@ Exported via `@/src/modules/market-data`:
 ## Governing ADRs
 
 - [ADR-0001: Modular Architecture & Vertical Domain Slices](../../../docs/adr/0001-modular-architecture.md) — Architecture & Layout
-- [ADR-0002: Automated Architectural Boundary Enforcement](../../../docs/adr/0002-boundary-enforcement-and-quarantine.md) — Tooling & Governance
 - [ADR-0005: Out-of-React Market Data Streaming & Transport Separation](../../../docs/adr/0005-market-data-streaming-and-transport-separation.md) — Market Data & Streaming
 - [ADR-0007: CME Futures Market Data via NinjaTrader 8 Dual-Workflow Architecture](../../../docs/adr/0007-ninjatrader-cme-market-data.md) — Market Data & Replay
+- [ADR-0010: Single-Owner Architectural Boundary Enforcement](../../../docs/adr/0010-single-owner-architectural-boundary-enforcement.md) — Tooling & Governance

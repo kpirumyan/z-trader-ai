@@ -1,17 +1,7 @@
 export type {
-  NewMenuPopoverProps,
-  StatusBarProps,
-  TerminalShellProps,
-  TerminalWindowProps,
-  TopBarProps,
   WindowPosition,
   WindowSize,
-  WorkspaceCanvasProps,
-  WorkspaceRecord,
   WorkspaceStorageEnvelope,
-  WorkspaceStore,
-  WorkspaceStoreActions,
-  WorkspaceStoreState,
   WorkspaceWindow,
 } from "./types";
 

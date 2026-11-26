@@ -1,14 +1,4 @@
-export type {
-  ChartConfig,
-  ChartIndicatorType,
-  ChartStore,
-  ChartThemeColors,
-  ChartType,
-  ChartWidgetDefinition,
-  ChartWidgetProps,
-  ChartWindowState,
-} from "./types";
-
+export type { ChartConfig, ChartThemeColors } from "./types";
 export { chartConfigSchema, chartIndicatorTypeSchema, chartTypeSchema } from "./schema";
 
 export {

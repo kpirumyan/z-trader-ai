@@ -14,7 +14,7 @@ Provides the algorithmic technical indicators engine (`src/modules/indicators/`)
 
 Exported via `@/src/modules/indicators`:
 
-- **Types**: `EmaConfig`, `IndicatorCalculateFn`, `IndicatorConfig`, `IndicatorDefinition`, `IndicatorOverlayType`, `IndicatorPoint`, `IndicatorSourceKey`, `IndicatorType`, `SmaConfig`
+- **Types**: `IndicatorCalculateFn`, `IndicatorSourceKey`
 - **Schemas**: `emaConfigSchema`, `indicatorConfigSchema`, `indicatorOverlayTypeSchema`, `indicatorPointSchema`, `indicatorSourceKeySchema`, `indicatorTypeSchema`, `smaConfigSchema`
 - **Constants**: `AVAILABLE_INDICATOR_TYPES`, `DEFAULT_EMA_CONFIG`, `DEFAULT_SMA_CONFIG`, `INDICATOR_DEFINITIONS`
 - **Calculations & Utilities**: `calculateSma`, `calculateEma`
@@ -38,4 +38,4 @@ Exported via `@/src/modules/indicators`:
 ## Governing ADRs
 
 - [ADR-0001: Modular Architecture & Vertical Domain Slices](../../../docs/adr/0001-modular-architecture.md) — Architecture & Layout
-- [ADR-0002: Automated Architectural Boundary Enforcement](../../../docs/adr/0002-boundary-enforcement-and-quarantine.md) — Tooling & Governance
+- [ADR-0010: Single-Owner Architectural Boundary Enforcement](../../../docs/adr/0010-single-owner-architectural-boundary-enforcement.md) — Tooling & Governance

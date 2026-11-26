@@ -3,7 +3,6 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 import prettierConfig from "eslint-config-prettier";
-import boundaries from "eslint-plugin-boundaries";
 import reactHooks from "eslint-plugin-react-hooks";
 import tseslint from "typescript-eslint";
 
@@ -75,30 +74,9 @@ const eslintConfig = defineConfig([
     plugins: {
       "@stylistic": stylistic,
       "english-code": englishCodePlugin,
-      boundaries,
     },
     settings: {
       "import/internal-regex": "^@/",
-      "boundaries/include": ["src/**/*"],
-      "boundaries/elements": [
-        {
-          type: "app",
-          pattern: "src/app/**",
-        },
-        {
-          type: "composition",
-          pattern: "src/composition/**",
-        },
-        {
-          type: "shared",
-          pattern: "src/shared/**",
-        },
-        {
-          type: "module",
-          pattern: "src/modules/*",
-          capture: ["moduleName"],
-        },
-      ],
     },
     rules: {
       "english-code/only-english": "error",
@@ -141,50 +119,6 @@ const eslintConfig = defineConfig([
         { blankLine: "always", prev: "*", next: "multiline-export" },
         { blankLine: "always", prev: "multiline-export", next: "*" },
         { blankLine: "never", prev: "singleline-export", next: "singleline-export" },
-      ],
-      "boundaries/dependencies": [
-        "error",
-        {
-          default: "disallow",
-          policies: [
-            // app can import ONLY composition and shared
-            {
-              from: { element: { type: "app" } },
-              allow: {
-                to: {
-                  element: { types: { anyOf: ["composition", "shared"] } },
-                },
-              },
-            },
-            // composition root can import modules and shared
-            {
-              from: { element: { type: "composition" } },
-              allow: {
-                to: {
-                  element: { types: { anyOf: ["composition", "module", "shared"] } },
-                },
-              },
-            },
-            // modules can import other modules and shared, but NEVER app or composition
-            {
-              from: { element: { type: "module" } },
-              allow: {
-                to: {
-                  element: { types: { anyOf: ["module", "shared"] } },
-                },
-              },
-            },
-            // shared cannot import modules, composition, or app
-            {
-              from: { element: { type: "shared" } },
-              allow: {
-                to: {
-                  element: { type: "shared" },
-                },
-              },
-            },
-          ],
-        },
       ],
     },
   },
@@ -234,137 +168,6 @@ const eslintConfig = defineConfig([
           selector: "ExportDefaultDeclaration",
           message:
             "Do not use default export in public barrel index.ts. Export named public contract symbols.",
-        },
-      ],
-    },
-  },
-  {
-    files: ["src/app/**/*.{ts,tsx}"],
-    rules: {
-      "no-restricted-imports": [
-        "error",
-        {
-          patterns: [
-            {
-              group: ["@/.agents/**", "**/.agents/**"],
-              message:
-                "Quarantine violation: runtime code in src/ must not import dev-time files from .agents/.",
-            },
-            {
-              group: ["@/tests/*", "**/tests/*"],
-              message: "Production code in app/ must not import from tests/.",
-            },
-            {
-              group: ["@/src/composition/*", "**/src/composition/*"],
-              message:
-                "Deep imports into composition are forbidden. Import only from public entry point '@/src/composition'.",
-            },
-            {
-              group: ["@/src/modules/*/*", "**/src/modules/*/*"],
-              message:
-                "Deep imports into modules are forbidden. Import only from public entry point '@/src/modules/<name>'.",
-            },
-            {
-              group: ["@/src/shared/*/*", "**/src/shared/*/*"],
-              message:
-                "Deep imports into shared segments are forbidden. Import only from public entry point '@/src/shared/<segment>'.",
-            },
-          ],
-        },
-      ],
-    },
-  },
-  {
-    files: ["src/**/*.{ts,tsx}"],
-    ignores: ["src/app/**/*.{ts,tsx}"],
-    rules: {
-      "no-restricted-imports": [
-        "error",
-        {
-          patterns: [
-            {
-              group: [
-                "@/app/**",
-                "@/src/app/**",
-                "**/app/**",
-                "../app/**",
-                "../../app/**",
-                "../../../app/**",
-              ],
-              message:
-                "Layer violation: code in src/ must not import from app/ (app/ is Next.js shell and routing only).",
-            },
-            {
-              group: ["@/.agents/**", "**/.agents/**"],
-              message:
-                "Quarantine violation: runtime code in src/ must not import dev-time files from .agents/.",
-            },
-            {
-              group: ["@/tests/*", "**/tests/*"],
-              message: "Production code in src/ must not import from tests/.",
-            },
-            {
-              group: ["@/src/composition/*", "**/src/composition/*"],
-              message:
-                "Deep imports into composition are forbidden. Import only from public entry point '@/src/composition'.",
-            },
-            {
-              group: ["@/src/modules/*/*", "**/src/modules/*/*"],
-              message:
-                "Deep imports into modules are forbidden. Import only from public entry point '@/src/modules/<name>'.",
-            },
-            {
-              group: ["@/src/shared/*/*", "**/src/shared/*/*"],
-              message:
-                "Deep imports into shared segments are forbidden. Import only from public entry point '@/src/shared/<segment>'.",
-            },
-          ],
-        },
-      ],
-    },
-  },
-  {
-    files: [
-      "src/modules/*/tests/**/*.{ts,tsx}",
-      "src/shared/**/tests/**/*.{ts,tsx}",
-      "src/composition/**/tests/**/*.{ts,tsx}",
-      "tests/**/*.{ts,tsx}",
-    ],
-    rules: {
-      "no-restricted-imports": [
-        "error",
-        {
-          patterns: [
-            {
-              group: [
-                "@/.agents/**",
-                "**/.agents/**",
-                "@/src/composition/*",
-                "@/src/modules/*/*",
-                "@/src/shared/*/*",
-                // 1 level up (e.g. tests/*.test.ts)
-                "../terminal*",
-                "../widgets*",
-                "../model/**",
-                "../model",
-                "../ui/**",
-                "../ui",
-                "../types*",
-                "../constants*",
-                "../schema*",
-                // 2 levels up (e.g. tests/unit/*.test.ts)
-                "../../model/**",
-                "../../model",
-                "../../ui/**",
-                "../../ui",
-                "../../types*",
-                "../../constants*",
-                "../../schema*",
-              ],
-              message:
-                "Tests must import only from public module contract ('@/src/modules/<name>' or '../index'). Internal implementation imports are forbidden.",
-            },
-          ],
         },
       ],
     },

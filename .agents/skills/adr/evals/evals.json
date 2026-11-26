@@ -7,7 +7,7 @@
       "expected_output": "Discovers active ADRs governing src/modules/chart and synthesizes the governing constraints for the developer before modifying code",
       "files": [],
       "expectations": [
-        "Queries active governing ADRs using 'pnpm adr:list --module chart' or inspects the '## Governing ADRs' section in src/modules/chart/README.md",
+        "Queries active governing ADRs using 'pnpm adr:list --path src/modules/chart' or inspects the '## Governing ADRs' section in src/modules/chart/README.md",
         "Distinguishes active ('accepted') decisions from historical ('superseded' or 'deprecated') records",
         "Synthesizes actionable architectural constraints and invariants rather than just printing raw file paths"
       ]

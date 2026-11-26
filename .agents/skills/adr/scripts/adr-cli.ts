@@ -58,7 +58,7 @@ export interface AdrContext {
 
 export interface ParsedCliArgs {
   _: string[];
-  module?: string;
+  path?: string;
   all?: boolean;
   json?: boolean;
   title?: string;
@@ -324,27 +324,27 @@ function formatAdrIndexTable(rows: AdrRecord[]): string[] {
   const idWidth = Math.max(
     3,
     "ID".length,
-    ...rows.map((a) => `[${a.frontmatter.id ?? ""}](./${a.fileName})`.length)
+    ...rows.map((a) => `[${a.frontmatter.id ?? ""}](./${a.fileName})`.length),
   );
   const titleWidth = Math.max(
     3,
     "Title".length,
-    ...rows.map((a) => (a.frontmatter.title || "").length)
+    ...rows.map((a) => (a.frontmatter.title || "").length),
   );
   const statusWidth = Math.max(
     3,
     "Status".length,
-    ...rows.map((a) => (a.frontmatter.status || "").length)
+    ...rows.map((a) => (a.frontmatter.status || "").length),
   );
   const dateWidth = Math.max(
     3,
     "Date".length,
-    ...rows.map((a) => (a.frontmatter.date || "").length)
+    ...rows.map((a) => (a.frontmatter.date || "").length),
   );
   const areaWidth = Math.max(
     3,
     "Area".length,
-    ...rows.map((a) => (a.frontmatter.area || "").length)
+    ...rows.map((a) => (a.frontmatter.area || "").length),
   );
 
   const lines = [
@@ -356,7 +356,7 @@ function formatAdrIndexTable(rows: AdrRecord[]): string[] {
     const idLink = `[${a.frontmatter.id ?? ""}](./${a.fileName})`;
 
     lines.push(
-      `| ${pad(idLink, idWidth)} | ${pad(a.frontmatter.title ?? "", titleWidth)} | ${pad(a.frontmatter.status ?? "", statusWidth)} | ${pad(a.frontmatter.date ?? "", dateWidth)} | ${pad(a.frontmatter.area ?? "", areaWidth)} |`
+      `| ${pad(idLink, idWidth)} | ${pad(a.frontmatter.title ?? "", titleWidth)} | ${pad(a.frontmatter.status ?? "", statusWidth)} | ${pad(a.frontmatter.date ?? "", dateWidth)} | ${pad(a.frontmatter.area ?? "", areaWidth)} |`,
     );
   }
 
@@ -364,9 +364,11 @@ function formatAdrIndexTable(rows: AdrRecord[]): string[] {
 }
 
 export function generateAdrReadme(adrs: AdrRecord[]): string {
-  const activeAdrs = adrs.filter((a) => ["accepted", "proposed"].includes(a.frontmatter.status ?? ""));
+  const activeAdrs = adrs.filter((a) =>
+    ["accepted", "proposed"].includes(a.frontmatter.status ?? ""),
+  );
   const historicalAdrs = adrs.filter(
-    (a) => !["accepted", "proposed"].includes(a.frontmatter.status ?? "")
+    (a) => !["accepted", "proposed"].includes(a.frontmatter.status ?? ""),
   );
 
   const lines = [
@@ -378,7 +380,7 @@ export function generateAdrReadme(adrs: AdrRecord[]): string {
     "",
     "- **Decision Makers**: Product Owner & specialized AI agents (e.g. Architect Agent, Main Agent, Tester Agent).",
     "- **MADR 4.0 Immutable Log**: Accepted ADRs are immutable historical records. When an architectural decision is replaced or retired, the original file is never deleted or overwritten; its frontmatter `status` is updated to `superseded by ADR-XXXX` or `deprecated`, and a new ADR is created.",
-    '- **AI Agent Filtering & Enforcement**: Coding agents and automated path gates enforce only active decisions (`status: "accepted"`). Use `pnpm adr:list --module <name>` to query active decisions for a domain module, and `pnpm adr:check` to validate compliance.',
+    '- **AI Agent Filtering & Enforcement**: Coding agents and automated path gates enforce only active decisions (`status: "accepted"`). Use `pnpm adr:list --path <path>` to query active decisions for a path, and `pnpm adr:check` to validate compliance.',
     "",
     "## Active Decisions Index",
     "",
@@ -400,21 +402,33 @@ export function generateAdrReadme(adrs: AdrRecord[]): string {
 // ---------------------------------------------------------------------------
 // Generator: src/modules/*/README.md Governing ADRs
 // ---------------------------------------------------------------------------
-export function getGoverningAdrsForModule(moduleName: string, adrs: AdrRecord[]): AdrRecord[] {
-  const moduleRelPath = `src/modules/${moduleName}`;
+function normalizeRepoRelPath(rawPath: string): string {
+  return rawPath.replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/+$/, "");
+}
 
+export function matchesGovernancePath(appliesPath: string, targetPath: string): boolean {
+  const normApplies = normalizeRepoRelPath(appliesPath);
+  const normTarget = normalizeRepoRelPath(targetPath);
+
+  if (!normApplies || !normTarget) {
+    return false;
+  }
+
+  return (
+    normApplies === normTarget ||
+    normTarget.startsWith(`${normApplies}/`) ||
+    normApplies.startsWith(`${normTarget}/`)
+  );
+}
+
+export function getGoverningAdrsForPath(targetPath: string, adrs: AdrRecord[]): AdrRecord[] {
   return adrs
     .filter((a) => {
       if (a.frontmatter.status !== "accepted") return false;
 
       const applies = a.frontmatter.applies_to || [];
 
-      return applies.some(
-        (p) =>
-          p === moduleRelPath ||
-          p.startsWith(`${moduleRelPath}/`) ||
-          (p === "src/shared" && moduleRelPath.startsWith("src/shared"))
-      );
+      return applies.some((p) => matchesGovernancePath(p, targetPath));
     })
     .sort((a, b) => (a.frontmatter.id ?? "").localeCompare(b.frontmatter.id ?? ""));
 }
@@ -430,7 +444,7 @@ export function updateModuleReadmeContent(content: string, governingAdrs: AdrRec
   } else {
     for (const a of governingAdrs) {
       lines.push(
-        `- [${a.frontmatter.id ?? ""}: ${a.frontmatter.title ?? ""}](../../../docs/adr/${a.fileName}) \u2014 ${a.frontmatter.area ?? ""}`
+        `- [${a.frontmatter.id ?? ""}: ${a.frontmatter.title ?? ""}](../../../docs/adr/${a.fileName}) \u2014 ${a.frontmatter.area ?? ""}`,
       );
     }
   }
@@ -443,28 +457,29 @@ export function updateModuleReadmeContent(content: string, governingAdrs: AdrRec
 // ---------------------------------------------------------------------------
 export function cmdList(
   args: Partial<ParsedCliArgs>,
-  opts: AdrCommandOptions = {}
+  opts: AdrCommandOptions = {},
 ): AdrListJsonItem[] | AdrRecord[] {
   const { adrDir } = getContext(opts);
   const adrs = loadAllAdrs(adrDir);
-  const moduleFilter = typeof args.module === "string" ? args.module : undefined;
+  const pathArg = typeof args.path === "string" ? args.path : undefined;
   const showAll = Boolean(args.all);
   const asJson = Boolean(args.json);
 
   let filtered = adrs;
 
   if (!showAll) {
-    filtered = filtered.filter((a) => ["accepted", "proposed"].includes(a.frontmatter.status ?? ""));
+    filtered = filtered.filter((a) =>
+      ["accepted", "proposed"].includes(a.frontmatter.status ?? ""),
+    );
   }
 
-  if (moduleFilter) {
-    const modClean = moduleFilter.replace(/^src\/modules\//, "");
-    const targetPath = `src/modules/${modClean}`;
+  const targetFilter = pathArg ? normalizeRepoRelPath(pathArg) : undefined;
 
+  if (targetFilter) {
     filtered = filtered.filter((a) => {
       const applies = a.frontmatter.applies_to || [];
 
-      return applies.some((p) => p === targetPath || p.startsWith(`${targetPath}/`));
+      return applies.some((p) => matchesGovernancePath(p, targetFilter));
     });
   }
 
@@ -488,9 +503,9 @@ export function cmdList(
   }
 
   if (!opts.silent) {
-    console.log(
-      `\nFound ${filtered.length} ADR(s)${moduleFilter ? ` for module "${moduleFilter}"` : ""}:\n`
-    );
+    const scopeLabel = targetFilter ? ` for path "${targetFilter}"` : "";
+
+    console.log(`\nFound ${filtered.length} ADR(s)${scopeLabel}:\n`);
 
     console.log(`${"ID".padEnd(10)} | ${"Status".padEnd(10)} | ${"Area".padEnd(25)} | Title`);
 
@@ -537,7 +552,7 @@ export function cmdSync(opts: AdrCommandOptions = {}): void {
       if (!fs.existsSync(modReadme)) continue;
 
       const current = fs.readFileSync(modReadme, "utf8");
-      const governing = getGoverningAdrsForModule(mod, adrs);
+      const governing = getGoverningAdrsForPath(`src/modules/${mod}`, adrs);
       const updated = updateModuleReadmeContent(current, governing);
 
       fs.writeFileSync(modReadme, updated, "utf8");
@@ -546,6 +561,37 @@ export function cmdSync(opts: AdrCommandOptions = {}): void {
         console.log(`Synchronized src/modules/${mod}/README.md (${governing.length} ADRs)`);
       }
     }
+  }
+}
+
+function getGitHeadAdrFiles(root: string, adrDir: string): Set<string> | null {
+  try {
+    execSync("git rev-parse --verify HEAD", {
+      cwd: root,
+      encoding: "utf8",
+      stdio: ["pipe", "pipe", "ignore"],
+    });
+
+    const adrDirRel = normalizeRepoRelPath(path.relative(root, adrDir));
+
+    if (!adrDirRel || adrDirRel.startsWith("..")) {
+      return null;
+    }
+
+    const listed = execSync(`git ls-tree -r --name-only HEAD ${adrDirRel}`, {
+      cwd: root,
+      encoding: "utf8",
+      stdio: ["pipe", "pipe", "ignore"],
+    });
+
+    return new Set(
+      listed
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean),
+    );
+  } catch {
+    return null;
   }
 }
 
@@ -558,19 +604,25 @@ export function checkAdrs(opts: AdrCommandOptions = {}): AdrCheckResult {
   const lock = readLockFile(lockFile);
   const errors: string[] = [];
 
-  // Git HEAD anchoring verification for .adr-lock.json
+  // Git HEAD anchoring verification for .adr-lock.json and ADR frontmatter
+  const headAdrFiles = getGitHeadAdrFiles(root, adrDir);
+  const lockRelPath = normalizeRepoRelPath(path.relative(root, lockFile));
   let headLockRecords: Record<string, string> | null = null;
 
-  try {
-    const headLockRaw = execSync("git show HEAD:docs/adr/.adr-lock.json", {
-      cwd: root,
-      encoding: "utf8",
-      stdio: ["pipe", "pipe", "ignore"],
-    });
+  if (headAdrFiles && headAdrFiles.has(lockRelPath)) {
+    try {
+      const headLockRaw = execSync(`git show HEAD:${lockRelPath}`, {
+        cwd: root,
+        encoding: "utf8",
+        stdio: ["pipe", "pipe", "pipe"],
+      });
 
-    headLockRecords = (JSON.parse(headLockRaw) as LockFileData).records;
-  } catch {
-    // If not in git or file not in HEAD, skip head anchoring
+      headLockRecords = (JSON.parse(headLockRaw) as LockFileData).records;
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+
+      errors.push(`Lockfile anchoring error: failed to read HEAD:${lockRelPath} (${message}).`);
+    }
   }
 
   if (headLockRecords) {
@@ -579,11 +631,11 @@ export function checkAdrs(opts: AdrCommandOptions = {}): AdrCheckResult {
 
       if (!currentHash) {
         errors.push(
-          `Lockfile tampering: record "${id}" was removed from docs/adr/.adr-lock.json (present in git HEAD).`
+          `Lockfile tampering: record "${id}" was removed from docs/adr/.adr-lock.json (present in git HEAD).`,
         );
       } else if (currentHash !== headHash) {
         errors.push(
-          `Lockfile tampering: hash for "${id}" was altered in docs/adr/.adr-lock.json (HEAD: ${headHash}, working: ${currentHash}).`
+          `Lockfile tampering: hash for "${id}" was altered in docs/adr/.adr-lock.json (HEAD: ${headHash}, working: ${currentHash}).`,
         );
       }
     }
@@ -616,7 +668,7 @@ export function checkAdrs(opts: AdrCommandOptions = {}): AdrCheckResult {
 
     if ((!fm.status || !validStatuses.includes(fm.status)) && !isSuperseded) {
       errors.push(
-        `${prefix} Invalid status "${fm.status ?? ""}". Allowed: proposed, accepted, rejected, deprecated, or "superseded by ADR-XXXX"`
+        `${prefix} Invalid status "${fm.status ?? ""}". Allowed: proposed, accepted, rejected, deprecated, or "superseded by ADR-XXXX"`,
       );
     }
 
@@ -665,13 +717,13 @@ export function checkAdrs(opts: AdrCommandOptions = {}): AdrCheckResult {
       } else {
         if (target.frontmatter.superseded_by !== fm.id) {
           errors.push(
-            `${prefix} supersedes "${fm.supersedes}", but ${fm.supersedes} does not link back with superseded_by: "${fm.id ?? ""}"`
+            `${prefix} supersedes "${fm.supersedes}", but ${fm.supersedes} does not link back with superseded_by: "${fm.id ?? ""}"`,
           );
         }
 
         if (target.frontmatter.status !== `superseded by ${fm.id ?? ""}`) {
           errors.push(
-            `${prefix} supersedes "${fm.supersedes}", but ${fm.supersedes} status is "${target.frontmatter.status ?? ""}", expected "superseded by ${fm.id ?? ""}"`
+            `${prefix} supersedes "${fm.supersedes}", but ${fm.supersedes} status is "${target.frontmatter.status ?? ""}", expected "superseded by ${fm.id ?? ""}"`,
           );
         }
       }
@@ -684,13 +736,17 @@ export function checkAdrs(opts: AdrCommandOptions = {}): AdrCheckResult {
         errors.push(`${prefix} superseded_by "${fm.superseded_by}" which does not exist.`);
       } else if (target.frontmatter.supersedes !== fm.id) {
         errors.push(
-          `${prefix} superseded_by "${fm.superseded_by}", but ${fm.superseded_by} does not declare supersedes: "${fm.id ?? ""}"`
+          `${prefix} superseded_by "${fm.superseded_by}", but ${fm.superseded_by} does not declare supersedes: "${fm.id ?? ""}"`,
         );
       }
     }
 
-    // 4. Active path existence check (accepted only)
+    // 4. Active enforcement & path existence check (accepted only)
     if (fm.status === "accepted") {
+      if (!Array.isArray(fm.enforced_by) || fm.enforced_by.length === 0) {
+        errors.push(`${prefix} Active accepted ADR must declare at least one enforced_by path.`);
+      }
+
       for (const p of fm.applies_to || []) {
         const resolved = path.join(root, p);
 
@@ -708,6 +764,56 @@ export function checkAdrs(opts: AdrCommandOptions = {}): AdrCheckResult {
       }
     }
 
+    // 4b. Git HEAD frontmatter integrity check (status & enforced_by protection)
+    const adrRelPath = normalizeRepoRelPath(path.relative(root, a.filePath));
+
+    if (headAdrFiles && headAdrFiles.has(adrRelPath)) {
+      try {
+        const headRaw = execSync(`git show HEAD:${adrRelPath}`, {
+          cwd: root,
+          encoding: "utf8",
+          stdio: ["pipe", "pipe", "pipe"],
+        });
+        const headFm = parseFrontmatter(headRaw).frontmatter;
+
+        if (headFm?.status === "accepted") {
+          if (fm.status === "deprecated") {
+            const headApplies = Array.isArray(headFm.applies_to) ? headFm.applies_to : [];
+            const allHeadPathsStillExist =
+              headApplies.length > 0 && headApplies.every((p) => fs.existsSync(path.join(root, p)));
+
+            if (allHeadPathsStillExist) {
+              errors.push(
+                `${prefix} Frontmatter tampering: cannot transition from "accepted" to "deprecated" while governed paths still exist on disk.`,
+              );
+            }
+          }
+
+          if (fm.status === "accepted") {
+            const headEnforced = Array.isArray(headFm.enforced_by) ? headFm.enforced_by : [];
+            const currentEnforced = Array.isArray(fm.enforced_by) ? fm.enforced_by : [];
+
+            for (const oldEnforced of headEnforced) {
+              if (
+                !currentEnforced.includes(oldEnforced) &&
+                fs.existsSync(path.join(root, oldEnforced))
+              ) {
+                errors.push(
+                  `${prefix} Frontmatter tampering: active enforced_by path "${oldEnforced}" was removed while still present on disk.`,
+                );
+              }
+            }
+          }
+        }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+
+        errors.push(
+          `${prefix} Frontmatter anchoring error: failed to read HEAD:${adrRelPath} (${message}).`,
+        );
+      }
+    }
+
     // 5. Cryptographic body hash check
     const hash = computeBodyHash(a.body);
     const lockedHash = fm.id ? lock.records[fm.id] : undefined;
@@ -716,7 +822,7 @@ export function checkAdrs(opts: AdrCommandOptions = {}): AdrCheckResult {
       errors.push(`${prefix} Missing entry in docs/adr/.adr-lock.json`);
     } else if (lockedHash !== hash) {
       errors.push(
-        `${prefix} Body hash mismatch! Locked: ${lockedHash}, Calculated: ${hash}. Direct body modification is prohibited.`
+        `${prefix} Body hash mismatch! Locked: ${lockedHash}, Calculated: ${hash}. Direct body modification is prohibited.`,
       );
     }
   }
@@ -743,12 +849,12 @@ export function checkAdrs(opts: AdrCommandOptions = {}): AdrCheckResult {
       if (!fs.existsSync(modReadme)) continue;
 
       const current = fs.readFileSync(modReadme, "utf8").replace(/\r\n/g, "\n");
-      const governing = getGoverningAdrsForModule(mod, adrs);
+      const governing = getGoverningAdrsForPath(`src/modules/${mod}`, adrs);
       const expected = updateModuleReadmeContent(current, governing).replace(/\r\n/g, "\n");
 
       if (current !== expected) {
         errors.push(
-          `Drift detected in src/modules/${mod}/README.md. Run ` + "`pnpm adr:sync` to reconcile."
+          `Drift detected in src/modules/${mod}/README.md. Run ` + "`pnpm adr:sync` to reconcile.",
         );
       }
     }
@@ -782,7 +888,7 @@ export function cmdCheck(opts: AdrCommandOptions = {}): boolean {
 
   if (!opts.silent) {
     console.log(
-      `\n\x1b[32m[ADR Check Passed]\x1b[0m All ${adrs.length} ADRs comply with MADR 4.0 and immutability invariants.\n`
+      `\n\x1b[32m[ADR Check Passed]\x1b[0m All ${adrs.length} ADRs comply with MADR 4.0 and immutability invariants.\n`,
     );
   }
 
@@ -794,7 +900,7 @@ export function cmdCheck(opts: AdrCommandOptions = {}): boolean {
 // ---------------------------------------------------------------------------
 export function cmdNew(
   args: Partial<ParsedCliArgs>,
-  opts: AdrCommandOptions = {}
+  opts: AdrCommandOptions = {},
 ): AdrNewResult | null {
   const title = typeof args.title === "string" ? args.title : undefined;
 
@@ -909,13 +1015,45 @@ Chosen option: **${title}**, because rationale.
   return { id: nextId, fileName, filePath };
 }
 
+function buildSupersededBody(
+  oldBody: string,
+  oldId: string,
+  oldFileName: string,
+  nextId: string,
+  title: string,
+): string {
+  const normalized = oldBody.replace(/\r\n/g, "\n").trimStart();
+  const supersedesLine = `Supersedes [${oldId}](./${oldFileName}).`;
+
+  let bodyWithHeading: string;
+
+  if (/^# [^\n]+/.test(normalized)) {
+    bodyWithHeading = normalized.replace(/^# [^\n]+/, `# ${nextId}: ${title}`);
+  } else {
+    bodyWithHeading = `# ${nextId}: ${title}\n\n${normalized}`;
+  }
+
+  const contextHeadingPattern = /^(## Context and Problem Statement[ \t]*\n+)/m;
+
+  if (contextHeadingPattern.test(bodyWithHeading)) {
+    bodyWithHeading = bodyWithHeading.replace(
+      contextHeadingPattern,
+      `## Context and Problem Statement\n\n${supersedesLine}\n\n`,
+    );
+  } else {
+    bodyWithHeading = `${bodyWithHeading.trimEnd()}\n\n## Context and Problem Statement\n\n${supersedesLine}\n`;
+  }
+
+  return bodyWithHeading.endsWith("\n") ? bodyWithHeading : `${bodyWithHeading}\n`;
+}
+
 // ---------------------------------------------------------------------------
 // Command: supersede
 // ---------------------------------------------------------------------------
 export function cmdSupersede(
   oldIdInput: string | undefined,
   args: Partial<ParsedCliArgs>,
-  opts: AdrCommandOptions = {}
+  opts: AdrCommandOptions = {},
 ): AdrSupersedeResult | null {
   if (!oldIdInput) {
     console.error("Error: old-id is required");
@@ -973,41 +1111,7 @@ export function cmdSupersede(
   const filePath = path.join(adrDir, fileName);
 
   const today = new Date().toISOString().slice(0, 10);
-
-  const body = `
-# ${nextId}: ${title}
-
-## Context and Problem Statement
-
-Supersedes [${oldId}](./${oldAdr.fileName}). Describe why a new decision is necessary.
-
-## Decision Drivers
-
-- Driver 1
-- Driver 2
-
-## Decision Outcome
-
-Chosen option: **${title}**, because rationale.
-
-## Confirmation and Enforcement
-
-- Verified via \`pnpm adr:check\`.
-
-## Consequences
-
-### Positive
-
-- Improved architecture.
-
-### Negative
-
-- Migration required.
-
-## Rejected Alternatives
-
-- **Keeping ${oldId}**: Insufficient for new requirements.
-`.trimStart();
+  const body = buildSupersededBody(oldAdr.body, oldId, oldAdr.fileName, nextId, title);
 
   const newFm: AdrFrontmatter = {
     id: nextId,
@@ -1052,7 +1156,7 @@ Chosen option: **${title}**, because rationale.
 // ---------------------------------------------------------------------------
 export function cmdDeprecate(
   idInput: string | undefined,
-  opts: AdrCommandOptions = {}
+  opts: AdrCommandOptions = {},
 ): AdrRecord | null {
   if (!idInput) {
     console.error("Error: id is required");
@@ -1093,7 +1197,7 @@ export function cmdDeprecate(
 export function cmdRetarget(
   oldPathInput: string | undefined,
   newPathInput: string | undefined,
-  opts: AdrCommandOptions = {}
+  opts: AdrCommandOptions = {},
 ): number {
   if (!oldPathInput || !newPathInput) {
     console.error("Error: old-path and new-path are required");
@@ -1171,7 +1275,7 @@ export function cmdRetarget(
 // ---------------------------------------------------------------------------
 export function cmdRemovePath(
   targetPathInput: string | undefined,
-  opts: AdrCommandOptions = {}
+  opts: AdrCommandOptions = {},
 ): number {
   if (!targetPathInput) {
     console.error("Error: path is required");
@@ -1191,7 +1295,8 @@ export function cmdRemovePath(
     const applies = (a.frontmatter.applies_to || []).map((p) => p.replace(/\\/g, "/"));
     const enforced = (a.frontmatter.enforced_by || []).map((p) => p.replace(/\\/g, "/"));
 
-    const matchesTarget = (p: string): boolean => p === targetPath || p.startsWith(`${targetPath}/`);
+    const matchesTarget = (p: string): boolean =>
+      p === targetPath || p.startsWith(`${targetPath}/`);
     const hasPath = applies.some(matchesTarget) || enforced.some(matchesTarget);
 
     if (hasPath) {
@@ -1204,7 +1309,7 @@ export function cmdRemovePath(
 
         if (!opts.silent) {
           console.log(
-            `ADR ${a.frontmatter.id ?? ""} exclusively governed "${targetPath}"; auto-deprecating.`
+            `ADR ${a.frontmatter.id ?? ""} exclusively governed "${targetPath}"; auto-deprecating.`,
           );
         }
       } else {
@@ -1302,7 +1407,7 @@ export function main(): void {
 Z-Trader Architectural Decision Records (ADR) CLI
 
 Usage:
-  node adr-cli.ts list [--module <name>] [--all] [--json]
+  node adr-cli.ts list [--path <path>] [--all] [--json]
   node adr-cli.ts check
   node adr-cli.ts sync
   node adr-cli.ts new --title <title> --area <area> [--applies-to <p1,p2>] [--enforced-by <e1,e2>]

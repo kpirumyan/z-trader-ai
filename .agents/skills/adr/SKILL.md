@@ -26,17 +26,20 @@ This skill guides humans and AI agents in querying, authoring, superseding, and 
 
 ### 1. Pre-Task Discovery (Consult Governing ADRs)
 
-Before modifying code in a vertical domain module (e.g. `src/modules/chart`), find the active architectural decisions governing it:
+Before modifying code in any governed path (e.g. `src/modules/chart`, `src/shared/storage`, `src/app`, `src/composition`, `.agents/tracing`), find the active architectural decisions governing it:
 
 ```bash
-# Query active ADRs governing a specific module
-pnpm adr:list --module chart
+# Query active ADRs governing a module path
+pnpm adr:list --path src/modules/chart
+
+# Query active ADRs governing any repo path
+pnpm adr:list --path src/shared/storage
 
 # Query in machine-readable JSON format
-pnpm adr:list --module chart --json
+pnpm adr:list --path src/app --json
 ```
 
-Or read the `## Governing ADRs` section in `src/modules/<name>/README.md`.
+Or read the `## Governing ADRs` section in `src/modules/<name>/README.md` (for domain modules).
 
 ### 2. Creating a New Architectural Decision
 
@@ -70,17 +73,31 @@ When introducing a new architectural pattern, vertical slice, or global standard
 
 ### 3. Superseding an Existing Decision
 
-When a architectural decision is replaced, modified, or evolved:
+When an architectural decision is replaced, modified, or evolved:
 
-```bash
-pnpm adr:supersede ADR-0001 --title "Modular Architecture v2" --area "Architecture & Layout"
-```
+1. Scaffold the superseding record from the existing ADR:
 
-The CLI automatically:
-- Creates `docs/adr/0008-modular-architecture-v2.md` with `supersedes: "ADR-0001"`.
-- Updates `ADR-0001` frontmatter with `status: "superseded by ADR-0008"` and `superseded_by: "ADR-0008"` (leaving body unchanged).
-- Adds the new record to `docs/adr/.adr-lock.json`.
-- Runs `pnpm adr:sync` to reflect the change across all documentation.
+   ```bash
+   pnpm adr:supersede ADR-0001 --title "Modular Architecture v2" --area "Architecture & Layout"
+   ```
+
+   The CLI automatically:
+
+   - Creates `docs/adr/0008-modular-architecture-v2.md` with `supersedes: "ADR-0001"`, seeding its body from `ADR-0001` (with an updated H1 title and `Supersedes [ADR-0001](./...)` prepended to `## Context and Problem Statement`) so existing drivers, invariants, checks, consequences, and rejected alternatives are preserved as the starting draft.
+   - Updates `ADR-0001` frontmatter with `status: "superseded by ADR-0008"` and `superseded_by: "ADR-0008"` (leaving the old body and its hash unchanged).
+   - Adds the new record to `docs/adr/.adr-lock.json`.
+   - Runs `pnpm adr:sync` to reflect the change across all documentation.
+
+2. Edit the seeded draft in place so the new ADR is **fully self-contained**:
+
+   - Keep every still-valid invariant, enforcement gate, negative consequence, and rejected alternative from the superseded ADR.
+   - For every rule, check, risk, or alternative that is intentionally changed or removed, explicitly state what changed and why (never silently drop items or rely on blanket statements like `"preserves all invariants of ADR-XXXX"`).
+
+3. **Run the mandatory clean-context Supersede Audit** before finalizing the lockfile hash and presenting the change:
+
+   - Launch an independent read-only subagent with a **clean context** (e.g., `research`) using the prompt in [references/supersede-auditor-prompt.txt](references/supersede-auditor-prompt.txt), passing **only** `<OLD_ADR_PATH>` and `<NEW_ADR_PATH>`.
+   - If the verdict is `FAIL`, fix every finding in `<NEW_ADR_PATH>` (either restore the lost/weakened item or explicitly document its removal and rationale) and re-run the clean-context audit until the verdict is `PASS`.
+   - Update the new ADR's hash in `docs/adr/.adr-lock.json`, run `pnpm adr:check`, and include the auditor's compact coverage summary (`PRESERVED` / `EXPLICITLY_CHANGED`) when reporting back to the user.
 
 ### 4. Renaming or Moving a Module Path
 
@@ -112,6 +129,7 @@ pnpm adr:check
 ```
 
 This verifies:
+
 - Frontmatter schema (id, title, status, date, decision-makers, area, applies_to, enforced_by).
 - Strict ordering of all 6 canonical MADR 4.0 H2 sections.
 - Bidirectional superseding links.

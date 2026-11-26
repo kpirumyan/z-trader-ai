@@ -313,7 +313,7 @@ function classifyCommandSegment(rawSegment: string): CommandSegmentClassificatio
     return { kind: "guardrail", label: "depcruise" };
   }
 
-  if (/^node\s+[^\s]*adr-cli\.mjs\s+check(?:\s|$)/i.test(normalized)) {
+  if (/^node\s+[^\s]*adr-cli\.(?:ts|mjs)\s+check(?:\s|$)/i.test(normalized)) {
     return { kind: "guardrail", label: "adr:check" };
   }
 

@@ -1301,6 +1301,15 @@ describe("semantic observation classification", () => {
       observationName: "run_command:depcruise",
     });
 
+    expect(
+      classifyToolCall("run_command", {
+        CommandLine: "node .agents/skills/adr/scripts/adr-cli.ts check",
+      }),
+    ).toEqual({
+      type: "guardrail",
+      observationName: "run_command:adr:check",
+    });
+
     expect(classifyToolCall("run_command", { CommandLine: "pnpm typecheck && pnpm knip" })).toEqual(
       {
         type: "guardrail",

@@ -1,12 +1,11 @@
 import { execFileSync } from "node:child_process";
-import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
 export interface PostToolUseInput {
-  hookEventName?: unknown;
   conversationId?: unknown;
+  hookEventName?: unknown;
   error?: unknown;
   cwd?: unknown;
   workspacePaths?: unknown;
@@ -16,18 +15,29 @@ export interface PostToolUseInput {
   };
 }
 
-interface AutoFixDiagnostic {
-  tool: "eslint" | "prettier";
-  message: string;
-}
-
 export interface AutoFixResult {
-  status: "fixed" | "failed" | "skipped";
+  status: "fixed" | "skipped" | "error";
   reason?: string;
   filePath?: string;
-  eslintRan: boolean;
   prettierRan: boolean;
-  diagnostics: AutoFixDiagnostic[];
+  error?: string;
+}
+
+export interface AutoFixDeps {
+  nodeBin?: string;
+  pendingDir?: string;
+  exists?: (targetPath: string) => boolean;
+  isFile?: (targetPath: string) => boolean;
+  runNodeScript?: (scriptPath: string, args: string[], cwd: string) => void;
+}
+
+export interface PostInvocationInput {
+  conversationId?: unknown;
+  hookEventName?: unknown;
+}
+
+export interface PostInvocationDeps {
+  pendingDir?: string;
 }
 
 export interface PostInvocationOutput {
@@ -38,15 +48,9 @@ export interface PostInvocationOutput {
   }>;
 }
 
-export interface AutoFixDeps {
-  nodeBin?: string;
-  diagnosticsDir?: string;
-  exists?: (targetPath: string) => boolean;
-  isFile?: (targetPath: string) => boolean;
-  runNodeScript?: (scriptPath: string, args: string[], cwd: string) => void;
-}
-
 const JS_TS_FILE_RE = /\.(js|jsx|mjs|cjs|ts|tsx|mts|cts)$/i;
+const MAX_ERROR_LENGTH = 600;
+const DEFAULT_PENDING_DIR = path.join(os.tmpdir(), "z-trader-auto-fix");
 
 const IGNORED_SEGMENTS = new Set([
   "node_modules",
@@ -60,8 +64,6 @@ const IGNORED_SEGMENTS = new Set([
 ]);
 
 const PATH_ARG_KEYS = ["Path", "TargetFile", "AbsolutePath", "file_path", "path"] as const;
-const MAX_DIAGNOSTIC_CHARS = 2000;
-const ANSI_ESCAPE_RE = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "g");
 
 function asNonEmptyString(value: unknown): string | undefined {
   if (typeof value !== "string") {
@@ -131,96 +133,115 @@ function defaultIsFile(targetPath: string): boolean {
   }
 }
 
-function extractProcessOutput(err: unknown): string {
-  const chunks: string[] = [];
+function readBufferOrString(value: unknown): string {
+  if (typeof value === "string") {
+    return value.trim();
+  }
+
+  if (Buffer.isBuffer(value)) {
+    return value.toString("utf8").trim();
+  }
+
+  return "";
+}
+
+function extractErrorMessage(err: unknown): string {
+  let raw = "";
 
   if (err !== null && typeof err === "object") {
-    const record = err as { stdout?: unknown; stderr?: unknown; message?: unknown };
+    const record = err as Record<string, unknown>;
 
-    for (const stream of [record.stdout, record.stderr]) {
-      if (typeof stream === "string" && stream.trim()) {
-        chunks.push(stream.trim());
-      } else if (Buffer.isBuffer(stream)) {
-        const text = stream.toString("utf8").trim();
-
-        if (text) {
-          chunks.push(text);
-        }
-      }
-    }
-
-    if (chunks.length === 0 && typeof record.message === "string" && record.message.trim()) {
-      chunks.push(record.message.trim());
-    }
-  } else if (err instanceof Error && err.message.trim()) {
-    chunks.push(err.message.trim());
+    raw = readBufferOrString(record.stderr) || readBufferOrString(record.stdout);
   }
 
-  const combined = (chunks.join("\n") || String(err)).replace(ANSI_ESCAPE_RE, "").trim();
-
-  if (combined.length <= MAX_DIAGNOSTIC_CHARS) {
-    return combined;
+  if (!raw) {
+    raw = err instanceof Error ? err.message.trim() : String(err).trim();
   }
 
-  return `${combined.slice(0, MAX_DIAGNOSTIC_CHARS)}\n...[truncated]`;
+  if (!raw) {
+    return "Unknown Prettier error";
+  }
+
+  return raw.length > MAX_ERROR_LENGTH ? `${raw.slice(0, MAX_ERROR_LENGTH)}...` : raw;
 }
 
-function resolveDiagnosticsFilePath(
-  input: PostToolUseInput,
-  workspaceRoot: string,
-  diagnosticsDir?: string,
-): string {
-  const baseDir = diagnosticsDir ?? path.join(os.tmpdir(), "z-trader-auto-fix");
-  const rawConvId = asNonEmptyString(input.conversationId);
-  const key = rawConvId
-    ? rawConvId.replace(/[^a-zA-Z0-9._-]/g, "_")
-    : crypto.createHash("sha256").update(workspaceRoot).digest("hex").slice(0, 16);
+function resolvePendingFilePath(conversationId: string, pendingDir: string): string {
+  const safeId = conversationId.replace(/[^a-zA-Z0-9._-]/g, "_");
 
-  return path.join(baseDir, `${key}.json`);
+  return path.join(pendingDir, `${safeId}.json`);
 }
 
-function readDiagnosticsMap(filePath: string): Record<string, AutoFixDiagnostic[]> {
+function readPendingErrors(filePath: string): Record<string, string> {
   if (!fs.existsSync(filePath)) {
     return {};
   }
 
   try {
     const raw = fs.readFileSync(filePath, "utf8");
-    const parsed = JSON.parse(raw) as unknown;
+    const parsed: unknown = JSON.parse(raw);
 
-    if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return parsed as Record<string, AutoFixDiagnostic[]>;
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return {};
     }
-  } catch {
-    // Ignore corrupt diagnostics state and overwrite cleanly.
-  }
 
-  return {};
+    const result: Record<string, string> = {};
+
+    for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+      if (typeof value === "string") {
+        result[key] = value;
+      }
+    }
+
+    return result;
+  } catch {
+    return {};
+  }
 }
 
-function updatePendingDiagnostics(
-  filePath: string,
-  relativePosixPath: string,
-  diagnostics: AutoFixDiagnostic[],
+function updatePendingError(
+  conversationId: string,
+  relativePath: string,
+  errorMessage: string | null,
+  pendingDir: string,
 ): void {
-  const map = readDiagnosticsMap(filePath);
+  const filePath = resolvePendingFilePath(conversationId, pendingDir);
+  const current = readPendingErrors(filePath);
+  const normalizedKey = relativePath.replace(/\\/g, "/");
 
-  if (diagnostics.length > 0) {
-    map[relativePosixPath] = diagnostics;
-    fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    fs.writeFileSync(filePath, JSON.stringify(map, null, 2), "utf8");
+  if (errorMessage === null) {
+    if (!(normalizedKey in current)) {
+      return;
+    }
 
+    delete current[normalizedKey];
+
+    if (Object.keys(current).length === 0) {
+      fs.rmSync(filePath, { force: true });
+
+      return;
+    }
+  } else {
+    current[normalizedKey] = errorMessage;
+  }
+
+  fs.mkdirSync(pendingDir, { recursive: true });
+  fs.writeFileSync(filePath, `${JSON.stringify(current, null, 2)}\n`, "utf8");
+}
+
+function safeUpdatePendingError(
+  conversationId: string | undefined,
+  relativePath: string,
+  errorMessage: string | null,
+  pendingDir: string,
+): void {
+  if (conversationId === undefined) {
     return;
   }
 
-  if (relativePosixPath in map) {
-    delete map[relativePosixPath];
-
-    if (Object.keys(map).length === 0) {
-      fs.rmSync(filePath, { force: true });
-    } else {
-      fs.writeFileSync(filePath, JSON.stringify(map, null, 2), "utf8");
-    }
+  try {
+    updatePendingError(conversationId, relativePath, errorMessage, pendingDir);
+  } catch {
+    // Ignore temp-dir storage errors so the hook never fails on stdout contract.
   }
 }
 
@@ -232,25 +253,13 @@ export function runAutoFixHook(
   const errorText = asNonEmptyString(input.error);
 
   if (errorText !== undefined) {
-    return {
-      status: "skipped",
-      reason: "tool-failed",
-      eslintRan: false,
-      prettierRan: false,
-      diagnostics: [],
-    };
+    return { status: "skipped", reason: "tool-failed", prettierRan: false };
   }
 
   const rawTarget = extractTargetFilePath(input);
 
   if (rawTarget === undefined) {
-    return {
-      status: "skipped",
-      reason: "no-file-path",
-      eslintRan: false,
-      prettierRan: false,
-      diagnostics: [],
-    };
+    return { status: "skipped", reason: "no-file-path", prettierRan: false };
   }
 
   const workspaceRoot = resolveWorkspaceRoot(input, fallbackRoot);
@@ -259,39 +268,23 @@ export function runAutoFixHook(
   const relativePath = path.relative(workspaceRoot, resolvedPath);
 
   if (relativePath === "" || relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    return {
-      status: "skipped",
-      reason: "outside-workspace",
-      eslintRan: false,
-      prettierRan: false,
-      diagnostics: [],
-    };
+    return { status: "skipped", reason: "outside-workspace", prettierRan: false };
   }
 
   if (isInsideIgnoredSegment(relativePath)) {
-    return {
-      status: "skipped",
-      reason: "ignored-path",
-      eslintRan: false,
-      prettierRan: false,
-      diagnostics: [],
-    };
+    return { status: "skipped", reason: "ignored-path", prettierRan: false };
   }
 
   const exists = deps.exists ?? fs.existsSync;
   const isFile = deps.isFile ?? defaultIsFile;
 
   if (!exists(resolvedPath) || !isFile(resolvedPath)) {
-    return {
-      status: "skipped",
-      reason: "missing-file",
-      eslintRan: false,
-      prettierRan: false,
-      diagnostics: [],
-    };
+    return { status: "skipped", reason: "missing-file", prettierRan: false };
   }
 
   const nodeBin = deps.nodeBin ?? process.execPath;
+  const pendingDir = deps.pendingDir ?? DEFAULT_PENDING_DIR;
+  const conversationId = asNonEmptyString(input.conversationId);
   const runNodeScript =
     deps.runNodeScript ??
     ((scriptPath: string, args: string[], cwd: string): void => {
@@ -301,22 +294,9 @@ export function runAutoFixHook(
       });
     });
 
-  const eslintBin = path.join(workspaceRoot, "node_modules", "eslint", "bin", "eslint.js");
   const prettierBin = path.join(workspaceRoot, "node_modules", "prettier", "bin", "prettier.cjs");
   const isJsTs = JS_TS_FILE_RE.test(resolvedPath);
-  const diagnostics: AutoFixDiagnostic[] = [];
-  let eslintRan = false;
   let prettierRan = false;
-
-  if (isJsTs && exists(eslintBin)) {
-    eslintRan = true;
-
-    try {
-      runNodeScript(eslintBin, ["--fix", "--max-warnings", "0", resolvedPath], workspaceRoot);
-    } catch (err: unknown) {
-      diagnostics.push({ tool: "eslint", message: extractProcessOutput(err) });
-    }
-  }
 
   if (exists(prettierBin)) {
     prettierRan = true;
@@ -327,60 +307,62 @@ export function runAutoFixHook(
         : ["--write", "--ignore-unknown", resolvedPath];
 
       runNodeScript(prettierBin, prettierArgs, workspaceRoot);
+      safeUpdatePendingError(conversationId, relativePath, null, pendingDir);
     } catch (err: unknown) {
-      diagnostics.push({ tool: "prettier", message: extractProcessOutput(err) });
+      const errorMessage = extractErrorMessage(err);
+
+      safeUpdatePendingError(conversationId, relativePath, errorMessage, pendingDir);
+
+      return {
+        status: "error",
+        filePath: resolvedPath,
+        prettierRan,
+        error: errorMessage,
+      };
     }
   }
 
-  const relativePosixPath = relativePath.replace(/\\/g, "/");
-  const diagnosticsFilePath = resolveDiagnosticsFilePath(input, workspaceRoot, deps.diagnosticsDir);
-
-  updatePendingDiagnostics(diagnosticsFilePath, relativePosixPath, diagnostics);
-
   return {
-    status: diagnostics.length > 0 ? "failed" : "fixed",
+    status: "fixed",
     filePath: resolvedPath,
-    eslintRan,
     prettierRan,
-    diagnostics,
   };
 }
 
-export function flushAutoFixDiagnostics(
-  input: PostToolUseInput,
-  fallbackRoot: string,
-  deps: Pick<AutoFixDeps, "diagnosticsDir"> = {},
+export function runPostInvocationHook(
+  input: PostInvocationInput,
+  deps: PostInvocationDeps = {},
 ): PostInvocationOutput {
-  const workspaceRoot = resolveWorkspaceRoot(input, fallbackRoot);
-  const diagnosticsFilePath = resolveDiagnosticsFilePath(input, workspaceRoot, deps.diagnosticsDir);
+  const conversationId = asNonEmptyString(input.conversationId);
 
-  if (!fs.existsSync(diagnosticsFilePath)) {
+  if (conversationId === undefined) {
     return {};
   }
 
-  const map = readDiagnosticsMap(diagnosticsFilePath);
+  const pendingDir = deps.pendingDir ?? DEFAULT_PENDING_DIR;
+  const filePath = resolvePendingFilePath(conversationId, pendingDir);
+  const entries = readPendingErrors(filePath);
 
-  fs.rmSync(diagnosticsFilePath, { force: true });
+  if (fs.existsSync(filePath)) {
+    fs.rmSync(filePath, { force: true });
+  }
 
-  const entries = Object.entries(map);
+  const failedFiles = Object.entries(entries);
 
-  if (entries.length === 0) {
+  if (failedFiles.length === 0) {
     return {};
   }
 
-  const lines = ["[auto-fix] Unfixable lint/format errors detected after file edit:"];
-
-  for (const [file, items] of entries) {
-    for (const item of items) {
-      lines.push(`- ${file} (${item.tool}):\n${item.message}`);
-    }
-  }
+  const lines = failedFiles.map(([file, message]) => `- ${file}: ${message}`);
+  const summary =
+    "[auto-fix] Prettier failed after editing the following file(s) (check for syntax errors):\n" +
+    lines.join("\n");
 
   return {
     injectSteps: [
       {
         systemMessage: {
-          systemMessage: lines.join("\n"),
+          systemMessage: summary,
         },
       },
     ],

@@ -11,6 +11,9 @@
   --on-gold: #0e0e0e;
   --market-buy: #61d6ab;
   --market-sell: #ff8797;
+  --backdrop-scrim: rgb(0 0 0 / 45%);
+  --shadow-window: 0 2px 8px rgb(0 0 0 / 18%);
+  --shadow-popover: 0 4px 12px rgb(0 0 0 / 28%);
   --font-ui: var(--font-geist-sans), "Geist", Arial, sans-serif;
   --font-mono: var(--font-jetbrains-mono), "JetBrains Mono", monospace;
 }

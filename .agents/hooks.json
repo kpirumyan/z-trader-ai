@@ -1,4 +1,18 @@
 {
+  "safety-gate": {
+    "PreToolUse": [
+      {
+        "matcher": "run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node hooks/safety-gate/index.ts",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  },
   "auto-fix": {
     "PostToolUse": [
       {
@@ -7,9 +21,16 @@
           {
             "type": "command",
             "command": "node hooks/auto-fix/index.ts",
-            "timeout": 10
+            "timeout": 25
           }
         ]
+      }
+    ],
+    "PostInvocation": [
+      {
+        "type": "command",
+        "command": "node hooks/auto-fix/index.ts --flush",
+        "timeout": 5
       }
     ]
   },

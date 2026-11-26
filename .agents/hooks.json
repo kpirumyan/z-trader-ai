@@ -14,7 +14,7 @@
     ]
   },
   "langfuse-export": {
-    "enabled": false,
+    "enabled": true,
     "SessionStart": [
       {
         "type": "command",

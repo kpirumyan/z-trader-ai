@@ -16,7 +16,6 @@ export interface AutoFixResult {
   status: "fixed" | "skipped";
   reason?: string;
   filePath?: string;
-  eslintRan: boolean;
   prettierRan: boolean;
 }
 
@@ -118,13 +117,13 @@ export function runAutoFixHook(
   const errorText = asNonEmptyString(input.error);
 
   if (errorText !== undefined) {
-    return { status: "skipped", reason: "tool-failed", eslintRan: false, prettierRan: false };
+    return { status: "skipped", reason: "tool-failed", prettierRan: false };
   }
 
   const rawTarget = extractTargetFilePath(input);
 
   if (rawTarget === undefined) {
-    return { status: "skipped", reason: "no-file-path", eslintRan: false, prettierRan: false };
+    return { status: "skipped", reason: "no-file-path", prettierRan: false };
   }
 
   const workspaceRoot = resolveWorkspaceRoot(input, fallbackRoot);
@@ -133,18 +132,18 @@ export function runAutoFixHook(
   const relativePath = path.relative(workspaceRoot, resolvedPath);
 
   if (relativePath === "" || relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    return { status: "skipped", reason: "outside-workspace", eslintRan: false, prettierRan: false };
+    return { status: "skipped", reason: "outside-workspace", prettierRan: false };
   }
 
   if (isInsideIgnoredSegment(relativePath)) {
-    return { status: "skipped", reason: "ignored-path", eslintRan: false, prettierRan: false };
+    return { status: "skipped", reason: "ignored-path", prettierRan: false };
   }
 
   const exists = deps.exists ?? fs.existsSync;
   const isFile = deps.isFile ?? defaultIsFile;
 
   if (!exists(resolvedPath) || !isFile(resolvedPath)) {
-    return { status: "skipped", reason: "missing-file", eslintRan: false, prettierRan: false };
+    return { status: "skipped", reason: "missing-file", prettierRan: false };
   }
 
   const nodeBin = deps.nodeBin ?? process.execPath;
@@ -157,21 +156,9 @@ export function runAutoFixHook(
       });
     });
 
-  const eslintBin = path.join(workspaceRoot, "node_modules", "eslint", "bin", "eslint.js");
   const prettierBin = path.join(workspaceRoot, "node_modules", "prettier", "bin", "prettier.cjs");
   const isJsTs = JS_TS_FILE_RE.test(resolvedPath);
-  let eslintRan = false;
   let prettierRan = false;
-
-  if (isJsTs && exists(eslintBin)) {
-    eslintRan = true;
-
-    try {
-      runNodeScript(eslintBin, ["--fix", "--max-warnings", "0", resolvedPath], workspaceRoot);
-    } catch {
-      // ESLint exits non-zero on unfixable lint errors even after applying auto-fixes.
-    }
-  }
 
   if (exists(prettierBin)) {
     prettierRan = true;
@@ -190,7 +177,6 @@ export function runAutoFixHook(
   return {
     status: "fixed",
     filePath: resolvedPath,
-    eslintRan,
     prettierRan,
   };
 }

@@ -23,7 +23,7 @@ describe("auto-fix hook", () => {
     expect(extractTargetFilePath({ toolCall: { args: {} } })).toBeUndefined();
   });
 
-  it("runs eslint --fix then prettier --write on JS/TS files inside workspace", () => {
+  it("runs only prettier --write on JS/TS files inside workspace", () => {
     const calls: Array<{ scriptPath: string; args: string[]; cwd: string }> = [];
     const targetFile = path.join(workspaceRoot, "src", "example.ts");
 
@@ -49,18 +49,15 @@ describe("auto-fix hook", () => {
     expect(result).toEqual({
       status: "fixed",
       filePath: targetFile,
-      eslintRan: true,
       prettierRan: true,
     });
 
-    expect(calls).toHaveLength(2);
-    expect(calls[0]?.scriptPath).toContain("eslint.js");
-    expect(calls[0]?.args).toEqual(["--fix", "--max-warnings", "0", targetFile]);
-    expect(calls[1]?.scriptPath).toContain("prettier.cjs");
-    expect(calls[1]?.args).toEqual(["--write", targetFile]);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.scriptPath).toContain("prettier.cjs");
+    expect(calls[0]?.args).toEqual(["--write", targetFile]);
   });
 
-  it("runs only prettier with --ignore-unknown on non-code files", () => {
+  it("runs prettier with --ignore-unknown on non-code files", () => {
     const calls: Array<{ scriptPath: string; args: string[]; cwd: string }> = [];
     const targetFile = path.join(workspaceRoot, "docs", "notes.md");
 
@@ -86,7 +83,6 @@ describe("auto-fix hook", () => {
     expect(result).toEqual({
       status: "fixed",
       filePath: targetFile,
-      eslintRan: false,
       prettierRan: true,
     });
 
@@ -94,14 +90,13 @@ describe("auto-fix hook", () => {
     expect(calls[0]?.args).toEqual(["--write", "--ignore-unknown", targetFile]);
   });
 
-  it("continues to prettier even if eslint exits with unfixable errors", () => {
+  it("swallows prettier errors so mid-edit syntax errors do not fail the hook", () => {
     const targetFile = path.join(workspaceRoot, "src", "broken.ts");
     const runNodeScript = vi
       .fn<(scriptPath: string, args: string[], cwd: string) => void>()
       .mockImplementationOnce(() => {
-        throw new Error("lint error");
-      })
-      .mockImplementationOnce(() => undefined);
+        throw new Error("syntax error");
+      });
 
     const result = runAutoFixHook(
       {
@@ -117,9 +112,8 @@ describe("auto-fix hook", () => {
     );
 
     expect(result.status).toBe("fixed");
-    expect(result.eslintRan).toBe(true);
     expect(result.prettierRan).toBe(true);
-    expect(runNodeScript).toHaveBeenCalledTimes(2);
+    expect(runNodeScript).toHaveBeenCalledTimes(1);
   });
 
   it("skips failed tools, outside-workspace paths, and ignored directories", () => {

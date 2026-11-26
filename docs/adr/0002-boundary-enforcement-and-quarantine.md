@@ -1,7 +1,7 @@
 ---
 id: "ADR-0002"
 title: "Automated Architectural Boundary Enforcement"
-status: "accepted"
+status: "superseded by ADR-0010"
 date: "2026-11-05"
 decision-makers:
   - "Product Owner"
@@ -24,7 +24,7 @@ enforced_by:
   - "knip.json"
   - ".agents/skills/adr/tests/adr-cli.test.ts"
 supersedes: null
-superseded_by: null
+superseded_by: "ADR-0010"
 ---
 
 # ADR-0002: Automated Architectural Boundary Enforcement

@@ -1,7 +1,7 @@
 ---
 id: "ADR-0000"
 title: "Executable ADR Governance via Hybrid MADR 4.0 and Bidirectional Traceability"
-status: "accepted"
+status: "superseded by ADR-0011"
 date: "2026-11-05"
 decision-makers:
   - "Product Owner"
@@ -14,7 +14,7 @@ enforced_by:
   - ".agents/skills/adr/scripts/adr-cli.ts"
   - ".agents/skills/adr/tests/adr-cli.test.ts"
 supersedes: null
-superseded_by: null
+superseded_by: "ADR-0011"
 ---
 
 # ADR-0000: Executable ADR Governance via Hybrid MADR 4.0 and Bidirectional Traceability

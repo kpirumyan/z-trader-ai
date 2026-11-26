@@ -52,12 +52,12 @@ src/modules/<name>/
 
 ## 2. Hard Invariants
 
-- **Layer & perimeter boundaries**: Respect layer imports above. Import modules and `src/composition` strictly via their `index.ts` (`@/src/modules/*/*` and `@/src/composition/*` are forbidden in prod and `tests/`). Production code never imports `tests/`. Zero circular imports or dead code (`depcruise`, `knip --max-issues 0`).
+- **Layer & perimeter boundaries**: Respect layer imports above. Import modules and `src/composition` strictly via their `index.ts` (`@/src/modules/*/*` and `@/src/composition/*` are forbidden in prod and `tests/`). Production code never imports `tests/`. Zero circular imports or dead code (`pnpm depcruise`, `pnpm knip`).
 - **Module isolation**:
   - `Widget` modules (`chart`, `order-book`, `time-and-sales`) never import each other or `workspace`.
   - `workspace` consumes widgets strictly via `WidgetDefinition` (`@/src/shared/contracts`).
   - `market-data` never imports UI widgets or `workspace`.
-  - `indicators` & `instruments` never import other modules `(enforced in depcruise; pending ADR-0002 update)`.
+  - `indicators` & `instruments` never import other modules.
 - **Out-of-React streaming & canvas**: Widgets consume quotes only via `MarketStreamService` (ref-counted topics, `Unsubscribe`/`AbortSignal` cleanup, Zod ingress validation, `Object.freeze`). Canvas charts (`useChart`) run imperatively out of React with `chart.remove()` cleanup and non-destructive theme updates (`chart.applyOptions()`).
 - **Multi-window isolation**: Widget stores partition state by `windowId` and dispose state on close/unmount.
 - **Styling & tokens**: Use co-located `*.module.css`, `cn()` (`@/src/shared/lib`), and CSS tokens from `src/shared/theme/tokens.css`. Zero raw hex/RGB values in components, runtime CSS-in-JS, Tailwind, or widget styles in `src/app/globals.css`.
@@ -75,5 +75,5 @@ src/modules/<name>/
 
 ## 5. Specs & Enforcement (Load On Demand)
 
-- **Governing ADRs**: [docs/adr/README.md](docs/adr/README.md) (Active Decisions Index) · `pnpm adr:list --module <name>` · `## Governing ADRs` in `src/modules/<name>/README.md`.
-- **Mechanical gates**: [`eslint.config.mjs`](eslint.config.mjs) (AST, layers, deep imports) · [`.dependency-cruiser.cjs`](.dependency-cruiser.cjs) (graph, cycles, isolation) · [`knip.json`](knip.json) (dead code) · `pnpm adr:check` (MADR 4.0, lockfile, README sync).
+- **Governing ADRs**: [docs/adr/README.md](docs/adr/README.md) (Active Decisions Index) · `pnpm adr:list --path <path>` · `## Governing ADRs` in `src/modules/<name>/README.md`.
+- **Mechanical gates**: [`eslint.config.mjs`](eslint.config.mjs) (AST, intra-file syntax, pure barrels/types) · [`.dependency-cruiser.cjs`](.dependency-cruiser.cjs) (dependency graph, layers, deep imports, isolation, cycles) · [`knip.json`](knip.json) (dead code) · `pnpm adr:check` (MADR 4.0, lockfile, README sync).

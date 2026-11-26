@@ -9,7 +9,7 @@ Multi-window trading and market-analysis terminal (charts, order book, time & sa
 - Styling: CSS Modules · clsx (no Tailwind / UI kits)
 - State: Zustand 5 (domain-scoped stores) · Validation: Zod 4 at system boundaries (market-data ingress, storage persistence)
 - Tests: Vitest 5 + Testing Library (unit, integration) · Playwright (E2E)
-- Boundaries & hygiene: dependency-cruiser · eslint-plugin-boundaries · Knip
+- Boundaries & hygiene: dependency-cruiser · ESLint · Knip
 - Agent observability: Langfuse
 
 ## Rules

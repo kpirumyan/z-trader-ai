@@ -6,7 +6,7 @@ test-results
 playwright-report
 node_modules
 pnpm-lock.yaml
-.agents/*
-!.agents/tracing
-!.agents/hooks
-.codex
+.agents/skills/agent-browser
+.agents/skills/find-skills
+.agents/skills/langfuse
+.agents/skills/skill-creator

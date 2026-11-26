@@ -15,6 +15,8 @@
     "typecheck": "next typegen && tsc --noEmit",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix --max-warnings 0",
+    "lint:css": "stylelint \"{src,tests}/**/*.{css,scss,sass,less}\" --allow-empty-input",
+    "lint:md": "markdownlint-cli2 \"**/*.md\"",
     "depcruise": "depcruise src tests --config .dependency-cruiser.cjs",
     "knip": "knip && knip --production --dependencies --files",
     "adr:list": "node .agents/skills/adr/scripts/adr-cli.ts list",
@@ -27,8 +29,8 @@
     "adr:check": "node .agents/skills/adr/scripts/adr-cli.ts check",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check:fast": "pnpm typecheck && pnpm lint && pnpm depcruise && pnpm knip && pnpm adr:check && pnpm test:unit",
-    "check": "pnpm typecheck && pnpm lint && pnpm depcruise && pnpm knip && pnpm adr:check && pnpm test:all",
+    "check:fast": "pnpm typecheck && pnpm lint && pnpm lint:css && pnpm lint:md && pnpm depcruise && pnpm knip && pnpm adr:check && pnpm test:unit",
+    "check": "pnpm typecheck && pnpm lint && pnpm lint:css && pnpm lint:md && pnpm depcruise && pnpm knip && pnpm adr:check && pnpm test:all",
     "prepare": "husky"
   },
   "dependencies": {
@@ -64,7 +66,9 @@
     "jsdom": "^30.1.3",
     "knip": "^6.42.1",
     "lint-staged": "^17.6.0",
+    "markdownlint-cli2": "^0.24.2",
     "prettier": "^3.9.10",
+    "stylelint": "^18.1.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "8.71.2",
     "vitest": "^5.0.5"

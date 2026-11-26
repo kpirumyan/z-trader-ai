@@ -1,0 +1,22 @@
+config:
+  default: true
+  MD013: false
+  MD024:
+    siblings_only: true
+  MD025:
+    front_matter_title: ""
+  MD031:
+    list_items: false
+
+ignores:
+  - node_modules
+  - .next
+  - out
+  - build
+  - coverage
+  - test-results
+  - playwright-report
+  - .agents/skills/agent-browser
+  - .agents/skills/find-skills
+  - .agents/skills/langfuse
+  - .agents/skills/skill-creator

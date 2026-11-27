@@ -245,11 +245,7 @@ const eslintConfig = defineConfig([
     languageOptions: {
       parserOptions: {
         projectService: {
-          allowDefaultProject: [
-            "vitest.config.mts",
-            ".agents/evals/*.ts",
-            ".agents/evals/tests/*.ts",
-          ],
+          allowDefaultProject: ["vitest.config.mts"],
         },
         tsconfigRootDir: import.meta.dirname,
       },

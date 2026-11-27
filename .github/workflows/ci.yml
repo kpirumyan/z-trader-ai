@@ -1,0 +1,161 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      code_changed: ${{ steps.filter.outputs.code_changed }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Classify changed files
+        id: filter
+        shell: bash
+        run: |
+          set -euo pipefail
+          code_changed="false"
+          files=""
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            code_changed="true"
+          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            files=$(git diff --name-only "${{ github.event.pull_request.base.sha }}" HEAD || echo "__FALLBACK__")
+          elif [[ "${{ github.event.before }}" == "0000000000000000000000000000000000000000" ]]; then
+            code_changed="true"
+          else
+            files=$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" || echo "__FALLBACK__")
+          fi
+
+          if [[ "$code_changed" != "true" ]]; then
+            if [[ "$files" == "__FALLBACK__" || -z "$files" ]]; then
+              code_changed="true"
+            elif echo "$files" | grep -qvE '^(docs/|.*\.md$)'; then
+              code_changed="true"
+            fi
+          fi
+
+          echo "code_changed=$code_changed" >> "$GITHUB_OUTPUT"
+          echo "code_changed=$code_changed"
+
+  verify:
+    name: Verify Static & Unit
+    needs: changes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check formatting
+        run: pnpm format:check
+
+      - name: Lint Markdown
+        run: pnpm lint:md
+
+      - name: Check ADRs
+        run: pnpm adr:check
+
+      - name: Typecheck
+        if: needs.changes.outputs.code_changed == 'true'
+        run: pnpm typecheck
+
+      - name: Lint code
+        if: needs.changes.outputs.code_changed == 'true'
+        run: pnpm lint
+
+      - name: Lint styles
+        if: needs.changes.outputs.code_changed == 'true'
+        run: pnpm lint:css
+
+      - name: Check dependency boundaries
+        if: needs.changes.outputs.code_changed == 'true'
+        run: pnpm depcruise
+
+      - name: Check dead code
+        if: needs.changes.outputs.code_changed == 'true'
+        run: pnpm knip
+
+      - name: Run unit tests
+        if: needs.changes.outputs.code_changed == 'true'
+        run: pnpm test:unit
+
+  e2e:
+    name: Build & Playwright E2E
+    needs: changes
+    if: needs.changes.outputs.code_changed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Install Playwright Chromium OS dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm exec playwright install-deps chromium
+
+      - name: Install Playwright Chromium & OS dependencies
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Build and run E2E tests
+        env:
+          TMPDIR: ${{ runner.temp }}
+        run: pnpm test:e2e
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            ${{ runner.temp }}/z-trader-ai-playwright-report
+            ${{ runner.temp }}/z-trader-ai-test-results
+          if-no-files-found: ignore
+          retention-days: 7

@@ -1296,6 +1296,34 @@ describe("semantic observation classification", () => {
       observationName: "run_command:lint",
     });
 
+    expect(classifyToolCall("run_command", { CommandLine: "pnpm lint:css" })).toEqual({
+      type: "guardrail",
+      observationName: "run_command:lint:css",
+    });
+
+    expect(classifyToolCall("run_command", { CommandLine: "pnpm lint:md" })).toEqual({
+      type: "guardrail",
+      observationName: "run_command:lint:md",
+    });
+
+    expect(
+      classifyToolCall("run_command", {
+        CommandLine: 'pnpm exec stylelint "src/**/*.module.css" --allow-empty-input',
+      }),
+    ).toEqual({
+      type: "guardrail",
+      observationName: "run_command:stylelint",
+    });
+
+    expect(
+      classifyToolCall("run_command", {
+        CommandLine: 'npx markdownlint-cli2 "**/*.md"',
+      }),
+    ).toEqual({
+      type: "guardrail",
+      observationName: "run_command:markdownlint-cli2",
+    });
+
     expect(classifyToolCall("run_command", { CommandLine: "pnpm depcruise" })).toEqual({
       type: "guardrail",
       observationName: "run_command:depcruise",
@@ -1344,6 +1372,20 @@ describe("semantic observation classification", () => {
     expect(classifyToolCall("run_command", { CommandLine: "eslint --fix src/index.ts" })).toEqual({
       type: "tool",
       observationName: "run_command:eslint",
+    });
+
+    expect(
+      classifyToolCall("run_command", { CommandLine: "stylelint --fix src/app/globals.css" }),
+    ).toEqual({
+      type: "tool",
+      observationName: "run_command:stylelint",
+    });
+
+    expect(
+      classifyToolCall("run_command", { CommandLine: 'markdownlint-cli2 --fix "**/*.md"' }),
+    ).toEqual({
+      type: "tool",
+      observationName: "run_command:markdownlint-cli2",
     });
 
     expect(classifyToolCall("run_command", { CommandLine: "git status" })).toEqual({

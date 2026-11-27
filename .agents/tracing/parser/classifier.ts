@@ -237,6 +237,10 @@ function classifyPackageScript(scriptName: string): CommandSegmentClassification
 
     case "lint":
 
+    case "lint:css":
+
+    case "lint:md":
+
     case "knip":
 
     case "typecheck":
@@ -317,12 +321,14 @@ function classifyCommandSegment(rawSegment: string): CommandSegmentClassificatio
     return { kind: "guardrail", label: "adr:check" };
   }
 
-  if (/^eslint(?:\s|$)/i.test(normalized)) {
+  const firstToken = normalized.split(/\s+/, 1)[0]?.toLowerCase();
+
+  if (firstToken === "eslint" || firstToken === "stylelint" || firstToken === "markdownlint-cli2") {
     if (/(?:^|\s)--fix(?:-dry-run)?(?:\s|$|=)/i.test(normalized)) {
-      return { kind: "tool", label: "eslint" };
+      return { kind: "tool", label: firstToken };
     }
 
-    return { kind: "guardrail", label: "eslint" };
+    return { kind: "guardrail", label: firstToken };
   }
 
   if (/^knip(?:\s|$)/i.test(normalized)) {

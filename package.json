@@ -10,7 +10,7 @@
     "start": "next start",
     "test": "vitest",
     "test:unit": "vitest run",
-    "test:e2e": "playwright test",
+    "test:e2e": "pnpm build && playwright test",
     "test:all": "pnpm test:unit && pnpm test:e2e",
     "typecheck": "next typegen && tsc --noEmit",
     "lint": "eslint . --max-warnings 0",
@@ -30,7 +30,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check:fast": "pnpm typecheck && pnpm lint && pnpm lint:css && pnpm lint:md && pnpm depcruise && pnpm knip && pnpm adr:check && pnpm test:unit",
-    "check": "pnpm typecheck && pnpm lint && pnpm lint:css && pnpm lint:md && pnpm depcruise && pnpm knip && pnpm adr:check && pnpm test:all",
+    "check": "pnpm check:fast && pnpm test:e2e",
     "prepare": "husky"
   },
   "dependencies": {

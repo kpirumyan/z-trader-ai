@@ -267,65 +267,6 @@ const eslintConfig = defineConfig([
     rules: {
       "english-code/only-english": "error",
       "style-policy/only-module-css": "error",
-      "no-restricted-imports": [
-        "error",
-        {
-          paths: [
-            {
-              name: "styled-components",
-              message: "CSS-in-JS is forbidden by ADR-0003. Use co-located *.module.css files.",
-            },
-            {
-              name: "styled-jsx",
-              message: "styled-jsx is forbidden by ADR-0003. Use co-located *.module.css files.",
-            },
-            {
-              name: "tailwindcss",
-              message: "Tailwind CSS is forbidden by ADR-0003. Use co-located *.module.css files.",
-            },
-            {
-              name: "linaria",
-              message: "CSS-in-JS is forbidden by ADR-0003. Use co-located *.module.css files.",
-            },
-            {
-              name: "aphrodite",
-              message: "CSS-in-JS is forbidden by ADR-0003. Use co-located *.module.css files.",
-            },
-            {
-              name: "glamor",
-              message: "CSS-in-JS is forbidden by ADR-0003. Use co-located *.module.css files.",
-            },
-            {
-              name: "jss",
-              message: "CSS-in-JS is forbidden by ADR-0003. Use co-located *.module.css files.",
-            },
-            {
-              name: "style9",
-              message: "CSS-in-JS is forbidden by ADR-0003. Use co-located *.module.css files.",
-            },
-            {
-              name: "typestyle",
-              message: "CSS-in-JS is forbidden by ADR-0003. Use co-located *.module.css files.",
-            },
-          ],
-          patterns: [
-            {
-              group: [
-                "@emotion/*",
-                "@tailwindcss/*",
-                "@vanilla-extract/*",
-                "@stitches/*",
-                "@linaria/*",
-                "@stylexjs/*",
-                "@compiled/*",
-                "styled-jsx/*",
-              ],
-              message:
-                "External CSS frameworks and CSS-in-JS libraries are forbidden by ADR-0003. Use co-located *.module.css files.",
-            },
-          ],
-        },
-      ],
       ...reactHooks.configs.flat["recommended-latest"].rules,
       "import/order": [
         "error",

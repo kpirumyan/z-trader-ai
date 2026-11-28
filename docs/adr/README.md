@@ -19,13 +19,15 @@ This directory contains the Architecture Decision Log (ADL) for Z-Trader, struct
 | [ADR-0006](./0006-canvas-charting-and-lightweight-charts.md)                               | High-Performance Canvas Charting via Lightweight Charts & Theme Integration | accepted | 2026-10-25 | Charting & Performance  |
 | [ADR-0007](./0007-ninjatrader-cme-market-data.md)                                          | CME Futures Market Data via NinjaTrader 8 Dual-Workflow Architecture        | accepted | 2026-10-30 | Market Data & Replay    |
 | [ADR-0009](./0009-langfuse-v4-self-improving-agent-flywheel-and-evaluator-architecture.md) | Langfuse v4 Self-Improving Agent Flywheel and Evaluator Architecture        | accepted | 2026-11-16 | AI & Observability      |
-| [ADR-0010](./0010-single-owner-architectural-boundary-enforcement.md)                      | Single-Owner Architectural Boundary Enforcement                             | accepted | 2026-11-25 | Tooling & Governance    |
-| [ADR-0011](./0011-path-scoped-executable-adr-governance.md)                                | Path-Scoped Executable ADR Governance                                       | accepted | 2026-11-26 | Tooling & Governance    |
+| [ADR-0012](./0012-single-owner-boundaries-and-layered-guardrail-pipeline.md)               | Single-Owner Boundaries and Layered Guardrail Pipeline                      | accepted | 2026-11-27 | Tooling & Governance    |
+| [ADR-0013](./0013-path-scoped-executable-adr-governance-via-repo-and-ci-gates.md)          | Path-Scoped Executable ADR Governance via Repo and CI Gates                 | accepted | 2026-11-27 | Tooling & Governance    |
 
 ## Historical Decisions Index
 
-| ID                                                                  | Title                                                                        | Status                 | Date       | Area                 |
-| ------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------- | ---------- | -------------------- |
-| [ADR-0000](./0000-executable-adr-governance.md)                     | Executable ADR Governance via Hybrid MADR 4.0 and Bidirectional Traceability | superseded by ADR-0011 | 2026-11-05 | Tooling & Governance |
-| [ADR-0002](./0002-boundary-enforcement-and-quarantine.md)           | Automated Architectural Boundary Enforcement                                 | superseded by ADR-0010 | 2026-11-05 | Tooling & Governance |
-| [ADR-0008](./0008-langfuse-native-self-improving-agent-flywheel.md) | Langfuse-Native Self-Improving Agent Flywheel                                | superseded by ADR-0009 | 2026-11-11 | AI & Observability   |
+| ID                                                                    | Title                                                                        | Status                 | Date       | Area                 |
+| --------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------- | ---------- | -------------------- |
+| [ADR-0000](./0000-executable-adr-governance.md)                       | Executable ADR Governance via Hybrid MADR 4.0 and Bidirectional Traceability | superseded by ADR-0011 | 2026-11-05 | Tooling & Governance |
+| [ADR-0002](./0002-boundary-enforcement-and-quarantine.md)             | Automated Architectural Boundary Enforcement                                 | superseded by ADR-0010 | 2026-11-05 | Tooling & Governance |
+| [ADR-0008](./0008-langfuse-native-self-improving-agent-flywheel.md)   | Langfuse-Native Self-Improving Agent Flywheel                                | superseded by ADR-0009 | 2026-11-11 | AI & Observability   |
+| [ADR-0010](./0010-single-owner-architectural-boundary-enforcement.md) | Single-Owner Architectural Boundary Enforcement                              | superseded by ADR-0012 | 2026-11-25 | Tooling & Governance |
+| [ADR-0011](./0011-path-scoped-executable-adr-governance.md)           | Path-Scoped Executable ADR Governance                                        | superseded by ADR-0013 | 2026-11-26 | Tooling & Governance |

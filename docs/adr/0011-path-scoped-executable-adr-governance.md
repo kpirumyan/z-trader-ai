@@ -1,7 +1,7 @@
 ---
 id: "ADR-0011"
 title: "Path-Scoped Executable ADR Governance"
-status: "accepted"
+status: "superseded by ADR-0013"
 date: "2026-11-26"
 decision-makers:
   - "Product Owner"
@@ -16,7 +16,7 @@ enforced_by:
   - ".husky/pre-commit"
   - "package.json"
 supersedes: "ADR-0000"
-superseded_by: null
+superseded_by: "ADR-0013"
 ---
 
 # ADR-0011: Path-Scoped Executable ADR Governance

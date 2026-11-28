@@ -29,7 +29,9 @@
     "adr:check": "node .agents/skills/adr/scripts/adr-cli.ts check",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check:fast": "pnpm typecheck && pnpm lint && pnpm lint:css && pnpm lint:md && pnpm depcruise && pnpm knip && pnpm adr:check && pnpm test:unit",
+    "check:docs": "node scripts/check.ts docs",
+    "check:code": "node scripts/check.ts code",
+    "check:fast": "node scripts/check.ts fast",
     "check": "pnpm check:fast && pnpm test:e2e",
     "prepare": "husky"
   },

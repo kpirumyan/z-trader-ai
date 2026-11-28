@@ -235,6 +235,10 @@ function classifyPackageScript(scriptName: string): CommandSegmentClassification
 
     case "adr:check":
 
+    case "check:docs":
+
+    case "check:code":
+
     case "lint":
 
     case "lint:css":

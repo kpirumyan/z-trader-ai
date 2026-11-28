@@ -12,6 +12,7 @@ export default defineConfig({
       ".agents/tracing/tests/**/*.test.ts",
       ".agents/hooks/**/tests/**/*.test.{ts,tsx}",
       ".agents/skills/*/tests/**/*.test.{ts,tsx}",
+      "scripts/tests/**/*.test.ts",
       "src/modules/*/tests/**/*.test.{ts,tsx}",
       "src/shared/**/tests/**/*.test.{ts,tsx}",
       "src/composition/**/tests/**/*.test.{ts,tsx}",

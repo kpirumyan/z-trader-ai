@@ -1,15 +1,12 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "entry": [
-    ".agents/hooks/auto-fix/index.ts",
-    ".agents/hooks/langfuse/session-start.ts",
-    ".agents/hooks/langfuse/stop.ts"
-  ],
+  "entry": [".agents/hooks/langfuse/session-start.ts", ".agents/hooks/langfuse/stop.ts"],
   "project": [
     "src/**/*.{ts,tsx}!",
     "!src/modules/indicators/**!",
     "src/modules/indicators/**/*.{ts,tsx}",
     ".agents/**/*.{ts,tsx}",
+    "scripts/**/*.ts",
     "tests/**/*.{ts,tsx}"
   ],
   "includeEntryExports": true,

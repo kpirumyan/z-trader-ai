@@ -52,4 +52,4 @@ Exported via `@/src/modules/chart`:
 - [ADR-0003: CSS Modules, Design Tokens & Styling Standard](../../../docs/adr/0003-css-architecture.md) — UI & Styling
 - [ADR-0005: Out-of-React Market Data Streaming & Transport Separation](../../../docs/adr/0005-market-data-streaming-and-transport-separation.md) — Market Data & Streaming
 - [ADR-0006: High-Performance Canvas Charting via Lightweight Charts & Theme Integration](../../../docs/adr/0006-canvas-charting-and-lightweight-charts.md) — Charting & Performance
-- [ADR-0010: Single-Owner Architectural Boundary Enforcement](../../../docs/adr/0010-single-owner-architectural-boundary-enforcement.md) — Tooling & Governance
+- [ADR-0012: Single-Owner Boundaries and Layered Guardrail Pipeline](../../../docs/adr/0012-single-owner-boundaries-and-layered-guardrail-pipeline.md) — Tooling & Governance

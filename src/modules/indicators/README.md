@@ -38,4 +38,4 @@ Exported via `@/src/modules/indicators`:
 ## Governing ADRs
 
 - [ADR-0001: Modular Architecture & Vertical Domain Slices](../../../docs/adr/0001-modular-architecture.md) — Architecture & Layout
-- [ADR-0010: Single-Owner Architectural Boundary Enforcement](../../../docs/adr/0010-single-owner-architectural-boundary-enforcement.md) — Tooling & Governance
+- [ADR-0012: Single-Owner Boundaries and Layered Guardrail Pipeline](../../../docs/adr/0012-single-owner-boundaries-and-layered-guardrail-pipeline.md) — Tooling & Governance

@@ -75,38 +75,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Check formatting
-        run: pnpm format:check
+      - name: Verify docs & ADRs (docs-only change)
+        if: needs.changes.outputs.code_changed != 'true'
+        run: pnpm check:docs
 
-      - name: Lint Markdown
-        run: pnpm lint:md
-
-      - name: Check ADRs
-        run: pnpm adr:check
-
-      - name: Typecheck
+      - name: Verify static checks & unit tests
         if: needs.changes.outputs.code_changed == 'true'
-        run: pnpm typecheck
-
-      - name: Lint code
-        if: needs.changes.outputs.code_changed == 'true'
-        run: pnpm lint
-
-      - name: Lint styles
-        if: needs.changes.outputs.code_changed == 'true'
-        run: pnpm lint:css
-
-      - name: Check dependency boundaries
-        if: needs.changes.outputs.code_changed == 'true'
-        run: pnpm depcruise
-
-      - name: Check dead code
-        if: needs.changes.outputs.code_changed == 'true'
-        run: pnpm knip
-
-      - name: Run unit tests
-        if: needs.changes.outputs.code_changed == 'true'
-        run: pnpm test:unit
+        run: pnpm check:fast
 
   e2e:
     name: Build & Playwright E2E

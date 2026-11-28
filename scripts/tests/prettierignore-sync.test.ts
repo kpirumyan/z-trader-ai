@@ -7,7 +7,7 @@ interface SkillsLock {
   skills?: Record<string, unknown>;
 }
 
-const WORKSPACE_ROOT = path.resolve(import.meta.dirname, "../../../..");
+const WORKSPACE_ROOT = path.resolve(import.meta.dirname, "../..");
 
 function readSkillsFromLock(lockPath: string): string[] {
   const parsed: unknown = JSON.parse(fs.readFileSync(lockPath, "utf8"));

@@ -1,8 +1,6 @@
 {
-  "*.{js,jsx,mjs,ts,tsx,mts,cts}": [
-    "eslint --fix --max-warnings 0",
-    "prettier --write",
-    "vitest related --run --passWithNoTests"
-  ],
-  "!(*.{js,jsx,mjs,ts,tsx,mts,cts})": "prettier --write --ignore-unknown"
+  "*.{js,jsx,mjs,ts,tsx,mts,cts}": ["eslint --fix --max-warnings 0", "prettier --write"],
+  "*.{css,scss,sass,less}": ["stylelint", "prettier --write"],
+  "*.md": ["markdownlint-cli2", "prettier --write"],
+  "!(*.{js,jsx,mjs,ts,tsx,mts,cts,css,scss,sass,less,md})": "prettier --write --ignore-unknown"
 }

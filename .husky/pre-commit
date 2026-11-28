@@ -1,1 +1,1 @@
-pnpm exec lint-staged && pnpm typecheck && pnpm depcruise && pnpm knip && pnpm adr:check
+pnpm exec lint-staged

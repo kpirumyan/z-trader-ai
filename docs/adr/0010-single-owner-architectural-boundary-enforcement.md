@@ -1,7 +1,7 @@
 ---
 id: "ADR-0010"
 title: "Single-Owner Architectural Boundary Enforcement"
-status: "accepted"
+status: "superseded by ADR-0012"
 date: "2026-11-25"
 decision-makers:
   - "Product Owner"
@@ -26,7 +26,7 @@ enforced_by:
   - "package.json"
   - ".agents/skills/adr/tests/adr-cli.test.ts"
 supersedes: "ADR-0002"
-superseded_by: null
+superseded_by: "ADR-0012"
 ---
 
 # ADR-0010: Single-Owner Architectural Boundary Enforcement

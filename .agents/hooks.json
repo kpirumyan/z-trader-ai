@@ -1,25 +1,4 @@
 {
-  "auto-fix": {
-    "PostToolUse": [
-      {
-        "matcher": "edit_file|write_file|write_to_file|replace_file_content|multi_replace_file_content",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node hooks/auto-fix/index.ts",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
-    "PostInvocation": [
-      {
-        "type": "command",
-        "command": "node hooks/auto-fix/index.ts --post-invocation",
-        "timeout": 5
-      }
-    ]
-  },
   "langfuse-export": {
     "enabled": true,
     "SessionStart": [

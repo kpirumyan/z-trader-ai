@@ -43,4 +43,4 @@ Exported via `@/src/modules/market-data`:
 - [ADR-0001: Modular Architecture & Vertical Domain Slices](../../../docs/adr/0001-modular-architecture.md) — Architecture & Layout
 - [ADR-0005: Out-of-React Market Data Streaming & Transport Separation](../../../docs/adr/0005-market-data-streaming-and-transport-separation.md) — Market Data & Streaming
 - [ADR-0007: CME Futures Market Data via NinjaTrader 8 Dual-Workflow Architecture](../../../docs/adr/0007-ninjatrader-cme-market-data.md) — Market Data & Replay
-- [ADR-0010: Single-Owner Architectural Boundary Enforcement](../../../docs/adr/0010-single-owner-architectural-boundary-enforcement.md) — Tooling & Governance
+- [ADR-0012: Single-Owner Boundaries and Layered Guardrail Pipeline](../../../docs/adr/0012-single-owner-boundaries-and-layered-guardrail-pipeline.md) — Tooling & Governance

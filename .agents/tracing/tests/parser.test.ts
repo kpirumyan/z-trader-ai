@@ -1306,6 +1306,16 @@ describe("semantic observation classification", () => {
       observationName: "run_command:lint:md",
     });
 
+    expect(classifyToolCall("run_command", { CommandLine: "pnpm check:docs" })).toEqual({
+      type: "guardrail",
+      observationName: "run_command:check:docs",
+    });
+
+    expect(classifyToolCall("run_command", { CommandLine: "pnpm check:code" })).toEqual({
+      type: "guardrail",
+      observationName: "run_command:check:code",
+    });
+
     expect(
       classifyToolCall("run_command", {
         CommandLine: 'pnpm exec stylelint "src/**/*.module.css" --allow-empty-input',

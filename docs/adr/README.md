@@ -6,7 +6,7 @@ This directory contains the Architecture Decision Log (ADL) for Z-Trader, struct
 
 - **Decision Makers**: Product Owner & specialized AI agents (e.g. Architect Agent, Main Agent, Tester Agent).
 - **MADR 4.0 Immutable Log**: Accepted ADRs are immutable historical records. When an architectural decision is replaced or retired, the original file is never deleted or overwritten; its frontmatter `status` is updated to `superseded by ADR-XXXX` or `deprecated`, and a new ADR is created.
-- **AI Agent Filtering & Enforcement**: Coding agents and automated path gates enforce only active decisions (`status: "accepted"`). Use `pnpm adr:list --path <path>` to query active decisions for a path, and `pnpm adr:check` to validate compliance.
+- **AI Agent Filtering & Enforcement**: Coding agents and automated path gates enforce only active decisions (`status: "accepted"`). Use `pnpm adr list --path <path>` to query active decisions for a path, and `pnpm adr:check` to validate compliance.
 
 ## Active Decisions Index
 

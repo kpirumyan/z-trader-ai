@@ -380,7 +380,7 @@ export function generateAdrReadme(adrs: AdrRecord[]): string {
     "",
     "- **Decision Makers**: Product Owner & specialized AI agents (e.g. Architect Agent, Main Agent, Tester Agent).",
     "- **MADR 4.0 Immutable Log**: Accepted ADRs are immutable historical records. When an architectural decision is replaced or retired, the original file is never deleted or overwritten; its frontmatter `status` is updated to `superseded by ADR-XXXX` or `deprecated`, and a new ADR is created.",
-    '- **AI Agent Filtering & Enforcement**: Coding agents and automated path gates enforce only active decisions (`status: "accepted"`). Use `pnpm adr:list --path <path>` to query active decisions for a path, and `pnpm adr:check` to validate compliance.',
+    '- **AI Agent Filtering & Enforcement**: Coding agents and automated path gates enforce only active decisions (`status: "accepted"`). Use `pnpm adr list --path <path>` to query active decisions for a path, and `pnpm adr:check` to validate compliance.',
     "",
     "## Active Decisions Index",
     "",
@@ -835,7 +835,7 @@ export function checkAdrs(opts: AdrCommandOptions = {}): AdrCheckResult {
     const expectedReadme = generateAdrReadme(adrs).replace(/\r\n/g, "\n");
 
     if (currentReadme !== expectedReadme) {
-      errors.push("Drift detected in docs/adr/README.md. Run `pnpm adr:sync` to reconcile index.");
+      errors.push("Drift detected in docs/adr/README.md. Run `pnpm adr sync` to reconcile index.");
     }
   }
 
@@ -854,7 +854,7 @@ export function checkAdrs(opts: AdrCommandOptions = {}): AdrCheckResult {
 
       if (current !== expected) {
         errors.push(
-          `Drift detected in src/modules/${mod}/README.md. Run ` + "`pnpm adr:sync` to reconcile.",
+          `Drift detected in src/modules/${mod}/README.md. Run ` + "`pnpm adr sync` to reconcile.",
         );
       }
     }

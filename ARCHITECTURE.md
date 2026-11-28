@@ -41,7 +41,7 @@ Allowed layer imports:
 ```text
 src/modules/<name>/
 ├── index.ts        # Perimeter: re-exports ONLY minimal public contract (no declarations or internal stores/helpers)
-├── README.md       # Perimeter: contract, deps, invariants (## Governing ADRs auto-synced by `pnpm adr:sync`)
+├── README.md       # Perimeter: contract, deps, invariants (## Governing ADRs auto-synced by `pnpm adr sync`)
 ├── tests/          # Perimeter: black-box behavioral tests (import ONLY from ../index.ts or @/src/modules/<name>)
 │
 ├── types.ts        # Internal: TypeScript types ONLY (no runtime code)
@@ -76,5 +76,5 @@ src/modules/<name>/
 
 ## 5. Specs & Enforcement (Load On Demand)
 
-- **Governing ADRs**: [docs/adr/README.md](docs/adr/README.md) (Active Decisions Index) · `pnpm adr:list --path <path>` · `## Governing ADRs` in `src/modules/<name>/README.md`.
+- **Governing ADRs**: [docs/adr/README.md](docs/adr/README.md) (Active Decisions Index) · `pnpm adr list --path <path>` · `## Governing ADRs` in `src/modules/<name>/README.md`.
 - **Mechanical gates**: [`scripts/check.ts`](scripts/check.ts) (parallel `check:docs` / `check:code` / `check:fast`) · [`eslint.config.mjs`](eslint.config.mjs) (AST, intra-file syntax, pure barrels/types) · [`stylelint.config.mjs`](stylelint.config.mjs) (CSS Modules & tokens) · [`.markdownlint-cli2.yaml`](.markdownlint-cli2.yaml) (Markdown) · [`.dependency-cruiser.cjs`](.dependency-cruiser.cjs) (dependency graph, layers, deep imports, isolation, cycles) · [`knip.json`](knip.json) (dead code) · `pnpm adr:check` (MADR 4.0, lockfile, README sync) · [`.github/workflows/ci.yml`](.github/workflows/ci.yml) (Stage 4 CI).

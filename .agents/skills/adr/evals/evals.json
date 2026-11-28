@@ -7,7 +7,7 @@
       "expected_output": "Discovers active ADRs governing src/modules/chart and synthesizes the governing constraints for the developer before modifying code",
       "files": [],
       "expectations": [
-        "Queries active governing ADRs using 'pnpm adr:list --path src/modules/chart' or inspects the '## Governing ADRs' section in src/modules/chart/README.md",
+        "Queries active governing ADRs using 'pnpm adr list --path src/modules/chart' or inspects the '## Governing ADRs' section in src/modules/chart/README.md",
         "Distinguishes active ('accepted') decisions from historical ('superseded' or 'deprecated') records",
         "Synthesizes actionable architectural constraints and invariants rather than just printing raw file paths"
       ]
@@ -32,7 +32,7 @@
       "expectations": [
         "Explicitly refuses to modify the markdown body of an accepted ADR",
         "Cites cryptographic body immutability (SHA-256 hash locked in docs/adr/.adr-lock.json)",
-        "Directs the user to create a superseding decision via 'pnpm adr:supersede ADR-0000' instead of in-place editing"
+        "Directs the user to create a superseding decision via 'pnpm adr supersede ADR-0000' instead of in-place editing"
       ]
     },
     {
@@ -43,7 +43,7 @@
       "expectations": [
         "Explicitly clarifies that there is no active ADR governing authentication or JWT in Z-Trader",
         "Does not hallucinate a fictional ADR ID or decision standard",
-        "Suggests running 'pnpm adr:list' to inspect all currently active decisions"
+        "Suggests running 'pnpm adr list' to inspect all currently active decisions"
       ]
     }
   ]

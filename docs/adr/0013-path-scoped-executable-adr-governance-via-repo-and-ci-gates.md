@@ -1,7 +1,7 @@
 ---
 id: "ADR-0013"
 title: "Path-Scoped Executable ADR Governance via Repo and CI Gates"
-status: "accepted"
+status: "superseded by ADR-0014"
 date: "2026-11-27"
 decision-makers:
   - "Product Owner"
@@ -17,7 +17,7 @@ enforced_by:
   - "package.json"
   - ".github/workflows/ci.yml"
 supersedes: "ADR-0011"
-superseded_by: null
+superseded_by: "ADR-0014"
 ---
 
 # ADR-0013: Path-Scoped Executable ADR Governance via Repo and CI Gates

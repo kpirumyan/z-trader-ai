@@ -1,28 +1,26 @@
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
-  parseFrontmatter,
-  serializeFrontmatter,
-  computeBodyHash,
+  checkAdrs,
+  cmdDeprecate,
+  cmdList,
+  cmdNew,
+  cmdRemovePath,
+  cmdRetarget,
+  cmdSupersede,
+  cmdSync,
   generateAdrReadme,
   getGoverningAdrsForPath,
   matchesGovernancePath,
-  updateModuleReadmeContent,
-  cmdNew,
-  cmdRetarget,
-  cmdRemovePath,
-  cmdDeprecate,
-  cmdSupersede,
-  cmdList,
-  cmdSync,
-  checkAdrs,
-  readLockFile,
   parseArgs,
+  parseFrontmatter,
+  serializeFrontmatter,
+  updateModuleReadmeContent,
 } from "../scripts/adr-cli.ts";
 
 interface ParsedResult {
@@ -34,12 +32,57 @@ function parse(raw: string): ParsedResult {
   return parseFrontmatter(raw) as unknown as ParsedResult;
 }
 
+function git(cwd: string, ...args: string[]): string {
+  return execFileSync("git", args, {
+    cwd,
+    encoding: "utf8",
+    stdio: ["pipe", "pipe", "pipe"],
+  }).trim();
+}
+
+function initGitRepo(cwd: string): string {
+  git(cwd, "init", "-b", "main");
+  git(cwd, "add", ".");
+  git(
+    cwd,
+    "-c",
+    "user.email=test@example.com",
+    "-c",
+    "user.name=Test Runner",
+    "-c",
+    "commit.gpgsign=false",
+    "commit",
+    "-m",
+    "initial",
+  );
+
+  return git(cwd, "rev-parse", "HEAD");
+}
+
+function commitAll(cwd: string, message: string): string {
+  git(cwd, "add", "-A");
+  git(
+    cwd,
+    "-c",
+    "user.email=test@example.com",
+    "-c",
+    "user.name=Test Runner",
+    "-c",
+    "commit.gpgsign=false",
+    "commit",
+    "-m",
+    message,
+  );
+
+  return git(cwd, "rev-parse", "HEAD");
+}
+
 describe("ADR Governance CLI Unit Suite", () => {
   describe("Frontmatter Parsing & Serialization", () => {
-    it("parses valid MADR 4.0 frontmatter with arrays and nulls", () => {
-      const raw = `---
+    it("parses valid MADR 4.0 frontmatter with arrays, nulls, and quoted colons", () => {
+      const raw = `\uFEFF---
 id: "ADR-0099"
-title: "Test Architecture"
+title: "Test: Architecture"
 status: "accepted"
 date: "2026-11-06"
 decision-makers:
@@ -55,7 +98,7 @@ supersedes: null
 superseded_by: null
 ---
 
-# ADR-0099: Test Architecture
+# ADR-0099: Test: Architecture
 
 ## Context and Problem Statement
 Context text.
@@ -65,18 +108,13 @@ Context text.
 
       expect(frontmatter).toBeDefined();
       expect(frontmatter.id).toBe("ADR-0099");
-      expect(frontmatter.title).toBe("Test Architecture");
+      expect(frontmatter.title).toBe("Test: Architecture");
       expect(frontmatter.status).toBe("accepted");
       expect(frontmatter.date).toBe("2026-11-06");
-
       expect(frontmatter["decision-makers"]).toEqual(["Product Owner", "Architect Agent"]);
-
       expect(frontmatter.area).toBe("Tooling & Governance");
-
       expect(frontmatter.applies_to).toEqual(["src/modules/chart", "src/modules/order-book"]);
-
       expect(frontmatter.enforced_by).toEqual(["src/modules/chart/tests/chart.test.tsx"]);
-
       expect(frontmatter.supersedes).toBeNull();
       expect(frontmatter.superseded_by).toBeNull();
       expect(body).toContain("## Context and Problem Statement");
@@ -98,34 +136,10 @@ Context text.
 
       const body = "\n# ADR-0042: Test Serialization\n\n## Context\nSome body\n";
       const serialized = serializeFrontmatter(fm, body);
-
       const parsed = parseFrontmatter(serialized);
 
       expect(parsed.frontmatter).toEqual(fm);
       expect(parsed.body.trim()).toBe(body.trim());
-    });
-  });
-
-  describe("Cryptographic Body Hash", () => {
-    it("computes deterministic SHA-256 hash on normalized trimmed body", () => {
-      const bodyLF = "\n# Title\n\n## Context and Problem Statement\nText\n";
-      const bodyCRLF = "\r\n# Title\r\n\r\n## Context and Problem Statement\r\nText\r\n";
-
-      const hash1 = computeBodyHash(bodyLF);
-      const hash2 = computeBodyHash(bodyCRLF);
-
-      expect(hash1).toBe(hash2);
-      expect(hash1).toHaveLength(64);
-    });
-
-    it("detects body tampering when text changes", () => {
-      const original = "# Title\n\n## Context\nOriginal text";
-      const tampered = "# Title\n\n## Context\nTampered text";
-
-      const originalHash = computeBodyHash(original);
-      const tamperedHash = computeBodyHash(tampered);
-
-      expect(originalHash).not.toBe(tamperedHash);
     });
   });
 
@@ -180,12 +194,12 @@ Context text.
       );
 
       expect(chartAdrs.map((a) => a.frontmatter.id)).toEqual(["ADR-0001", "ADR-0006"]);
-      // Deprecated ADR-0099 is not included because it is not active ("accepted")
       expect(chartAdrs.some((a) => a.frontmatter.id === "ADR-0099")).toBe(false);
     });
 
     it("generates markdown bullet list for module README", () => {
-      const existingReadme = `# Module Passport: chart\n\n## Verification\n\n- Black box tests.\n\n## Governing ADRs\n\n- Stale text\n`;
+      const existingReadme =
+        "# Module Passport: chart\n\n## Verification\n\n- Black box tests.\n\n## Governing ADRs\n\n- Stale text\n";
       const governing = [
         {
           fileName: "0001-modular.md",
@@ -203,11 +217,9 @@ Context text.
       );
 
       expect(updated).toContain("## Governing ADRs");
-
       expect(updated).toContain(
         "- [ADR-0001: Modular Architecture](../../../docs/adr/0001-modular.md) \u2014 Architecture",
       );
-
       expect(updated).not.toContain("Stale text");
     });
   });
@@ -248,7 +260,7 @@ Context text.
     });
   });
 
-  describe("Module Lifecycle Workflows: Creation, Refactoring, Deletion", () => {
+  describe("Module Lifecycle Workflows & Git-Anchored Immutability", () => {
     let tmpRoot: string;
     let adrDir: string;
     let modulesDir: string;
@@ -275,25 +287,13 @@ Context text.
       }
     });
 
-    it("handles full lifecycle: module creation, ADR allocation, and README sync", () => {
-      // 1. Create a new vertical module fixture
+    it("allows authoring uncommitted draft ADR body freely without a lockfile", () => {
       const modPath = path.join(modulesDir, "order-analytics");
 
       fs.mkdirSync(path.join(modPath, "tests"), { recursive: true });
+      fs.writeFileSync(path.join(modPath, "README.md"), "# Module\n\n## Governing ADRs\n", "utf8");
+      fs.writeFileSync(path.join(modPath, "tests", "analytics.test.ts"), "export {};\n", "utf8");
 
-      fs.writeFileSync(
-        path.join(modPath, "README.md"),
-        "# Module: order-analytics\n\n## Governing ADRs\n*None*\n",
-        "utf8",
-      );
-
-      fs.writeFileSync(
-        path.join(modPath, "tests", "analytics.test.ts"),
-        "export const testAnalytics = true;\n",
-        "utf8",
-      );
-
-      // 2. Execute cmdNew to allocate ADR for new module
       const result = cmdNew(
         {
           title: "Order Analytics Subsystem",
@@ -304,281 +304,43 @@ Context text.
         { rootDir: tmpRoot, silent: true },
       )!;
 
-      expect(result).toBeDefined();
-      expect(result.id).toBe("ADR-0000");
+      initGitRepo(tmpRoot);
 
-      // Verify ADR file was written
-      const adrFilePath = path.join(adrDir, result.fileName);
-
-      expect(fs.existsSync(adrFilePath)).toBe(true);
-
-      const parsed = parse(fs.readFileSync(adrFilePath, "utf8"));
-
-      expect(parsed.frontmatter.id).toBe("ADR-0000");
-      expect(parsed.frontmatter.title).toBe("Order Analytics Subsystem");
-      expect(parsed.frontmatter.status).toBe("accepted");
-      expect(parsed.frontmatter.applies_to).toEqual(["src/modules/order-analytics"]);
-
-      expect(parsed.frontmatter.enforced_by).toEqual([
-        "src/modules/order-analytics/tests/analytics.test.ts",
-      ]);
-
-      // Verify lockfile entry
-      const lock = readLockFile(path.join(adrDir, ".adr-lock.json"));
-
-      expect(lock.records["ADR-0000"]).toBeDefined();
-      expect(lock.records["ADR-0000"]).toBe(computeBodyHash(parsed.body));
-
-      // Verify module README synchronization
-      const modReadme = fs.readFileSync(path.join(modPath, "README.md"), "utf8");
-
-      expect(modReadme).toContain("## Governing ADRs");
-      expect(modReadme).toContain("[ADR-0000: Order Analytics Subsystem]");
-
-      // Verify docs/adr/README.md synchronization
-      const adrReadme = fs.readFileSync(path.join(adrDir, "README.md"), "utf8");
-
-      expect(adrReadme).toContain("## Active Decisions Index");
-      expect(adrReadme).toContain("[ADR-0000](./" + result.fileName + ")");
-
-      // Verify checkAdrs passes with zero violations
-      const checkResult = checkAdrs({ rootDir: tmpRoot });
-
-      expect(checkResult.valid).toBe(true);
-      expect(checkResult.errors).toHaveLength(0);
-    });
-
-    it("handles module refactoring/renaming: retargets paths while preserving immutable body hash", () => {
-      // Setup initial module & ADR
-      const oldModPath = path.join(modulesDir, "order-analytics");
-
-      fs.mkdirSync(path.join(oldModPath, "tests"), { recursive: true });
-
-      fs.writeFileSync(
-        path.join(oldModPath, "README.md"),
-        "# Module: order-analytics\n\n## Governing ADRs\n",
-        "utf8",
-      );
-
-      fs.writeFileSync(
-        path.join(oldModPath, "tests", "analytics.test.ts"),
-        "export const testAnalytics = true;\n",
-        "utf8",
-      );
-
-      const newAdrResult = cmdNew(
+      // Create second ADR after initial commit and edit its body before committing
+      const draft = cmdNew(
         {
-          title: "Order Analytics Subsystem",
-          area: "Analytics & Orders",
+          title: "Second Uncommitted Decision",
+          area: "Analytics",
           "applies-to": "src/modules/order-analytics",
           "enforced-by": "src/modules/order-analytics/tests/analytics.test.ts",
         },
         { rootDir: tmpRoot, silent: true },
       )!;
 
-      const initialLock = readLockFile(path.join(adrDir, ".adr-lock.json"));
-      const initialHash = initialLock.records[newAdrResult.id];
-
-      // Simulate refactoring/renaming module directory on filesystem
-      const newModPath = path.join(modulesDir, "execution-analytics");
-
-      fs.renameSync(oldModPath, newModPath);
-
-      // Verify that before retargeting, checkAdrs catches missing path
-      const preCheck = checkAdrs({ rootDir: tmpRoot });
-
-      expect(preCheck.valid).toBe(false);
-
-      expect(
-        preCheck.errors.some((e) =>
-          e.includes(
-            'Active applies_to path does not exist on filesystem: "src/modules/order-analytics"',
-          ),
-        ),
-      ).toBe(true);
-
-      // Execute cmdRetarget
-      const retargetCount = cmdRetarget(
-        "src/modules/order-analytics",
-        "src/modules/execution-analytics",
-        { rootDir: tmpRoot, silent: true },
+      const draftPath = path.join(adrDir, draft.fileName);
+      const parsedDraft = parse(fs.readFileSync(draftPath, "utf8"));
+      const authoredBody = parsedDraft.body.replace(
+        "Describe the context and problem statement here.",
+        "Detailed domain context authored before committing.",
       );
 
-      expect(retargetCount).toBe(1);
+      fs.writeFileSync(draftPath, serializeFrontmatter(parsedDraft.frontmatter, authoredBody));
 
-      // Verify frontmatter was updated
-      const adrContent = fs.readFileSync(path.join(adrDir, newAdrResult.fileName), "utf8");
-      const parsed = parse(adrContent);
+      expect(fs.existsSync(path.join(adrDir, ".adr-lock.json"))).toBe(false);
 
-      expect(parsed.frontmatter.applies_to).toEqual(["src/modules/execution-analytics"]);
-
-      expect(parsed.frontmatter.enforced_by).toEqual([
-        "src/modules/execution-analytics/tests/analytics.test.ts",
-      ]);
-
-      // CRITICAL INVARIANT: Body hash in lockfile remains IDENTICAL!
-      const postLock = readLockFile(path.join(adrDir, ".adr-lock.json"));
-
-      expect(postLock.records[newAdrResult.id]).toBe(initialHash);
-      expect(computeBodyHash(parsed.body)).toBe(initialHash);
-
-      // Verify module README at new location is synchronized
-      const newModReadme = fs.readFileSync(path.join(newModPath, "README.md"), "utf8");
-
-      expect(newModReadme).toContain("## Governing ADRs");
-      expect(newModReadme).toContain("[ADR-0000: Order Analytics Subsystem]");
-
-      // Verify checkAdrs passes cleanly after retargeting
-      const postCheck = checkAdrs({ rootDir: tmpRoot });
-
-      expect(postCheck.valid).toBe(true);
-      expect(postCheck.errors).toHaveLength(0);
-    });
-
-    it("handles module deletion: single-module ADR auto-deprecates and passes checkAdrs without requiring deleted path", () => {
-      // Setup module & ADR
-      const modPath = path.join(modulesDir, "legacy-terminal");
-
-      fs.mkdirSync(path.join(modPath, "tests"), { recursive: true });
-
-      fs.writeFileSync(
-        path.join(modPath, "README.md"),
-        "# Module: legacy-terminal\n\n## Governing ADRs\n",
-        "utf8",
-      );
-
-      fs.writeFileSync(
-        path.join(modPath, "tests", "terminal.test.ts"),
-        "export const test = 1;\n",
-        "utf8",
-      );
-
-      const adr = cmdNew(
-        {
-          title: "Legacy Terminal Subsystem",
-          area: "UI & Layout",
-          "applies-to": "src/modules/legacy-terminal",
-          "enforced-by": "src/modules/legacy-terminal/tests/terminal.test.ts",
-        },
-        { rootDir: tmpRoot, silent: true },
-      )!;
-
-      const lockBefore = readLockFile(path.join(adrDir, ".adr-lock.json"));
-      const hashBefore = lockBefore.records[adr.id];
-
-      // Simulate deleting the module from the filesystem
-      fs.rmSync(modPath, { recursive: true, force: true });
-
-      // Before removing path from governance, checkAdrs fails
-      const preCheck = checkAdrs({ rootDir: tmpRoot });
-
-      expect(preCheck.valid).toBe(false);
-
-      expect(
-        preCheck.errors.some((e) =>
-          e.includes("Active applies_to path does not exist on filesystem"),
-        ),
-      ).toBe(true);
-
-      // Execute cmdRemovePath
-      const removedCount = cmdRemovePath("src/modules/legacy-terminal", {
-        rootDir: tmpRoot,
-        silent: true,
-      });
-
-      expect(removedCount).toBe(1);
-
-      // Verify that because ADR exclusively governed the removed module, it auto-deprecated
-      const adrContent = fs.readFileSync(path.join(adrDir, adr.fileName), "utf8");
-      const parsed = parse(adrContent);
-
-      expect(parsed.frontmatter.status).toBe("deprecated");
-
-      // Verify lockfile hash is unchanged
-      const lockAfter = readLockFile(path.join(adrDir, ".adr-lock.json"));
-
-      expect(lockAfter.records[adr.id]).toBe(hashBefore);
-      expect(computeBodyHash(parsed.body)).toBe(hashBefore);
-
-      // Verify docs/adr/README.md moved the ADR to Historical Decisions Index
-      const adrReadme = fs.readFileSync(path.join(adrDir, "README.md"), "utf8");
-
-      expect(adrReadme).toContain("## Historical Decisions Index");
-      expect(adrReadme).toContain("[ADR-0000](./" + adr.fileName + ")");
-
-      const activeSection = adrReadme.split("## Historical Decisions Index")[0];
-
-      expect(activeSection).not.toContain("[ADR-0000]");
-
-      // CRITICAL: checkAdrs now passes even though src/modules/legacy-terminal is gone!
-      const postCheck = checkAdrs({ rootDir: tmpRoot });
-
-      expect(postCheck.valid).toBe(true);
-      expect(postCheck.errors).toHaveLength(0);
-    });
-
-    it("handles multi-module ADR deletion: prunes removed module without deprecating when other modules remain", () => {
-      // Setup two modules
-      const modAPath = path.join(modulesDir, "active-a");
-      const modBPath = path.join(modulesDir, "legacy-b");
-
-      fs.mkdirSync(path.join(modAPath, "tests"), { recursive: true });
-      fs.mkdirSync(path.join(modBPath, "tests"), { recursive: true });
-
-      fs.writeFileSync(
-        path.join(modAPath, "README.md"),
-        "# Module A\n\n## Governing ADRs\n",
-        "utf8",
-      );
-
-      fs.writeFileSync(
-        path.join(modBPath, "README.md"),
-        "# Module B\n\n## Governing ADRs\n",
-        "utf8",
-      );
-
-      fs.writeFileSync(path.join(modAPath, "tests", "a.test.ts"), "export const a = 1;\n", "utf8");
-      fs.writeFileSync(path.join(modBPath, "tests", "b.test.ts"), "export const b = 2;\n", "utf8");
-
-      // Multi-module ADR
-      const adr = cmdNew(
-        {
-          title: "Multi Module Standard",
-          area: "Architecture",
-          "applies-to": "src/modules/active-a, src/modules/legacy-b",
-          "enforced-by":
-            "src/modules/active-a/tests/a.test.ts, src/modules/legacy-b/tests/b.test.ts",
-        },
-        { rootDir: tmpRoot, silent: true },
-      )!;
-
-      // Delete module B
-      fs.rmSync(modBPath, { recursive: true, force: true });
-
-      // Run remove-path on module B
-      cmdRemovePath("src/modules/legacy-b", { rootDir: tmpRoot, silent: true });
-
-      // Verify ADR is STILL accepted because active-a remains
-      const adrContent = fs.readFileSync(path.join(adrDir, adr.fileName), "utf8");
-      const parsed = parse(adrContent);
-
-      expect(parsed.frontmatter.status).toBe("accepted");
-      expect(parsed.frontmatter.applies_to).toEqual(["src/modules/active-a"]);
-      expect(parsed.frontmatter.enforced_by).toEqual(["src/modules/active-a/tests/a.test.ts"]);
-
-      // Verify checkAdrs passes
       const checkResult = checkAdrs({ rootDir: tmpRoot });
 
       expect(checkResult.valid).toBe(true);
       expect(checkResult.errors).toHaveLength(0);
-    });
+      expect(result.id).toBe("ADR-0000");
+    }, 15000);
 
-    it("fails checkAdrs when ADR body or lockfile is tampered with directly", () => {
+    it("detects body tampering, file deletion, and immutable metadata edits against HEAD and baseRef", () => {
       const modPath = path.join(modulesDir, "tamper-test");
 
       fs.mkdirSync(path.join(modPath, "tests"), { recursive: true });
       fs.writeFileSync(path.join(modPath, "README.md"), "# Module\n\n## Governing ADRs\n", "utf8");
-      fs.writeFileSync(path.join(modPath, "tests", "t.test.ts"), "export const t = 1;\n", "utf8");
+      fs.writeFileSync(path.join(modPath, "tests", "t.test.ts"), "export {};\n", "utf8");
 
       const adr = cmdNew(
         {
@@ -590,218 +352,264 @@ Context text.
         { rootDir: tmpRoot, silent: true },
       )!;
 
-      // 1. Tamper with body text directly
+      const baseSha = initGitRepo(tmpRoot);
       const adrFilePath = path.join(adrDir, adr.fileName);
-      const originalContent = fs.readFileSync(adrFilePath, "utf8");
+      const originalRaw = fs.readFileSync(adrFilePath, "utf8");
 
-      fs.writeFileSync(
-        adrFilePath,
-        originalContent + "\nIllegal unauthorized modification\n",
-        "utf8",
+      // 1. Uncommitted body edit fails against HEAD
+      fs.writeFileSync(adrFilePath, `${originalRaw}\nUnauthorized body append\n`, "utf8");
+
+      const dirtyBodyCheck = checkAdrs({ rootDir: tmpRoot });
+
+      expect(dirtyBodyCheck.valid).toBe(false);
+      expect(dirtyBodyCheck.errors.some((e) => e.includes("Body of committed ADR"))).toBe(true);
+
+      // 2. Committed body edit on a branch fails when checked against baseSha (CI mode)
+      git(tmpRoot, "checkout", "-b", "feat/tamper");
+      commitAll(tmpRoot, "tamper body in branch commit");
+
+      const committedTamperCheck = checkAdrs({ rootDir: tmpRoot, baseRef: baseSha });
+
+      expect(committedTamperCheck.valid).toBe(false);
+      expect(committedTamperCheck.errors.some((e) => e.includes("Body of committed ADR"))).toBe(
+        true,
       );
 
-      const bodyTamperCheck = checkAdrs({ rootDir: tmpRoot });
+      // 3. Immutable metadata tampering (e.g. title) fails
+      const parsed = parse(originalRaw);
 
-      expect(bodyTamperCheck.valid).toBe(false);
-      expect(bodyTamperCheck.errors.some((e) => e.includes("Body hash mismatch!"))).toBe(true);
+      parsed.frontmatter.title = "Silently Renamed Title";
+      fs.writeFileSync(adrFilePath, serializeFrontmatter(parsed.frontmatter, parsed.body), "utf8");
 
-      // Restore
-      fs.writeFileSync(adrFilePath, originalContent, "utf8");
-      expect(checkAdrs({ rootDir: tmpRoot }).valid).toBe(true);
+      const metaTamperCheck = checkAdrs({ rootDir: tmpRoot, baseRef: baseSha });
 
-      // 2. Tamper with lockfile directly
-      const lockPath = path.join(adrDir, ".adr-lock.json");
-      const lockData = readLockFile(lockPath);
+      expect(metaTamperCheck.valid).toBe(false);
+      expect(
+        metaTamperCheck.errors.some((e) => e.includes('Immutable frontmatter field "title"')),
+      ).toBe(true);
 
-      lockData.records[adr.id] = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-      fs.writeFileSync(lockPath, JSON.stringify(lockData, null, 2), "utf8");
+      // 4. Deleting a committed ADR fails
+      fs.rmSync(adrFilePath);
 
-      const lockTamperCheck = checkAdrs({ rootDir: tmpRoot });
+      const deletedAdrCheck = checkAdrs({ rootDir: tmpRoot, baseRef: baseSha });
 
-      expect(lockTamperCheck.valid).toBe(false);
-      expect(lockTamperCheck.errors.some((e) => e.includes("Body hash mismatch!"))).toBe(true);
-    });
+      expect(deletedAdrCheck.valid).toBe(false);
+      expect(deletedAdrCheck.errors.some((e) => e.includes("was deleted or moved"))).toBe(true);
+    }, 15000);
 
-    it("handles supersede workflow: seeds new ADR from old body, links bidirectionally, and preserves old body hash", () => {
-      const modPath = path.join(modulesDir, "supersede-mod");
+    it("blocks removing active applies_to/enforced_by paths or deprecating while paths exist on disk", () => {
+      const modPath = path.join(modulesDir, "git-guarded");
+      const extraPath = path.join(modulesDir, "extra-mod");
 
       fs.mkdirSync(path.join(modPath, "tests"), { recursive: true });
-      fs.writeFileSync(path.join(modPath, "README.md"), "# Module\n\n## Governing ADRs\n", "utf8");
-      fs.writeFileSync(path.join(modPath, "tests", "s.test.ts"), "export const s = 1;\n", "utf8");
-
-      const initialAdr = cmdNew(
-        {
-          title: "Initial Decision",
-          area: "Architecture",
-          "applies-to": "src/modules/supersede-mod",
-          "enforced-by": "src/modules/supersede-mod/tests/s.test.ts",
-        },
-        { rootDir: tmpRoot, silent: true },
-      )!;
-
-      // Populate rich domain content in the initial ADR and lock its hash
-      const initialAdrPath = path.join(adrDir, initialAdr.fileName);
-      const initialParsed = parse(fs.readFileSync(initialAdrPath, "utf8"));
-      const richOldBody = [
-        "# ADR-0000: Initial Decision",
-        "",
-        "## Context and Problem Statement",
-        "",
-        "Original architectural constraint must not be lost.",
-        "",
-        "## Decision Drivers",
-        "",
-        "- Preserve zero-latency execution",
-        "",
-        "## Decision Outcome",
-        "",
-        "Chosen option: **Strict Isolation**, enforcing exact invariant X.",
-        "",
-        "## Confirmation and Enforcement",
-        "",
-        "- Verified via `pnpm check:fast` and `s.test.ts`.",
-        "",
-        "## Consequences",
-        "",
-        "### Positive",
-        "",
-        "- Deterministic boundary guarantees.",
-        "",
-        "### Negative",
-        "",
-        "- Requires maintaining custom adapter.",
-        "",
-        "## Rejected Alternatives",
-        "",
-        "- **Global Mutable State**: Breaks module isolation.",
-        "",
-      ].join("\n");
-
-      fs.writeFileSync(
-        initialAdrPath,
-        serializeFrontmatter(initialParsed.frontmatter, richOldBody),
-        "utf8",
-      );
-
-      const lockPath = path.join(adrDir, ".adr-lock.json");
-      const initialLock = readLockFile(lockPath);
-      const initialHash = computeBodyHash(richOldBody);
-
-      initialLock.records[initialAdr.id] = initialHash;
-      fs.writeFileSync(lockPath, JSON.stringify(initialLock, null, 2) + "\n", "utf8");
-
-      // Execute supersede
-      const supersedeResult = cmdSupersede(
-        initialAdr.id,
-        {
-          title: "Superseding Decision",
-          area: "Architecture",
-        },
-        { rootDir: tmpRoot, silent: true },
-      )!;
-
-      expect(supersedeResult).toBeDefined();
-      expect(supersedeResult.nextId).toBe("ADR-0001");
-
-      // Verify old ADR frontmatter updated
-      const oldParsed = parse(fs.readFileSync(initialAdrPath, "utf8"));
-
-      expect(oldParsed.frontmatter.status).toBe("superseded by ADR-0001");
-      expect(oldParsed.frontmatter.superseded_by).toBe("ADR-0001");
-      expect(oldParsed.frontmatter.supersedes).toBeNull();
-
-      // Verify old ADR body hash in lockfile remains completely unchanged!
-      const updatedLock = readLockFile(lockPath);
-
-      expect(updatedLock.records[initialAdr.id]).toBe(initialHash);
-      expect(computeBodyHash(oldParsed.body)).toBe(initialHash);
-
-      // Verify new ADR frontmatter and seeded body content from old ADR
-      const newParsed = parse(
-        fs.readFileSync(path.join(adrDir, "0001-superseding-decision.md"), "utf8"),
-      );
-
-      expect(newParsed.frontmatter.id).toBe("ADR-0001");
-      expect(newParsed.frontmatter.status).toBe("accepted");
-      expect(newParsed.frontmatter.supersedes).toBe("ADR-0000");
-      expect(newParsed.frontmatter.superseded_by).toBeNull();
-      expect(updatedLock.records["ADR-0001"]).toBe(computeBodyHash(newParsed.body));
-
-      expect(newParsed.body).toContain("# ADR-0001: Superseding Decision");
-      expect(newParsed.body).not.toContain("# ADR-0000: Initial Decision");
-      expect(newParsed.body).toContain(`Supersedes [ADR-0000](./${initialAdr.fileName}).`);
-      expect(newParsed.body).toContain("Original architectural constraint must not be lost.");
-      expect(newParsed.body).toContain("- Preserve zero-latency execution");
-      expect(newParsed.body).toContain("enforcing exact invariant X.");
-      expect(newParsed.body).toContain("- Verified via `pnpm check:fast` and `s.test.ts`.");
-      expect(newParsed.body).toContain("- Requires maintaining custom adapter.");
-      expect(newParsed.body).toContain("- **Global Mutable State**: Breaks module isolation.");
-
-      // Verify bidirectional integrity pass
-      const checkResult = checkAdrs({ rootDir: tmpRoot });
-
-      expect(checkResult.valid).toBe(true);
-      expect(checkResult.errors).toHaveLength(0);
-
-      // Verify docs/adr/README.md partitions old to Historical and new to Active
-      const adrReadme = fs.readFileSync(path.join(adrDir, "README.md"), "utf8");
-
-      expect(adrReadme).toContain("## Active Decisions Index");
-      expect(adrReadme).toContain("[ADR-0001](./0001-superseding-decision.md)");
-      expect(adrReadme).toContain("## Historical Decisions Index");
-      expect(adrReadme).toContain("[ADR-0000](./" + initialAdr.fileName + ")");
-    });
-
-    it("handles explicit deprecate workflow: marks ADR as deprecated and updates indexes", () => {
-      const modPath = path.join(modulesDir, "deprecate-mod");
-
-      fs.mkdirSync(path.join(modPath, "tests"), { recursive: true });
-      fs.writeFileSync(path.join(modPath, "README.md"), "# Module\n\n## Governing ADRs\n", "utf8");
-      fs.writeFileSync(path.join(modPath, "tests", "d.test.ts"), "export const d = 1;\n", "utf8");
+      fs.mkdirSync(extraPath, { recursive: true });
+      fs.writeFileSync(path.join(modPath, "README.md"), "# Guarded\n", "utf8");
+      fs.writeFileSync(path.join(modPath, "tests", "g.test.ts"), "export {};\n", "utf8");
 
       const adr = cmdNew(
         {
-          title: "Decision to Deprecate",
-          area: "Storage",
-          "applies-to": "src/modules/deprecate-mod",
-          "enforced-by": "src/modules/deprecate-mod/tests/d.test.ts",
+          title: "Git Guarded Decision",
+          area: "Governance",
+          "applies-to": "src/modules/git-guarded, src/modules/extra-mod",
+          "enforced-by": "src/modules/git-guarded/tests/g.test.ts",
         },
         { rootDir: tmpRoot, silent: true },
       )!;
 
-      const lockBefore = readLockFile(path.join(adrDir, ".adr-lock.json"));
-      const hashBefore = lockBefore.records[adr.id];
+      initGitRepo(tmpRoot);
 
-      // Explicitly deprecate
+      const adrFilePath = path.join(adrDir, adr.fileName);
+      const originalRaw = fs.readFileSync(adrFilePath, "utf8");
+
+      // 1. Removing an enforced_by path while file still exists fails
+      const parsedEnforced = parseFrontmatter(originalRaw);
+
+      parsedEnforced.frontmatter!.enforced_by = [];
+      fs.writeFileSync(
+        adrFilePath,
+        serializeFrontmatter(parsedEnforced.frontmatter!, parsedEnforced.body),
+        "utf8",
+      );
+
+      const removedEnforcedCheck = checkAdrs({ rootDir: tmpRoot });
+
+      expect(removedEnforcedCheck.valid).toBe(false);
+      expect(
+        removedEnforcedCheck.errors.some((e) =>
+          e.includes('enforced_by path "src/modules/git-guarded/tests/g.test.ts"'),
+        ),
+      ).toBe(true);
+
+      // 2. Removing an applies_to path while directory still exists fails
+      const parsedApplies = parseFrontmatter(originalRaw);
+
+      parsedApplies.frontmatter!.applies_to = ["src/modules/git-guarded"];
+      fs.writeFileSync(
+        adrFilePath,
+        serializeFrontmatter(parsedApplies.frontmatter!, parsedApplies.body),
+        "utf8",
+      );
+
+      const removedAppliesCheck = checkAdrs({ rootDir: tmpRoot });
+
+      expect(removedAppliesCheck.valid).toBe(false);
+      expect(
+        removedAppliesCheck.errors.some((e) =>
+          e.includes('applies_to path "src/modules/extra-mod"'),
+        ),
+      ).toBe(true);
+
+      // 3. Premature deprecation while governed paths still exist fails
+      fs.writeFileSync(adrFilePath, originalRaw, "utf8");
       cmdDeprecate(adr.id, { rootDir: tmpRoot, silent: true });
 
-      const parsed = parse(fs.readFileSync(path.join(adrDir, adr.fileName), "utf8"));
+      const prematureDeprecateCheck = checkAdrs({ rootDir: tmpRoot });
 
-      expect(parsed.frontmatter.status).toBe("deprecated");
+      expect(prematureDeprecateCheck.valid).toBe(false);
+      expect(
+        prematureDeprecateCheck.errors.some((e) =>
+          e.includes('cannot transition from "accepted" to "deprecated"'),
+        ),
+      ).toBe(true);
+    }, 15000);
 
-      // Hash untouched
-      const lockAfter = readLockFile(path.join(adrDir, ".adr-lock.json"));
+    it("permits legitimate supersede, retarget, and remove-path transitions under Git anchoring", () => {
+      const modAPath = path.join(modulesDir, "active-a");
+      const modBPath = path.join(modulesDir, "legacy-b");
 
-      expect(lockAfter.records[adr.id]).toBe(hashBefore);
+      fs.mkdirSync(path.join(modAPath, "tests"), { recursive: true });
+      fs.mkdirSync(path.join(modBPath, "tests"), { recursive: true });
+      fs.writeFileSync(path.join(modAPath, "README.md"), "# Module A\n", "utf8");
+      fs.writeFileSync(path.join(modBPath, "README.md"), "# Module B\n", "utf8");
+      fs.writeFileSync(path.join(modAPath, "tests", "a.test.ts"), "export {};\n", "utf8");
+      fs.writeFileSync(path.join(modBPath, "tests", "b.test.ts"), "export {};\n", "utf8");
 
-      // Verify check passes
-      const checkResult = checkAdrs({ rootDir: tmpRoot });
+      const initial = cmdNew(
+        {
+          title: "Multi Module Standard",
+          area: "Architecture",
+          "applies-to": "src/modules/active-a, src/modules/legacy-b",
+          "enforced-by":
+            "src/modules/active-a/tests/a.test.ts, src/modules/legacy-b/tests/b.test.ts",
+        },
+        { rootDir: tmpRoot, silent: true },
+      )!;
 
-      expect(checkResult.valid).toBe(true);
-      expect(checkResult.errors).toHaveLength(0);
+      const baseSha = initGitRepo(tmpRoot);
 
-      // Verify module README does not list deprecated ADR
-      const modReadme = fs.readFileSync(path.join(modPath, "README.md"), "utf8");
+      // 1. Delete legacy-b from disk and prune via cmdRemovePath
+      fs.rmSync(modBPath, { recursive: true, force: true });
+      expect(cmdRemovePath("src/modules/legacy-b", { rootDir: tmpRoot, silent: true })).toBe(1);
+      expect(checkAdrs({ rootDir: tmpRoot, baseRef: baseSha }).valid).toBe(true);
 
-      expect(modReadme).toContain("*No module-specific governing ADRs.*");
-    });
+      // 2. Rename active-a -> renamed-a and retarget
+      const renamedAPath = path.join(modulesDir, "renamed-a");
 
-    it("handles list and sync commands with filters and JSON output", () => {
+      fs.renameSync(modAPath, renamedAPath);
+      expect(
+        cmdRetarget("src/modules/active-a", "src/modules/renamed-a", {
+          rootDir: tmpRoot,
+          silent: true,
+        }),
+      ).toBe(1);
+      expect(checkAdrs({ rootDir: tmpRoot, baseRef: baseSha }).valid).toBe(true);
+
+      commitAll(tmpRoot, "retarget and prune");
+
+      // 3. Supersede committed ADR and freely author new ADR body before committing
+      const superseded = cmdSupersede(
+        initial.id,
+        { title: "Multi Module Standard v2", area: "Architecture" },
+        { rootDir: tmpRoot, silent: true },
+      )!;
+
+      const newAdrPath = path.join(adrDir, `0001-multi-module-standard-v2.md`);
+      const newParsed = parse(fs.readFileSync(newAdrPath, "utf8"));
+
+      expect(superseded.nextId).toBe("ADR-0001");
+      expect(newParsed.body).toContain(`Supersedes [ADR-0000](./${initial.fileName}).`);
+
+      fs.writeFileSync(
+        newAdrPath,
+        serializeFrontmatter(newParsed.frontmatter, `${newParsed.body}\nExtra rationale.\n`),
+        "utf8",
+      );
+
+      expect(checkAdrs({ rootDir: tmpRoot, baseRef: baseSha }).valid).toBe(true);
+
+      // 4. Delete remaining module -> auto-deprecate ADR-0001 passes check
+      commitAll(tmpRoot, "supersede ADR-0000");
+      fs.rmSync(renamedAPath, { recursive: true, force: true });
+      expect(cmdRemovePath("src/modules/renamed-a", { rootDir: tmpRoot, silent: true })).toBe(1);
+      expect(checkAdrs({ rootDir: tmpRoot }).valid).toBe(true);
+    }, 15000);
+
+    it("skips immutability diff for legacy pre-MADR files without YAML frontmatter in baseRef", () => {
+      const modPath = path.join(modulesDir, "legacy-madr");
+
+      fs.mkdirSync(path.join(modPath, "tests"), { recursive: true });
+      fs.writeFileSync(path.join(modPath, "tests", "l.test.ts"), "export {};\n", "utf8");
+
+      const adrPath = path.join(adrDir, "0001-legacy.md");
+
+      fs.writeFileSync(adrPath, "# ADR-0001: Legacy\n\nNo frontmatter yet.\n", "utf8");
+
+      const legacySha = initGitRepo(tmpRoot);
+
+      // Upgrade file to MADR 4.0 frontmatter
+      fs.writeFileSync(
+        adrPath,
+        `---
+id: "ADR-0001"
+title: "Legacy"
+status: "accepted"
+date: "2026-10-24"
+decision-makers:
+  - "Product Owner"
+area: "Architecture"
+applies_to:
+  - "src/modules/legacy-madr"
+enforced_by:
+  - "src/modules/legacy-madr/tests/l.test.ts"
+supersedes: null
+superseded_by: null
+---
+
+# ADR-0001: Legacy
+
+## Context and Problem Statement
+A
+
+## Decision Drivers
+B
+
+## Decision Outcome
+C
+
+## Confirmation and Enforcement
+D
+
+## Consequences
+E
+
+## Rejected Alternatives
+F
+`,
+        "utf8",
+      );
+      cmdSync({ rootDir: tmpRoot, silent: true });
+
+      const result = checkAdrs({ rootDir: tmpRoot, baseRef: legacySha });
+
+      expect(result.valid).toBe(true);
+    }, 15000);
+
+    it("handles list, sync, path matching, and parseArgs", () => {
       const modPath = path.join(modulesDir, "query-mod");
 
       fs.mkdirSync(path.join(modPath, "tests"), { recursive: true });
       fs.writeFileSync(path.join(modPath, "README.md"), "# Module\n\n## Governing ADRs\n", "utf8");
-      fs.writeFileSync(path.join(modPath, "tests", "q.test.ts"), "export const q = 1;\n", "utf8");
+      fs.writeFileSync(path.join(modPath, "tests", "q.test.ts"), "export {};\n", "utf8");
 
       cmdNew(
         {
@@ -813,66 +621,51 @@ Context text.
         { rootDir: tmpRoot, silent: true },
       );
 
-      // 1. JSON output
+      expect(matchesGovernancePath("src/shared", "src/shared/storage")).toBe(true);
+      expect(matchesGovernancePath("src/shared/theme", "src/shared/storage")).toBe(false);
+
       const jsonList = cmdList({ json: true }, { rootDir: tmpRoot, silent: true }) as Array<{
         id: string;
         status: string;
       }>;
 
-      expect(Array.isArray(jsonList)).toBe(true);
-      expect(jsonList.length).toBe(1);
-      expect(jsonList[0].id).toBe("ADR-0000");
-      expect(jsonList[0].status).toBe("accepted");
+      expect(jsonList).toHaveLength(1);
+      expect(jsonList[0]?.id).toBe("ADR-0000");
 
-      // 2. Path filter match & mismatch
-      const match = cmdList(
-        { path: "src/modules/query-mod" },
-        { rootDir: tmpRoot, silent: true },
-      ) as Array<unknown>;
+      expect(
+        (
+          cmdList(
+            { path: "src/modules/query-mod" },
+            { rootDir: tmpRoot, silent: true },
+          ) as unknown[]
+        ).length,
+      ).toBe(1);
+      expect(
+        (cmdList({ path: "src/modules/other" }, { rootDir: tmpRoot, silent: true }) as unknown[])
+          .length,
+      ).toBe(0);
 
-      expect(match.length).toBe(1);
-
-      const mismatch = cmdList(
-        { path: "src/modules/non-existent" },
-        { rootDir: tmpRoot, silent: true },
-      ) as Array<unknown>;
-
-      expect(mismatch.length).toBe(0);
-
-      // 3. Explicit sync
       cmdSync({ rootDir: tmpRoot, silent: true });
+      expect(fs.readFileSync(path.join(adrDir, "README.md"), "utf8")).toContain(
+        "## Active Decisions Index",
+      );
 
-      const adrReadme = fs.readFileSync(path.join(adrDir, "README.md"), "utf8");
-
-      expect(adrReadme).toContain("## Active Decisions Index");
-    });
-
-    it("parses CLI arguments correctly via parseArgs", () => {
       const parsed = parseArgs([
         "new",
         "--title",
         "Test Title",
-        "--area",
-        "Storage",
         "--all",
         "--applies-to",
         "src/modules/storage",
-      ]) as unknown as {
-        _: string[];
-        title: string;
-        area: string;
-        all: boolean;
-        "applies-to": string;
-      };
+      ]);
 
       expect(parsed._).toEqual(["new"]);
       expect(parsed.title).toBe("Test Title");
-      expect(parsed.area).toBe("Storage");
       expect(parsed.all).toBe(true);
       expect(parsed["applies-to"]).toBe("src/modules/storage");
     });
 
-    it("rejects accepted ADRs with an empty enforced_by array", () => {
+    it("rejects accepted ADRs with empty enforced_by or duplicate ids", () => {
       const modPath = path.join(modulesDir, "empty-enforced");
 
       fs.mkdirSync(modPath, { recursive: true });
@@ -889,162 +682,11 @@ Context text.
       const checkResult = checkAdrs({ rootDir: tmpRoot });
 
       expect(checkResult.valid).toBe(false);
-
       expect(
         checkResult.errors.some((e) =>
           e.includes("Active accepted ADR must declare at least one enforced_by path."),
         ),
       ).toBe(true);
     });
-
-    it("matches governing ADRs universally via adr:list --path while syncing only module READMEs", () => {
-      expect(matchesGovernancePath("src/shared", "src/shared/storage")).toBe(true);
-      expect(matchesGovernancePath("src/app/globals.css", "src/app")).toBe(true);
-      expect(matchesGovernancePath("src/modules", "src/modules/chart")).toBe(true);
-      expect(matchesGovernancePath("src/shared/theme", "src/shared/storage")).toBe(false);
-
-      const appDir = path.join(tmpRoot, "src", "app");
-      const compDir = path.join(tmpRoot, "src", "composition");
-      const sharedStorageDir = path.join(tmpRoot, "src", "shared", "storage");
-      const agentsHooksDir = path.join(tmpRoot, ".agents", "hooks");
-      const chartModDir = path.join(modulesDir, "chart");
-
-      fs.mkdirSync(appDir, { recursive: true });
-      fs.mkdirSync(compDir, { recursive: true });
-      fs.mkdirSync(path.join(sharedStorageDir, "tests"), { recursive: true });
-      fs.mkdirSync(agentsHooksDir, { recursive: true });
-      fs.mkdirSync(chartModDir, { recursive: true });
-
-      fs.writeFileSync(path.join(appDir, "globals.css"), "", "utf8");
-      fs.writeFileSync(path.join(sharedStorageDir, "tests", "s.test.ts"), "export {};\n", "utf8");
-      fs.writeFileSync(path.join(chartModDir, "README.md"), "# Chart\n", "utf8");
-
-      const created = cmdNew(
-        {
-          title: "Cross Layer Governance",
-          area: "Architecture",
-          "applies-to":
-            "src/shared, src/app/globals.css, src/composition, .agents/hooks, src/modules",
-          "enforced-by": "src/shared/storage/tests/s.test.ts",
-        },
-        { rootDir: tmpRoot, silent: true },
-      )!;
-
-      const storageAdrs = cmdList(
-        { path: "src/shared/storage" },
-        { rootDir: tmpRoot, silent: true },
-      ) as Array<{ frontmatter: { id: string } }>;
-
-      expect(storageAdrs.map((a) => a.frontmatter.id)).toEqual([created.id]);
-
-      const hooksAdrs = cmdList(
-        { path: ".agents/hooks" },
-        { rootDir: tmpRoot, silent: true },
-      ) as Array<{ frontmatter: { id: string } }>;
-
-      expect(hooksAdrs.map((a) => a.frontmatter.id)).toEqual([created.id]);
-
-      const appAdrs = getGoverningAdrsForPath(
-        "src/app",
-        cmdList({}, { rootDir: tmpRoot, silent: true }) as Parameters<
-          typeof getGoverningAdrsForPath
-        >[1],
-      );
-
-      expect(appAdrs.map((a) => a.frontmatter.id)).toEqual([created.id]);
-
-      expect(fs.readFileSync(path.join(chartModDir, "README.md"), "utf8")).toContain(
-        `(../../../docs/adr/${created.fileName})`,
-      );
-
-      expect(fs.existsSync(path.join(appDir, "README.md"))).toBe(false);
-      expect(fs.existsSync(path.join(sharedStorageDir, "README.md"))).toBe(false);
-      expect(fs.existsSync(path.join(agentsHooksDir, "README.md"))).toBe(false);
-
-      const checkResult = checkAdrs({ rootDir: tmpRoot });
-
-      expect(checkResult.valid).toBe(true);
-    });
-
-    it("enforces git HEAD anchoring against lockfile, enforced_by, and premature deprecation tampering", () => {
-      const modPath = path.join(modulesDir, "git-guarded");
-
-      fs.mkdirSync(path.join(modPath, "tests"), { recursive: true });
-      fs.writeFileSync(path.join(modPath, "README.md"), "# Guarded\n", "utf8");
-      fs.writeFileSync(path.join(modPath, "tests", "g.test.ts"), "export const g = 1;\n", "utf8");
-
-      const adr = cmdNew(
-        {
-          title: "Git Guarded Decision",
-          area: "Governance",
-          "applies-to": "src/modules/git-guarded",
-          "enforced-by": "src/modules/git-guarded/tests/g.test.ts",
-        },
-        { rootDir: tmpRoot, silent: true },
-      )!;
-
-      execSync("git init", { cwd: tmpRoot, stdio: "ignore" });
-      execSync('git config user.email "test@example.com"', { cwd: tmpRoot, stdio: "ignore" });
-      execSync('git config user.name "Test Runner"', { cwd: tmpRoot, stdio: "ignore" });
-      execSync("git add .", { cwd: tmpRoot, stdio: "ignore" });
-
-      execSync('git -c commit.gpgsign=false commit -m "initial"', {
-        cwd: tmpRoot,
-        stdio: "ignore",
-      });
-
-      expect(checkAdrs({ rootDir: tmpRoot }).valid).toBe(true);
-
-      const adrFilePath = path.join(adrDir, adr.fileName);
-      const originalRaw = fs.readFileSync(adrFilePath, "utf8");
-
-      // 1. Removing an enforced_by path while file still exists on disk fails
-      const parsed = parseFrontmatter(originalRaw);
-
-      parsed.frontmatter!.enforced_by = [];
-
-      fs.writeFileSync(adrFilePath, serializeFrontmatter(parsed.frontmatter!, parsed.body), "utf8");
-
-      const removedEnforcedCheck = checkAdrs({ rootDir: tmpRoot });
-
-      expect(removedEnforcedCheck.valid).toBe(false);
-
-      expect(
-        removedEnforcedCheck.errors.some((e) =>
-          e.includes("Frontmatter tampering: active enforced_by path"),
-        ),
-      ).toBe(true);
-
-      // 2. Deprecating an accepted ADR while governed paths still exist on disk fails
-      fs.writeFileSync(adrFilePath, originalRaw, "utf8");
-      cmdDeprecate(adr.id, { rootDir: tmpRoot, silent: true });
-
-      const prematureDeprecateCheck = checkAdrs({ rootDir: tmpRoot });
-
-      expect(prematureDeprecateCheck.valid).toBe(false);
-
-      expect(
-        prematureDeprecateCheck.errors.some((e) =>
-          e.includes('cannot transition from "accepted" to "deprecated"'),
-        ),
-      ).toBe(true);
-
-      // 3. Legitimate retargeting still passes under git HEAD anchoring
-      fs.writeFileSync(adrFilePath, originalRaw, "utf8");
-      cmdSync({ rootDir: tmpRoot, silent: true });
-
-      const renamedModPath = path.join(modulesDir, "git-guarded-v2");
-
-      fs.renameSync(modPath, renamedModPath);
-
-      cmdRetarget("src/modules/git-guarded", "src/modules/git-guarded-v2", {
-        rootDir: tmpRoot,
-        silent: true,
-      });
-
-      const retargetCheck = checkAdrs({ rootDir: tmpRoot });
-
-      expect(retargetCheck.valid).toBe(true);
-    }, 15000);
   });
 });

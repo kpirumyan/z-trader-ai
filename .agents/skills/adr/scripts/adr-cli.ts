@@ -1,6 +1,5 @@
 #!/usr/bin/env node
-import { execSync } from "node:child_process";
-import crypto from "node:crypto";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
@@ -9,7 +8,7 @@ import { fileURLToPath } from "node:url";
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-export interface AdrFrontmatter {
+interface AdrFrontmatter {
   id: string;
   title: string;
   status: string;
@@ -24,7 +23,7 @@ export interface AdrFrontmatter {
 
 type FrontmatterValue = string | string[] | null | undefined;
 
-export interface AdrRecord {
+interface AdrRecord {
   fileName: string;
   filePath: string;
   frontmatter: Partial<AdrFrontmatter>;
@@ -32,33 +31,28 @@ export interface AdrRecord {
   rawContent: string;
 }
 
-export interface LockFileData {
-  version: number;
-  records: Record<string, string>;
-}
-
-export interface AdrContextOptions {
+interface AdrContextOptions {
   rootDir?: string;
   adrDir?: string;
-  lockFile?: string;
   modulesDir?: string;
 }
 
-export interface AdrCommandOptions extends AdrContextOptions {
+interface AdrCommandOptions extends AdrContextOptions {
+  baseRef?: string;
   silent?: boolean;
   noExit?: boolean;
 }
 
-export interface AdrContext {
+interface AdrContext {
   root: string;
   adrDir: string;
-  lockFile: string;
   modulesDir: string;
 }
 
-export interface ParsedCliArgs {
+interface ParsedCliArgs {
   _: string[];
   path?: string;
+  base?: string;
   all?: boolean;
   json?: boolean;
   title?: string;
@@ -70,7 +64,7 @@ export interface ParsedCliArgs {
   [key: string]: string | boolean | string[] | undefined;
 }
 
-export interface AdrListJsonItem {
+interface AdrListJsonItem {
   id: string | undefined;
   title: string | undefined;
   status: string | undefined;
@@ -81,25 +75,43 @@ export interface AdrListJsonItem {
   file: string;
 }
 
-export interface AdrCheckResult {
+interface AdrCheckResult {
   valid: boolean;
   errors: string[];
 }
 
-export interface AdrNewResult {
+interface AdrNewResult {
   id: string;
   fileName: string;
   filePath: string;
 }
 
-export interface AdrSupersedeResult {
+interface AdrSupersedeResult {
   nextId: string;
   filePath: string;
 }
 
+interface ResolvedBaseRef {
+  label: string;
+  sha: string;
+}
+
 // ---------------------------------------------------------------------------
-// Root & Paths
+// Root, Paths & Git Helpers
 // ---------------------------------------------------------------------------
+const CANONICAL_SECTIONS = [
+  "Context and Problem Statement",
+  "Decision Drivers",
+  "Decision Outcome",
+  "Confirmation and Enforcement",
+  "Consequences",
+  "Rejected Alternatives",
+] as const;
+
+const VALID_SIMPLE_STATUSES = new Set(["proposed", "accepted", "rejected", "deprecated"]);
+const ZERO_SHA = "0000000000000000000000000000000000000000";
+const DEFAULT_BASE_BRANCHES = ["origin/main", "main", "origin/master", "master"] as const;
+
 function findProjectRoot(): string {
   let curr = process.cwd();
 
@@ -116,36 +128,137 @@ function findProjectRoot(): string {
 
 const ROOT_DIR = findProjectRoot();
 const ADR_DIR = path.join(ROOT_DIR, "docs", "adr");
-const LOCK_FILE = path.join(ADR_DIR, ".adr-lock.json");
 const MODULES_DIR = path.join(ROOT_DIR, "src", "modules");
 
-export function getContext(opts: AdrContextOptions = {}): AdrContext {
+function getContext(opts: AdrContextOptions = {}): AdrContext {
   const root = opts.rootDir || process.env.ADR_ROOT_DIR || ROOT_DIR;
   const adrDir = opts.adrDir || (opts.rootDir ? path.join(opts.rootDir, "docs", "adr") : ADR_DIR);
-  const lockFile = opts.lockFile || path.join(adrDir, ".adr-lock.json");
   const modulesDir =
     opts.modulesDir || (opts.rootDir ? path.join(opts.rootDir, "src", "modules") : MODULES_DIR);
 
-  return { root, adrDir, lockFile, modulesDir };
+  return { root, adrDir, modulesDir };
 }
 
-const CANONICAL_SECTIONS = [
-  "Context and Problem Statement",
-  "Decision Drivers",
-  "Decision Outcome",
-  "Confirmation and Enforcement",
-  "Consequences",
-  "Rejected Alternatives",
-] as const;
+function normalizeRepoRelPath(rawPath: string): string {
+  return rawPath.replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/+$/, "");
+}
+
+function normalizeBody(body: string): string {
+  return body.replace(/\r\n/g, "\n").trim();
+}
+
+function arraysEqual(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((item, idx) => item === b[idx]);
+}
+
+function execGitRaw(args: string[], cwd: string): string | null {
+  try {
+    return execFileSync("git", args, {
+      cwd,
+      encoding: "utf8",
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+  } catch {
+    return null;
+  }
+}
+
+function readGitFilesBatch(
+  root: string,
+  sha: string,
+  relPaths: string[],
+): Map<string, string | null> {
+  const result = new Map<string, string | null>();
+
+  if (relPaths.length === 0) return result;
+
+  const stdinPayload = `${relPaths.map((p) => `${sha}:${p}`).join("\n")}\n`;
+  let out: Buffer;
+
+  try {
+    out = execFileSync("git", ["cat-file", "--batch"], {
+      cwd: root,
+      input: stdinPayload,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+  } catch {
+    for (const p of relPaths) result.set(p, null);
+
+    return result;
+  }
+
+  let offset = 0;
+
+  for (const relPath of relPaths) {
+    const nlIdx = out.indexOf(0x0a, offset);
+
+    if (nlIdx === -1) {
+      result.set(relPath, null);
+      break;
+    }
+
+    const header = out.subarray(offset, nlIdx).toString("utf8");
+
+    offset = nlIdx + 1;
+
+    if (header.endsWith(" missing")) {
+      result.set(relPath, null);
+      continue;
+    }
+
+    const parts = header.split(" ");
+    const size = Number.parseInt(parts[2] ?? "", 10);
+
+    if (Number.isNaN(size) || offset + size > out.length) {
+      result.set(relPath, null);
+      break;
+    }
+
+    result.set(relPath, out.subarray(offset, offset + size).toString("utf8"));
+    offset += size;
+
+    if (out[offset] === 0x0a) {
+      offset += 1;
+    }
+  }
+
+  return result;
+}
+
+function resolveGitCommit(ref: string, cwd: string): string | null {
+  const output = execGitRaw(["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], cwd);
+
+  return output ? output.trim() || null : null;
+}
 
 // ---------------------------------------------------------------------------
 // YAML Frontmatter Parser & Serializer (Zero External Dependencies)
 // ---------------------------------------------------------------------------
+function unquoteYamlScalar(raw: string): string {
+  if (raw.startsWith('"') && raw.endsWith('"') && raw.length >= 2) {
+    try {
+      const parsed: unknown = JSON.parse(raw);
+
+      if (typeof parsed === "string") {
+        return parsed;
+      }
+    } catch {
+      return raw.slice(1, -1);
+    }
+  }
+
+  if (raw.startsWith("'") && raw.endsWith("'") && raw.length >= 2) {
+    return raw.slice(1, -1).replace(/''/g, "'");
+  }
+
+  return raw;
+}
+
 export function parseFrontmatter(raw: string): {
   frontmatter: Partial<AdrFrontmatter> | null;
   body: string;
 } {
-  const norm = raw.replace(/\r\n/g, "\n");
+  const norm = raw.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n");
   const match = norm.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
 
   if (!match) {
@@ -157,44 +270,34 @@ export function parseFrontmatter(raw: string): {
   const lines = fmText.split("\n");
   const data: Record<string, FrontmatterValue> = {};
 
-  let currentKey: string | null = null;
   let currentArray: string[] | null = null;
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+  for (const line of lines) {
     const trimmed = line.trim();
 
     if (!trimmed || trimmed.startsWith("#")) continue;
 
-    if (line.startsWith("  - ")) {
-      const val = line
-        .slice(4)
-        .trim()
-        .replace(/^["']|["']$/g, "");
+    if (/^\s*-\s+/.test(line) && currentArray) {
+      const itemRaw = line.replace(/^\s*-\s+/, "").trim();
 
-      if (currentArray) {
-        currentArray.push(val);
-      }
-
+      currentArray.push(unquoteYamlScalar(itemRaw));
       continue;
     }
 
     const colonIdx = line.indexOf(":");
 
     if (colonIdx !== -1 && !line.startsWith(" ") && !line.startsWith("\t")) {
-      currentKey = line.slice(0, colonIdx).trim();
-
-      let rawVal = line.slice(colonIdx + 1).trim();
+      const key = line.slice(0, colonIdx).trim();
+      const rawVal = line.slice(colonIdx + 1).trim();
 
       if (rawVal === "" || rawVal === "[]") {
         currentArray = [];
-        data[currentKey] = currentArray;
+        data[key] = currentArray;
       } else if (rawVal === "null") {
-        data[currentKey] = null;
+        data[key] = null;
         currentArray = null;
       } else {
-        rawVal = rawVal.replace(/^["']|["']$/g, "");
-        data[currentKey] = rawVal;
+        data[key] = unquoteYamlScalar(rawVal);
         currentArray = null;
       }
     }
@@ -206,88 +309,51 @@ export function parseFrontmatter(raw: string): {
 export function serializeFrontmatter(data: Partial<AdrFrontmatter>, body: string): string {
   const lines = ["---"];
 
-  if (data.id !== undefined) lines.push(`id: "${data.id}"`);
-  if (data.title !== undefined) lines.push(`title: "${data.title}"`);
-  if (data.status !== undefined) lines.push(`status: "${data.status}"`);
-  if (data.date !== undefined) lines.push(`date: "${data.date}"`);
+  if (data.id !== undefined) lines.push(`id: ${JSON.stringify(data.id)}`);
+  if (data.title !== undefined) lines.push(`title: ${JSON.stringify(data.title)}`);
+  if (data.status !== undefined) lines.push(`status: ${JSON.stringify(data.status)}`);
+  if (data.date !== undefined) lines.push(`date: ${JSON.stringify(data.date)}`);
 
-  if (data["decision-makers"] && Array.isArray(data["decision-makers"])) {
+  if (Array.isArray(data["decision-makers"])) {
     lines.push("decision-makers:");
 
     for (const dm of data["decision-makers"]) {
-      lines.push(`  - "${dm}"`);
+      lines.push(`  - ${JSON.stringify(dm)}`);
     }
   }
 
-  if (data.area !== undefined) lines.push(`area: "${data.area}"`);
+  if (data.area !== undefined) lines.push(`area: ${JSON.stringify(data.area)}`);
 
-  if (data.applies_to && Array.isArray(data.applies_to)) {
+  if (Array.isArray(data.applies_to)) {
     lines.push("applies_to:");
 
     for (const p of data.applies_to) {
-      lines.push(`  - "${p}"`);
+      lines.push(`  - ${JSON.stringify(p)}`);
     }
   }
 
-  if (data.enforced_by && Array.isArray(data.enforced_by)) {
+  if (Array.isArray(data.enforced_by)) {
     lines.push("enforced_by:");
 
     for (const p of data.enforced_by) {
-      lines.push(`  - "${p}"`);
+      lines.push(`  - ${JSON.stringify(p)}`);
     }
   }
 
-  lines.push(`supersedes: ${data.supersedes ? `"${data.supersedes}"` : "null"}`);
-
-  lines.push(`superseded_by: ${data.superseded_by ? `"${data.superseded_by}"` : "null"}`);
-
+  lines.push(`supersedes: ${data.supersedes ? JSON.stringify(data.supersedes) : "null"}`);
+  lines.push(`superseded_by: ${data.superseded_by ? JSON.stringify(data.superseded_by) : "null"}`);
   lines.push("---");
   lines.push("");
 
   const trimmedBody = body.replace(/^\n+/, "");
 
-  return lines.join("\n") + "\n" + trimmedBody;
-}
-
-// ---------------------------------------------------------------------------
-// Cryptographic Body Hash
-// ---------------------------------------------------------------------------
-export function computeBodyHash(body: string): string {
-  const normalized = body.replace(/\r\n/g, "\n").trim();
-
-  return crypto.createHash("sha256").update(normalized).digest("hex");
-}
-
-export function readLockFile(customLockFile?: string): LockFileData {
-  const targetPath = customLockFile || LOCK_FILE;
-
-  if (!fs.existsSync(targetPath)) {
-    return { version: 1, records: {} };
-  }
-
-  return JSON.parse(fs.readFileSync(targetPath, "utf8")) as LockFileData;
-}
-
-export function writeLockFile(lockData: LockFileData, customLockFile?: string): void {
-  const targetPath = customLockFile || LOCK_FILE;
-  const sortedRecords: Record<string, string> = {};
-
-  for (const k of Object.keys(lockData.records).sort()) {
-    sortedRecords[k] = lockData.records[k];
-  }
-
-  const payload: LockFileData = {
-    version: 1,
-    records: sortedRecords,
-  };
-
-  fs.writeFileSync(targetPath, JSON.stringify(payload, null, 2) + "\n", "utf8");
+  return `${lines.join("\n")}\n${trimmedBody}`;
 }
 
 // ---------------------------------------------------------------------------
 // Load & Parse All ADRs
 // ---------------------------------------------------------------------------
-export function loadAllAdrs(customAdrDir?: string): AdrRecord[] {
+function loadAllAdrs(customAdrDir?: string): AdrRecord[] {
   const targetDir = customAdrDir || ADR_DIR;
 
   if (!fs.existsSync(targetDir)) return [];
@@ -299,6 +365,9 @@ export function loadAllAdrs(customAdrDir?: string): AdrRecord[] {
     if (!entry.endsWith(".md") || entry === "README.md") continue;
 
     const filePath = path.join(targetDir, entry);
+
+    if (!fs.statSync(filePath).isFile()) continue;
+
     const content = fs.readFileSync(filePath, "utf8");
     const { frontmatter, body } = parseFrontmatter(content);
 
@@ -316,8 +385,33 @@ export function loadAllAdrs(customAdrDir?: string): AdrRecord[] {
   return adrs.sort((a, b) => (a.frontmatter.id ?? "").localeCompare(b.frontmatter.id ?? ""));
 }
 
+function getNextAdrNumber(adrs: AdrRecord[]): number {
+  let maxNum = -1;
+
+  for (const a of adrs) {
+    const num = Number.parseInt((a.frontmatter.id ?? "").replace("ADR-", ""), 10);
+
+    if (!Number.isNaN(num) && num > maxNum) {
+      maxNum = num;
+    }
+  }
+
+  return maxNum + 1;
+}
+
+function buildAdrSlug(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function normalizeAdrId(idInput: string): string {
+  return idInput.startsWith("ADR-") ? idInput : `ADR-${idInput.padStart(4, "0")}`;
+}
+
 // ---------------------------------------------------------------------------
-// Generator: docs/adr/README.md
+// Generator: docs/adr/README.md & src/modules/*/README.md
 // ---------------------------------------------------------------------------
 function formatAdrIndexTable(rows: AdrRecord[]): string[] {
   const pad = (str: string, len: number): string => str.padEnd(len, " ");
@@ -399,13 +493,6 @@ export function generateAdrReadme(adrs: AdrRecord[]): string {
   return lines.join("\n");
 }
 
-// ---------------------------------------------------------------------------
-// Generator: src/modules/*/README.md Governing ADRs
-// ---------------------------------------------------------------------------
-function normalizeRepoRelPath(rawPath: string): string {
-  return rawPath.replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/+$/, "");
-}
-
 export function matchesGovernancePath(appliesPath: string, targetPath: string): boolean {
   const normApplies = normalizeRepoRelPath(appliesPath);
   const normTarget = normalizeRepoRelPath(targetPath);
@@ -449,7 +536,7 @@ export function updateModuleReadmeContent(content: string, governingAdrs: AdrRec
     }
   }
 
-  return beforeSection.trimEnd() + "\n\n" + lines.join("\n") + "\n";
+  return `${beforeSection.trimEnd()}\n\n${lines.join("\n")}\n`;
 }
 
 // ---------------------------------------------------------------------------
@@ -506,9 +593,7 @@ export function cmdList(
     const scopeLabel = targetFilter ? ` for path "${targetFilter}"` : "";
 
     console.log(`\nFound ${filtered.length} ADR(s)${scopeLabel}:\n`);
-
     console.log(`${"ID".padEnd(10)} | ${"Status".padEnd(10)} | ${"Area".padEnd(25)} | Title`);
-
     console.log("-".repeat(80));
 
     for (const a of filtered) {
@@ -532,7 +617,6 @@ export function cmdSync(opts: AdrCommandOptions = {}): void {
   const { adrDir, modulesDir } = getContext(opts);
   const adrs = loadAllAdrs(adrDir);
 
-  // 1. docs/adr/README.md
   const readmeContent = generateAdrReadme(adrs);
   const readmePath = path.join(adrDir, "README.md");
 
@@ -542,7 +626,6 @@ export function cmdSync(opts: AdrCommandOptions = {}): void {
     console.log("Synchronized docs/adr/README.md");
   }
 
-  // 2. src/modules/*/README.md
   if (fs.existsSync(modulesDir)) {
     const modules = fs.readdirSync(modulesDir);
 
@@ -564,270 +647,409 @@ export function cmdSync(opts: AdrCommandOptions = {}): void {
   }
 }
 
-function getGitHeadAdrFiles(root: string, adrDir: string): Set<string> | null {
-  try {
-    execSync("git rev-parse --verify HEAD", {
-      cwd: root,
-      encoding: "utf8",
-      stdio: ["pipe", "pipe", "ignore"],
-    });
+// ---------------------------------------------------------------------------
+// Validator Core: Schema, Links, Paths, Git-Anchored Immutability, Sync
+// ---------------------------------------------------------------------------
+function validateAdrStructure(
+  adr: AdrRecord,
+  root: string,
+  adrMap: Map<string, AdrRecord>,
+  errors: string[],
+): void {
+  const fm = adr.frontmatter;
+  const prefix = `[${fm.id || adr.fileName}]`;
 
-    const adrDirRel = normalizeRepoRelPath(path.relative(root, adrDir));
+  if (!fm.id || !/^ADR-\d{4}$/.test(fm.id)) {
+    errors.push(`${prefix} Invalid or missing id. Must match /^ADR-\\d{4}$/`);
+  } else {
+    const expectedNum = fm.id.slice(4);
 
-    if (!adrDirRel || adrDirRel.startsWith("..")) {
-      return null;
+    if (!adr.fileName.startsWith(`${expectedNum}-`)) {
+      errors.push(
+        `${prefix} Filename "${adr.fileName}" does not match id prefix "${expectedNum}-".`,
+      );
+    }
+  }
+
+  if (!fm.title || typeof fm.title !== "string" || !fm.title.trim()) {
+    errors.push(`${prefix} Missing title`);
+  }
+
+  const isSuperseded = typeof fm.status === "string" && fm.status.startsWith("superseded by ADR-");
+
+  if ((!fm.status || !VALID_SIMPLE_STATUSES.has(fm.status)) && !isSuperseded) {
+    errors.push(
+      `${prefix} Invalid status "${fm.status ?? ""}". Allowed: proposed, accepted, rejected, deprecated, or "superseded by ADR-XXXX"`,
+    );
+  }
+
+  if (!fm.date || !/^\d{4}-\d{2}-\d{2}$/.test(fm.date)) {
+    errors.push(`${prefix} Invalid date "${fm.date ?? ""}". Must be YYYY-MM-DD.`);
+  }
+
+  if (!Array.isArray(fm["decision-makers"]) || fm["decision-makers"].length === 0) {
+    errors.push(`${prefix} Missing decision-makers list.`);
+  }
+
+  if (!fm.area || typeof fm.area !== "string") {
+    errors.push(`${prefix} Missing area string.`);
+  }
+
+  if (!Array.isArray(fm.applies_to)) {
+    errors.push(`${prefix} applies_to must be an array of paths.`);
+  }
+
+  if (!Array.isArray(fm.enforced_by)) {
+    errors.push(`${prefix} enforced_by must be an array of paths.`);
+  }
+
+  // Canonical 6 H2 sections in exact order
+  const h2Matches = [...adr.body.matchAll(/^##\s+([^\r\n]+)/gm)].map((m) => m[1].trim());
+  let lastFoundIdx = -1;
+
+  for (const expectedSec of CANONICAL_SECTIONS) {
+    const idx = h2Matches.indexOf(expectedSec);
+
+    if (idx === -1) {
+      errors.push(`${prefix} Missing canonical section: "## ${expectedSec}"`);
+    } else if (idx <= lastFoundIdx) {
+      errors.push(`${prefix} Canonical section out of order: "## ${expectedSec}"`);
+    } else {
+      lastFoundIdx = idx;
+    }
+  }
+
+  // Bidirectional superseding consistency
+  if (fm.supersedes) {
+    const target = adrMap.get(fm.supersedes);
+
+    if (!target) {
+      errors.push(`${prefix} supersedes "${fm.supersedes}" which does not exist.`);
+    } else {
+      if (target.frontmatter.superseded_by !== fm.id) {
+        errors.push(
+          `${prefix} supersedes "${fm.supersedes}", but ${fm.supersedes} does not link back with superseded_by: "${fm.id ?? ""}"`,
+        );
+      }
+
+      if (target.frontmatter.status !== `superseded by ${fm.id ?? ""}`) {
+        errors.push(
+          `${prefix} supersedes "${fm.supersedes}", but ${fm.supersedes} status is "${target.frontmatter.status ?? ""}", expected "superseded by ${fm.id ?? ""}"`,
+        );
+      }
+    }
+  }
+
+  if (fm.superseded_by) {
+    const target = adrMap.get(fm.superseded_by);
+
+    if (!target) {
+      errors.push(`${prefix} superseded_by "${fm.superseded_by}" which does not exist.`);
+    } else if (target.frontmatter.supersedes !== fm.id) {
+      errors.push(
+        `${prefix} superseded_by "${fm.superseded_by}", but ${fm.superseded_by} does not declare supersedes: "${fm.id ?? ""}"`,
+      );
     }
 
-    const listed = execSync(`git ls-tree -r --name-only HEAD ${adrDirRel}`, {
-      cwd: root,
-      encoding: "utf8",
-      stdio: ["pipe", "pipe", "ignore"],
-    });
+    if (fm.status !== `superseded by ${fm.superseded_by}`) {
+      errors.push(
+        `${prefix} has superseded_by "${fm.superseded_by}", expected status "superseded by ${fm.superseded_by}", got "${fm.status ?? ""}".`,
+      );
+    }
+  } else if (isSuperseded) {
+    errors.push(`${prefix} has status "${fm.status ?? ""}" without matching superseded_by field.`);
+  }
 
-    return new Set(
-      listed
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter(Boolean),
-    );
-  } catch {
-    return null;
+  // Active enforcement & path existence check (accepted only)
+  if (fm.status === "accepted") {
+    if (!Array.isArray(fm.enforced_by) || fm.enforced_by.length === 0) {
+      errors.push(`${prefix} Active accepted ADR must declare at least one enforced_by path.`);
+    }
+
+    for (const p of fm.applies_to || []) {
+      if (!fs.existsSync(path.join(root, p))) {
+        errors.push(`${prefix} Active applies_to path does not exist on filesystem: "${p}"`);
+      }
+    }
+
+    for (const p of fm.enforced_by || []) {
+      if (!fs.existsSync(path.join(root, p))) {
+        errors.push(`${prefix} Active enforced_by path does not exist on filesystem: "${p}"`);
+      }
+    }
   }
 }
 
-// ---------------------------------------------------------------------------
-// Command: check & Validator Core
-// ---------------------------------------------------------------------------
-export function checkAdrs(opts: AdrCommandOptions = {}): AdrCheckResult {
-  const { root, adrDir, lockFile, modulesDir } = getContext(opts);
-  const adrs = loadAllAdrs(adrDir);
-  const lock = readLockFile(lockFile);
-  const errors: string[] = [];
+function resolveBaseRefs(
+  root: string,
+  explicitBaseRef: string | undefined,
+  errors: string[],
+): ResolvedBaseRef[] {
+  const headSha = resolveGitCommit("HEAD", root);
 
-  // Git HEAD anchoring verification for .adr-lock.json and ADR frontmatter
-  const headAdrFiles = getGitHeadAdrFiles(root, adrDir);
-  const lockRelPath = normalizeRepoRelPath(path.relative(root, lockFile));
-  let headLockRecords: Record<string, string> | null = null;
+  if (!headSha) {
+    return [];
+  }
 
-  if (headAdrFiles && headAdrFiles.has(lockRelPath)) {
-    try {
-      const headLockRaw = execSync(`git show HEAD:${lockRelPath}`, {
-        cwd: root,
-        encoding: "utf8",
-        stdio: ["pipe", "pipe", "pipe"],
-      });
+  const rawExplicit = explicitBaseRef?.trim() || process.env.ADR_BASE_REF?.trim() || "";
+  const hasExplicitRef = rawExplicit.length > 0 && rawExplicit !== ZERO_SHA;
+  const refs: ResolvedBaseRef[] = [];
+  const seenShas = new Set<string>();
 
-      headLockRecords = (JSON.parse(headLockRaw) as LockFileData).records;
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
+  const addRef = (label: string, sha: string | null): void => {
+    if (sha && !seenShas.has(sha)) {
+      seenShas.add(sha);
+      refs.push({ label, sha });
+    }
+  };
 
-      errors.push(`Lockfile anchoring error: failed to read HEAD:${lockRelPath} (${message}).`);
+  if (hasExplicitRef) {
+    const resolvedBase = resolveGitCommit(rawExplicit, root);
+
+    if (!resolvedBase) {
+      errors.push(`Git anchoring error: unable to resolve base ref "${rawExplicit}".`);
+    } else {
+      addRef(rawExplicit, resolvedBase);
     }
   }
 
-  if (headLockRecords) {
-    for (const [id, headHash] of Object.entries(headLockRecords)) {
-      const currentHash = lock.records[id];
+  addRef("HEAD", headSha);
 
-      if (!currentHash) {
+  if (!hasExplicitRef) {
+    for (const branch of DEFAULT_BASE_BRANCHES) {
+      if (!resolveGitCommit(branch, root)) {
+        continue;
+      }
+
+      const mergeBaseOut = execGitRaw(["merge-base", "HEAD", branch], root);
+      const mergeBaseSha = mergeBaseOut ? mergeBaseOut.trim() : null;
+
+      addRef(`merge-base(${branch})`, mergeBaseSha);
+      break;
+    }
+  }
+
+  return refs;
+}
+
+function validateAgainstBaseRecord(
+  relPath: string,
+  baseRefLabel: string,
+  baseFm: Partial<AdrFrontmatter>,
+  baseBody: string,
+  curAdr: AdrRecord,
+  root: string,
+  adrMap: Map<string, AdrRecord>,
+  errors: string[],
+): void {
+  const prefix = `[${baseFm.id || relPath}]`;
+  const curFm = curAdr.frontmatter;
+
+  // 1. Body immutability
+  if (normalizeBody(curAdr.body) !== normalizeBody(baseBody)) {
+    errors.push(
+      `${prefix} Body of committed ADR "${relPath}" was modified relative to ${baseRefLabel}. Direct edits are prohibited; use \`pnpm adr supersede ${baseFm.id ?? ""}\`.`,
+    );
+  }
+
+  // 2. Strictly immutable metadata fields
+  const immutableScalars = ["id", "title", "date", "area", "supersedes"] as const;
+
+  for (const field of immutableScalars) {
+    if ((curFm[field] ?? null) !== (baseFm[field] ?? null)) {
+      errors.push(
+        `${prefix} Immutable frontmatter field "${field}" was modified relative to ${baseRefLabel} in "${relPath}".`,
+      );
+    }
+  }
+
+  const baseMakers = Array.isArray(baseFm["decision-makers"]) ? baseFm["decision-makers"] : [];
+  const curMakers = Array.isArray(curFm["decision-makers"]) ? curFm["decision-makers"] : [];
+
+  if (!arraysEqual(curMakers, baseMakers)) {
+    errors.push(
+      `${prefix} Immutable frontmatter field "decision-makers" was modified relative to ${baseRefLabel} in "${relPath}".`,
+    );
+  }
+
+  // 3. Allowed status & superseded_by transitions
+  const baseStatus = baseFm.status ?? "";
+  const curStatus = curFm.status ?? "";
+  const baseSupersededBy = baseFm.superseded_by ?? null;
+  const curSupersededBy = curFm.superseded_by ?? null;
+  const statusOrLinkChanged = curStatus !== baseStatus || curSupersededBy !== baseSupersededBy;
+
+  if (statusOrLinkChanged) {
+    const baseWasActive = baseStatus === "accepted" || baseStatus === "proposed";
+    const isValidSupersede =
+      baseWasActive &&
+      typeof curSupersededBy === "string" &&
+      curStatus === `superseded by ${curSupersededBy}` &&
+      adrMap.get(curSupersededBy)?.frontmatter.supersedes === baseFm.id;
+    const isValidProposalAcceptance =
+      baseStatus === "proposed" && curStatus === "accepted" && curSupersededBy === baseSupersededBy;
+    const baseApplies = Array.isArray(baseFm.applies_to) ? baseFm.applies_to : [];
+    const allGovernedPathsDeleted =
+      baseApplies.length === 0 || baseApplies.every((p) => !fs.existsSync(path.join(root, p)));
+    const isValidDeprecation =
+      baseWasActive && curStatus === "deprecated" && curSupersededBy === baseSupersededBy;
+
+    if (isValidDeprecation) {
+      if (!allGovernedPathsDeleted) {
         errors.push(
-          `Lockfile tampering: record "${id}" was removed from docs/adr/.adr-lock.json (present in git HEAD).`,
-        );
-      } else if (currentHash !== headHash) {
-        errors.push(
-          `Lockfile tampering: hash for "${id}" was altered in docs/adr/.adr-lock.json (HEAD: ${headHash}, working: ${currentHash}).`,
+          `${prefix} Frontmatter tampering: cannot transition from "${baseStatus}" to "deprecated" relative to ${baseRefLabel} while governed applies_to paths still exist on disk.`,
         );
       }
+    } else if (!isValidSupersede && !isValidProposalAcceptance) {
+      errors.push(
+        `${prefix} Frontmatter tampering: disallowed status transition "${baseStatus}" -> "${curStatus}" relative to ${baseRefLabel}.`,
+      );
     }
   }
+
+  // 4. Protected applies_to and enforced_by paths (cannot drop paths that still exist on disk)
+  const baseApplies = Array.isArray(baseFm.applies_to) ? baseFm.applies_to : [];
+  const curApplies = Array.isArray(curFm.applies_to) ? curFm.applies_to : [];
+  const baseEnforced = Array.isArray(baseFm.enforced_by) ? baseFm.enforced_by : [];
+  const curEnforced = Array.isArray(curFm.enforced_by) ? curFm.enforced_by : [];
+
+  for (const oldApplies of baseApplies) {
+    if (!curApplies.includes(oldApplies) && fs.existsSync(path.join(root, oldApplies))) {
+      errors.push(
+        `${prefix} Frontmatter tampering: applies_to path "${oldApplies}" was removed while still present on disk (compared against ${baseRefLabel}).`,
+      );
+    }
+  }
+
+  for (const oldEnforced of baseEnforced) {
+    if (!curEnforced.includes(oldEnforced) && fs.existsSync(path.join(root, oldEnforced))) {
+      errors.push(
+        `${prefix} Frontmatter tampering: enforced_by path "${oldEnforced}" was removed while still present on disk (compared against ${baseRefLabel}).`,
+      );
+    }
+  }
+}
+
+function validateGitImmutability(
+  root: string,
+  adrDir: string,
+  adrs: AdrRecord[],
+  adrMap: Map<string, AdrRecord>,
+  explicitBaseRef: string | undefined,
+  errors: string[],
+): void {
+  const adrDirRel = normalizeRepoRelPath(path.relative(root, adrDir));
+
+  if (!adrDirRel || adrDirRel.startsWith("..")) {
+    return;
+  }
+
+  const baseRefs = resolveBaseRefs(root, explicitBaseRef, errors);
+
+  if (baseRefs.length === 0) {
+    return;
+  }
+
+  const curByRelPath = new Map<string, AdrRecord>();
+
+  for (const adr of adrs) {
+    curByRelPath.set(normalizeRepoRelPath(path.relative(root, adr.filePath)), adr);
+  }
+
+  for (const baseRef of baseRefs) {
+    const listed = execGitRaw(["ls-tree", "-r", "--name-only", baseRef.sha, "--", adrDirRel], root);
+
+    if (listed === null) {
+      errors.push(`Git anchoring error: unable to list "${adrDirRel}" at ${baseRef.label}.`);
+      continue;
+    }
+
+    const baseFiles = listed
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((relPath) => {
+        if (!relPath || !relPath.endsWith(".md")) return false;
+
+        return (
+          path.posix.dirname(relPath) === adrDirRel && path.posix.basename(relPath) !== "README.md"
+        );
+      });
+
+    const baseContents = readGitFilesBatch(root, baseRef.sha, baseFiles);
+
+    for (const relPath of baseFiles) {
+      const baseRaw = baseContents.get(relPath) ?? null;
+
+      if (baseRaw === null) {
+        errors.push(`Git anchoring error: unable to read "${relPath}" at ${baseRef.label}.`);
+        continue;
+      }
+
+      const baseParsed = parseFrontmatter(baseRaw);
+
+      if (!baseParsed.frontmatter?.id) {
+        // Pre-MADR legacy ADR without YAML frontmatter
+        continue;
+      }
+
+      const absPath = path.join(root, relPath);
+
+      if (!fs.existsSync(absPath)) {
+        errors.push(
+          `[${baseParsed.frontmatter.id}] Committed ADR "${relPath}" was deleted or moved (present in ${baseRef.label}). ADRs form an immutable flat log.`,
+        );
+        continue;
+      }
+
+      const curAdr = curByRelPath.get(relPath);
+
+      if (!curAdr) {
+        errors.push(
+          `[${baseParsed.frontmatter.id}] Committed ADR "${relPath}" lost valid YAML frontmatter (present in ${baseRef.label}).`,
+        );
+        continue;
+      }
+
+      validateAgainstBaseRecord(
+        relPath,
+        baseRef.label,
+        baseParsed.frontmatter,
+        baseParsed.body,
+        curAdr,
+        root,
+        adrMap,
+        errors,
+      );
+    }
+  }
+}
+
+export function checkAdrs(opts: AdrCommandOptions = {}): AdrCheckResult {
+  const { root, adrDir, modulesDir } = getContext(opts);
+  const adrs = loadAllAdrs(adrDir);
+  const errors: string[] = [];
 
   const adrMap = new Map<string, AdrRecord>();
 
-  for (const a of adrs) {
-    if (a.frontmatter.id) {
-      adrMap.set(a.frontmatter.id, a);
+  for (const adr of adrs) {
+    const id = adr.frontmatter.id;
+
+    if (id) {
+      if (adrMap.has(id)) {
+        errors.push(`[${id}] Duplicate ADR id detected in "${adr.fileName}".`);
+      } else {
+        adrMap.set(id, adr);
+      }
     }
   }
 
-  for (const a of adrs) {
-    const fm = a.frontmatter;
-    const prefix = `[${fm.id || a.fileName}]`;
-
-    // 1. Frontmatter schema validation
-    if (!fm.id || !/^ADR-\d{4}$/.test(fm.id)) {
-      errors.push(`${prefix} Invalid or missing id. Must match /^ADR-\\d{4}$/`);
-    }
-
-    if (!fm.title || typeof fm.title !== "string" || !fm.title.trim()) {
-      errors.push(`${prefix} Missing title`);
-    }
-
-    const validStatuses = ["proposed", "accepted", "rejected", "deprecated"];
-    const isSuperseded =
-      typeof fm.status === "string" && fm.status.startsWith("superseded by ADR-");
-
-    if ((!fm.status || !validStatuses.includes(fm.status)) && !isSuperseded) {
-      errors.push(
-        `${prefix} Invalid status "${fm.status ?? ""}". Allowed: proposed, accepted, rejected, deprecated, or "superseded by ADR-XXXX"`,
-      );
-    }
-
-    if (!fm.date || !/^\d{4}-\d{2}-\d{2}$/.test(fm.date)) {
-      errors.push(`${prefix} Invalid date "${fm.date ?? ""}". Must be YYYY-MM-DD.`);
-    }
-
-    if (!Array.isArray(fm["decision-makers"]) || fm["decision-makers"].length === 0) {
-      errors.push(`${prefix} Missing decision-makers list.`);
-    }
-
-    if (!fm.area || typeof fm.area !== "string") {
-      errors.push(`${prefix} Missing area string.`);
-    }
-
-    if (!Array.isArray(fm.applies_to)) {
-      errors.push(`${prefix} applies_to must be an array of paths.`);
-    }
-
-    if (!Array.isArray(fm.enforced_by)) {
-      errors.push(`${prefix} enforced_by must be an array of paths.`);
-    }
-
-    // 2. Canonical 6 H2 sections in exact order
-    const h2Matches = [...a.body.matchAll(/^##\s+([^\r\n]+)/gm)].map((m) => m[1].trim());
-    let lastFoundIdx = -1;
-
-    for (const expectedSec of CANONICAL_SECTIONS) {
-      const idx = h2Matches.indexOf(expectedSec);
-
-      if (idx === -1) {
-        errors.push(`${prefix} Missing canonical section: "## ${expectedSec}"`);
-      } else if (idx <= lastFoundIdx) {
-        errors.push(`${prefix} Canonical section out of order: "## ${expectedSec}"`);
-      } else {
-        lastFoundIdx = idx;
-      }
-    }
-
-    // 3. Bidirectional superseding check
-    if (fm.supersedes) {
-      const target = adrMap.get(fm.supersedes);
-
-      if (!target) {
-        errors.push(`${prefix} supersedes "${fm.supersedes}" which does not exist.`);
-      } else {
-        if (target.frontmatter.superseded_by !== fm.id) {
-          errors.push(
-            `${prefix} supersedes "${fm.supersedes}", but ${fm.supersedes} does not link back with superseded_by: "${fm.id ?? ""}"`,
-          );
-        }
-
-        if (target.frontmatter.status !== `superseded by ${fm.id ?? ""}`) {
-          errors.push(
-            `${prefix} supersedes "${fm.supersedes}", but ${fm.supersedes} status is "${target.frontmatter.status ?? ""}", expected "superseded by ${fm.id ?? ""}"`,
-          );
-        }
-      }
-    }
-
-    if (fm.superseded_by) {
-      const target = adrMap.get(fm.superseded_by);
-
-      if (!target) {
-        errors.push(`${prefix} superseded_by "${fm.superseded_by}" which does not exist.`);
-      } else if (target.frontmatter.supersedes !== fm.id) {
-        errors.push(
-          `${prefix} superseded_by "${fm.superseded_by}", but ${fm.superseded_by} does not declare supersedes: "${fm.id ?? ""}"`,
-        );
-      }
-    }
-
-    // 4. Active enforcement & path existence check (accepted only)
-    if (fm.status === "accepted") {
-      if (!Array.isArray(fm.enforced_by) || fm.enforced_by.length === 0) {
-        errors.push(`${prefix} Active accepted ADR must declare at least one enforced_by path.`);
-      }
-
-      for (const p of fm.applies_to || []) {
-        const resolved = path.join(root, p);
-
-        if (!fs.existsSync(resolved)) {
-          errors.push(`${prefix} Active applies_to path does not exist on filesystem: "${p}"`);
-        }
-      }
-
-      for (const p of fm.enforced_by || []) {
-        const resolved = path.join(root, p);
-
-        if (!fs.existsSync(resolved)) {
-          errors.push(`${prefix} Active enforced_by path does not exist on filesystem: "${p}"`);
-        }
-      }
-    }
-
-    // 4b. Git HEAD frontmatter integrity check (status & enforced_by protection)
-    const adrRelPath = normalizeRepoRelPath(path.relative(root, a.filePath));
-
-    if (headAdrFiles && headAdrFiles.has(adrRelPath)) {
-      try {
-        const headRaw = execSync(`git show HEAD:${adrRelPath}`, {
-          cwd: root,
-          encoding: "utf8",
-          stdio: ["pipe", "pipe", "pipe"],
-        });
-        const headFm = parseFrontmatter(headRaw).frontmatter;
-
-        if (headFm?.status === "accepted") {
-          if (fm.status === "deprecated") {
-            const headApplies = Array.isArray(headFm.applies_to) ? headFm.applies_to : [];
-            const allHeadPathsStillExist =
-              headApplies.length > 0 && headApplies.every((p) => fs.existsSync(path.join(root, p)));
-
-            if (allHeadPathsStillExist) {
-              errors.push(
-                `${prefix} Frontmatter tampering: cannot transition from "accepted" to "deprecated" while governed paths still exist on disk.`,
-              );
-            }
-          }
-
-          if (fm.status === "accepted") {
-            const headEnforced = Array.isArray(headFm.enforced_by) ? headFm.enforced_by : [];
-            const currentEnforced = Array.isArray(fm.enforced_by) ? fm.enforced_by : [];
-
-            for (const oldEnforced of headEnforced) {
-              if (
-                !currentEnforced.includes(oldEnforced) &&
-                fs.existsSync(path.join(root, oldEnforced))
-              ) {
-                errors.push(
-                  `${prefix} Frontmatter tampering: active enforced_by path "${oldEnforced}" was removed while still present on disk.`,
-                );
-              }
-            }
-          }
-        }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err);
-
-        errors.push(
-          `${prefix} Frontmatter anchoring error: failed to read HEAD:${adrRelPath} (${message}).`,
-        );
-      }
-    }
-
-    // 5. Cryptographic body hash check
-    const hash = computeBodyHash(a.body);
-    const lockedHash = fm.id ? lock.records[fm.id] : undefined;
-
-    if (!lockedHash) {
-      errors.push(`${prefix} Missing entry in docs/adr/.adr-lock.json`);
-    } else if (lockedHash !== hash) {
-      errors.push(
-        `${prefix} Body hash mismatch! Locked: ${lockedHash}, Calculated: ${hash}. Direct body modification is prohibited.`,
-      );
-    }
+  for (const adr of adrs) {
+    validateAdrStructure(adr, root, adrMap, errors);
   }
 
-  // 6. Zero drift verification for docs/adr/README.md
+  validateGitImmutability(root, adrDir, adrs, adrMap, opts.baseRef, errors);
+
+  // Zero drift verification for docs/adr/README.md
   const readmePath = path.join(adrDir, "README.md");
 
   if (fs.existsSync(readmePath)) {
@@ -839,7 +1061,7 @@ export function checkAdrs(opts: AdrCommandOptions = {}): AdrCheckResult {
     }
   }
 
-  // 7. Zero drift verification for src/modules/*/README.md
+  // Zero drift verification for src/modules/*/README.md
   if (fs.existsSync(modulesDir)) {
     const modules = fs.readdirSync(modulesDir);
 
@@ -854,7 +1076,7 @@ export function checkAdrs(opts: AdrCommandOptions = {}): AdrCheckResult {
 
       if (current !== expected) {
         errors.push(
-          `Drift detected in src/modules/${mod}/README.md. Run ` + "`pnpm adr sync` to reconcile.",
+          `Drift detected in src/modules/${mod}/README.md. Run \`pnpm adr sync\` to reconcile.`,
         );
       }
     }
@@ -863,7 +1085,7 @@ export function checkAdrs(opts: AdrCommandOptions = {}): AdrCheckResult {
   return { valid: errors.length === 0, errors };
 }
 
-export function cmdCheck(opts: AdrCommandOptions = {}): boolean {
+function cmdCheck(opts: AdrCommandOptions = {}): boolean {
   const { valid, errors } = checkAdrs(opts);
   const { adrDir } = getContext(opts);
   const adrs = loadAllAdrs(adrDir);
@@ -898,6 +1120,15 @@ export function cmdCheck(opts: AdrCommandOptions = {}): boolean {
 // ---------------------------------------------------------------------------
 // Command: new
 // ---------------------------------------------------------------------------
+function splitCsvArg(value: string | boolean | string[] | undefined): string[] | undefined {
+  if (typeof value !== "string") return undefined;
+
+  return value
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 export function cmdNew(
   args: Partial<ParsedCliArgs>,
   opts: AdrCommandOptions = {},
@@ -911,40 +1142,21 @@ export function cmdNew(
     return null;
   }
 
-  const { adrDir, lockFile } = getContext(opts);
+  const { adrDir } = getContext(opts);
   const area = typeof args.area === "string" ? args.area : "Architecture & Layout";
   const status = typeof args.status === "string" ? args.status : "accepted";
-  const appliesTo =
-    typeof args["applies-to"] === "string"
-      ? args["applies-to"].split(",").map((s) => s.trim())
-      : [];
-  const enforcedBy =
-    typeof args["enforced-by"] === "string"
-      ? args["enforced-by"].split(",").map((s) => s.trim())
-      : [];
-  const decisionMakers =
-    typeof args["decision-makers"] === "string"
-      ? args["decision-makers"].split(",").map((s) => s.trim())
-      : ["Product Owner", "Architect Agent"];
+  const appliesTo = splitCsvArg(args["applies-to"]) ?? [];
+  const enforcedBy = splitCsvArg(args["enforced-by"]) ?? [];
+  const decisionMakers = splitCsvArg(args["decision-makers"]) ?? [
+    "Product Owner",
+    "Architect Agent",
+  ];
 
   const adrs = loadAllAdrs(adrDir);
-  let maxNum = -1;
-
-  for (const a of adrs) {
-    const num = parseInt((a.frontmatter.id ?? "").replace("ADR-", ""), 10);
-
-    if (!isNaN(num) && num > maxNum) maxNum = num;
-  }
-
-  const nextNum = maxNum + 1;
+  const nextNum = getNextAdrNumber(adrs);
   const nextId = `ADR-${String(nextNum).padStart(4, "0")}`;
-  const slug = title
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-  const fileName = `${String(nextNum).padStart(4, "0")}-${slug}.md`;
+  const fileName = `${String(nextNum).padStart(4, "0")}-${buildAdrSlug(title)}.md`;
   const filePath = path.join(adrDir, fileName);
-
   const today = new Date().toISOString().slice(0, 10);
 
   const body = `
@@ -995,17 +1207,8 @@ Chosen option: **${title}**, because rationale.
     superseded_by: null,
   };
 
-  const fileContent = serializeFrontmatter(fm, body);
-
-  fs.writeFileSync(filePath, fileContent, "utf8");
-
-  // Lock the body hash
-  const hash = computeBodyHash(body);
-  const lock = readLockFile(lockFile);
-
-  lock.records[nextId] = hash;
-  writeLockFile(lock, lockFile);
-
+  fs.mkdirSync(adrDir, { recursive: true });
+  fs.writeFileSync(filePath, serializeFrontmatter(fm, body), "utf8");
   cmdSync(opts);
 
   if (!opts.silent) {
@@ -1015,6 +1218,9 @@ Chosen option: **${title}**, because rationale.
   return { id: nextId, fileName, filePath };
 }
 
+// ---------------------------------------------------------------------------
+// Command: supersede
+// ---------------------------------------------------------------------------
 function buildSupersededBody(
   oldBody: string,
   oldId: string,
@@ -1025,31 +1231,21 @@ function buildSupersededBody(
   const normalized = oldBody.replace(/\r\n/g, "\n").trimStart();
   const supersedesLine = `Supersedes [${oldId}](./${oldFileName}).`;
 
-  let bodyWithHeading: string;
-
-  if (/^# [^\n]+/.test(normalized)) {
-    bodyWithHeading = normalized.replace(/^# [^\n]+/, `# ${nextId}: ${title}`);
-  } else {
-    bodyWithHeading = `# ${nextId}: ${title}\n\n${normalized}`;
-  }
+  const bodyWithHeading = /^# [^\n]+/.test(normalized)
+    ? normalized.replace(/^# [^\n]+/, `# ${nextId}: ${title}`)
+    : `# ${nextId}: ${title}\n\n${normalized}`;
 
   const contextHeadingPattern = /^(## Context and Problem Statement[ \t]*\n+)/m;
+  const updated = contextHeadingPattern.test(bodyWithHeading)
+    ? bodyWithHeading.replace(
+        contextHeadingPattern,
+        `## Context and Problem Statement\n\n${supersedesLine}\n\n`,
+      )
+    : `${bodyWithHeading.trimEnd()}\n\n## Context and Problem Statement\n\n${supersedesLine}\n`;
 
-  if (contextHeadingPattern.test(bodyWithHeading)) {
-    bodyWithHeading = bodyWithHeading.replace(
-      contextHeadingPattern,
-      `## Context and Problem Statement\n\n${supersedesLine}\n\n`,
-    );
-  } else {
-    bodyWithHeading = `${bodyWithHeading.trimEnd()}\n\n## Context and Problem Statement\n\n${supersedesLine}\n`;
-  }
-
-  return bodyWithHeading.endsWith("\n") ? bodyWithHeading : `${bodyWithHeading}\n`;
+  return updated.endsWith("\n") ? updated : `${updated}\n`;
 }
 
-// ---------------------------------------------------------------------------
-// Command: supersede
-// ---------------------------------------------------------------------------
 export function cmdSupersede(
   oldIdInput: string | undefined,
   args: Partial<ParsedCliArgs>,
@@ -1062,9 +1258,8 @@ export function cmdSupersede(
     return null;
   }
 
-  const oldId = oldIdInput.startsWith("ADR-") ? oldIdInput : `ADR-${oldIdInput.padStart(4, "0")}`;
-
-  const { adrDir, lockFile } = getContext(opts);
+  const oldId = normalizeAdrId(oldIdInput);
+  const { adrDir } = getContext(opts);
   const adrs = loadAllAdrs(adrDir);
   const oldAdr = adrs.find((a) => a.frontmatter.id === oldId);
 
@@ -1080,36 +1275,19 @@ export function cmdSupersede(
       ? args.title
       : `Supersedes ${oldId}: ${oldAdr.frontmatter.title ?? ""}`;
   const area = typeof args.area === "string" ? args.area : (oldAdr.frontmatter.area ?? "");
-  const appliesTo =
-    typeof args["applies-to"] === "string"
-      ? args["applies-to"].split(",").map((s) => s.trim())
-      : [...(oldAdr.frontmatter.applies_to || [])];
-  const enforcedBy =
-    typeof args["enforced-by"] === "string"
-      ? args["enforced-by"].split(",").map((s) => s.trim())
-      : [...(oldAdr.frontmatter.enforced_by || [])];
-  const decisionMakers =
-    typeof args["decision-makers"] === "string"
-      ? args["decision-makers"].split(",").map((s) => s.trim())
-      : ["Product Owner", "Architect Agent"];
+  const appliesTo = splitCsvArg(args["applies-to"]) ?? [...(oldAdr.frontmatter.applies_to || [])];
+  const enforcedBy = splitCsvArg(args["enforced-by"]) ?? [
+    ...(oldAdr.frontmatter.enforced_by || []),
+  ];
+  const decisionMakers = splitCsvArg(args["decision-makers"]) ?? [
+    "Product Owner",
+    "Architect Agent",
+  ];
 
-  let maxNum = -1;
-
-  for (const a of adrs) {
-    const num = parseInt((a.frontmatter.id ?? "").replace("ADR-", ""), 10);
-
-    if (!isNaN(num) && num > maxNum) maxNum = num;
-  }
-
-  const nextNum = maxNum + 1;
+  const nextNum = getNextAdrNumber(adrs);
   const nextId = `ADR-${String(nextNum).padStart(4, "0")}`;
-  const slug = title
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-  const fileName = `${String(nextNum).padStart(4, "0")}-${slug}.md`;
+  const fileName = `${String(nextNum).padStart(4, "0")}-${buildAdrSlug(title)}.md`;
   const filePath = path.join(adrDir, fileName);
-
   const today = new Date().toISOString().slice(0, 10);
   const body = buildSupersededBody(oldAdr.body, oldId, oldAdr.fileName, nextId, title);
 
@@ -1126,21 +1304,13 @@ export function cmdSupersede(
     superseded_by: null,
   };
 
-  // 1. Write new ADR
   fs.writeFileSync(filePath, serializeFrontmatter(newFm, body), "utf8");
 
-  // 2. Update old ADR frontmatter ONLY (preserving body and body hash)
+  // Update old ADR frontmatter ONLY (preserving body verbatim)
   oldAdr.frontmatter.status = `superseded by ${nextId}`;
   oldAdr.frontmatter.superseded_by = nextId;
 
   fs.writeFileSync(oldAdr.filePath, serializeFrontmatter(oldAdr.frontmatter, oldAdr.body), "utf8");
-
-  // 3. Lock new hash
-  const hash = computeBodyHash(body);
-  const lock = readLockFile(lockFile);
-
-  lock.records[nextId] = hash;
-  writeLockFile(lock, lockFile);
 
   cmdSync(opts);
 
@@ -1165,8 +1335,7 @@ export function cmdDeprecate(
     return null;
   }
 
-  const id = idInput.startsWith("ADR-") ? idInput : `ADR-${idInput.padStart(4, "0")}`;
-
+  const id = normalizeAdrId(idInput);
   const { adrDir } = getContext(opts);
   const adrs = loadAllAdrs(adrDir);
   const adr = adrs.find((a) => a.frontmatter.id === id);
@@ -1206,21 +1375,17 @@ export function cmdRetarget(
     return 0;
   }
 
-  const oldPath = oldPathInput.replace(/\\/g, "/").replace(/\/+$/, "");
-  const newPath = newPathInput.replace(/\\/g, "/").replace(/\/+$/, "");
-
+  const oldPath = normalizeRepoRelPath(oldPathInput);
+  const newPath = normalizeRepoRelPath(newPathInput);
   const { adrDir } = getContext(opts);
   const adrs = loadAllAdrs(adrDir);
   let count = 0;
 
   const replacePath = (p: string): string => {
-    const norm = p.replace(/\\/g, "/");
+    const norm = normalizeRepoRelPath(p);
 
     if (norm === oldPath) return newPath;
-
-    if (norm.startsWith(`${oldPath}/`)) {
-      return newPath + norm.slice(oldPath.length);
-    }
+    if (norm.startsWith(`${oldPath}/`)) return newPath + norm.slice(oldPath.length);
 
     return p;
   };
@@ -1231,32 +1396,27 @@ export function cmdRetarget(
     let modified = false;
 
     if (Array.isArray(a.frontmatter.applies_to)) {
-      const nextApplies = a.frontmatter.applies_to.map((p) => {
+      a.frontmatter.applies_to = a.frontmatter.applies_to.map((p) => {
         const rep = replacePath(p);
 
         if (rep !== p) modified = true;
 
         return rep;
       });
-
-      a.frontmatter.applies_to = nextApplies;
     }
 
     if (Array.isArray(a.frontmatter.enforced_by)) {
-      const nextEnforced = a.frontmatter.enforced_by.map((p) => {
+      a.frontmatter.enforced_by = a.frontmatter.enforced_by.map((p) => {
         const rep = replacePath(p);
 
         if (rep !== p) modified = true;
 
         return rep;
       });
-
-      a.frontmatter.enforced_by = nextEnforced;
     }
 
     if (modified) {
       fs.writeFileSync(a.filePath, serializeFrontmatter(a.frontmatter, a.body), "utf8");
-
       count++;
     }
   }
@@ -1284,47 +1444,48 @@ export function cmdRemovePath(
     return 0;
   }
 
-  const targetPath = targetPathInput.replace(/\\/g, "/").replace(/\/+$/, "");
+  const targetPath = normalizeRepoRelPath(targetPathInput);
   const { adrDir } = getContext(opts);
   const adrs = loadAllAdrs(adrDir);
   let modifiedCount = 0;
 
+  const matchesTarget = (p: string): boolean => {
+    const norm = normalizeRepoRelPath(p);
+
+    return norm === targetPath || norm.startsWith(`${targetPath}/`);
+  };
+
   for (const a of adrs) {
     if (a.frontmatter.status !== "accepted") continue;
 
-    const applies = (a.frontmatter.applies_to || []).map((p) => p.replace(/\\/g, "/"));
-    const enforced = (a.frontmatter.enforced_by || []).map((p) => p.replace(/\\/g, "/"));
+    const applies = a.frontmatter.applies_to || [];
+    const enforced = a.frontmatter.enforced_by || [];
 
-    const matchesTarget = (p: string): boolean =>
-      p === targetPath || p.startsWith(`${targetPath}/`);
-    const hasPath = applies.some(matchesTarget) || enforced.some(matchesTarget);
-
-    if (hasPath) {
-      const remainingApplies = applies.filter((p) => !matchesTarget(p));
-
-      if (remainingApplies.length === 0) {
-        // Exclusively governed the removed path -> auto-deprecate
-        // Preserves historical applies_to/enforced_by
-        a.frontmatter.status = "deprecated";
-
-        if (!opts.silent) {
-          console.log(
-            `ADR ${a.frontmatter.id ?? ""} exclusively governed "${targetPath}"; auto-deprecating.`,
-          );
-        }
-      } else {
-        // Multi-module ADR: prune only the removed path
-        a.frontmatter.applies_to = remainingApplies;
-
-        if (Array.isArray(a.frontmatter.enforced_by)) {
-          a.frontmatter.enforced_by = enforced.filter((p) => !matchesTarget(p));
-        }
-      }
-
-      fs.writeFileSync(a.filePath, serializeFrontmatter(a.frontmatter, a.body), "utf8");
-
-      modifiedCount++;
+    if (!applies.some(matchesTarget) && !enforced.some(matchesTarget)) {
+      continue;
     }
+
+    const remainingApplies = applies.filter((p) => !matchesTarget(p));
+
+    if (remainingApplies.length === 0) {
+      // Exclusively governed the removed path -> auto-deprecate while preserving historical paths
+      a.frontmatter.status = "deprecated";
+
+      if (!opts.silent) {
+        console.log(
+          `ADR ${a.frontmatter.id ?? ""} exclusively governed "${targetPath}"; auto-deprecating.`,
+        );
+      }
+    } else {
+      a.frontmatter.applies_to = remainingApplies;
+
+      if (Array.isArray(a.frontmatter.enforced_by)) {
+        a.frontmatter.enforced_by = enforced.filter((p) => !matchesTarget(p));
+      }
+    }
+
+    fs.writeFileSync(a.filePath, serializeFrontmatter(a.frontmatter, a.body), "utf8");
+    modifiedCount++;
   }
 
   cmdSync(opts);
@@ -1362,7 +1523,7 @@ export function parseArgs(rawArgs: string[]): ParsedCliArgs {
   return result;
 }
 
-export function main(): void {
+function main(): void {
   const rawArgs = process.argv.slice(2);
   const parsed = parseArgs(rawArgs);
   const command = parsed._[0] || "help";
@@ -1377,7 +1538,7 @@ export function main(): void {
       break;
 
     case "check":
-      cmdCheck();
+      cmdCheck({ baseRef: typeof parsed.base === "string" ? parsed.base : undefined });
       break;
 
     case "new":
@@ -1407,16 +1568,15 @@ export function main(): void {
 Z-Trader Architectural Decision Records (ADR) CLI
 
 Usage:
-  node adr-cli.ts list [--path <path>] [--all] [--json]
-  node adr-cli.ts check
-  node adr-cli.ts sync
-  node adr-cli.ts new --title <title> --area <area> [--applies-to <p1,p2>] [--enforced-by <e1,e2>]
-  node adr-cli.ts supersede <old-id> --title <title> [--area <area>]
-  node adr-cli.ts deprecate <id>
-  node adr-cli.ts retarget <old-path> <new-path>
-  node adr-cli.ts remove-path <path>
+  pnpm adr list [--path <path>] [--all] [--json]
+  pnpm adr:check [--base <git-ref>]
+  pnpm adr sync
+  pnpm adr new --title <title> --area <area> [--applies-to <p1,p2>] [--enforced-by <e1,e2>]
+  pnpm adr supersede <old-id> --title <title> [--area <area>]
+  pnpm adr deprecate <id>
+  pnpm adr retarget <old-path> <new-path>
+  pnpm adr remove-path <path>
 `);
-
       break;
   }
 }

@@ -16,7 +16,7 @@
     "should_trigger": true
   },
   {
-    "query": "Check if our ADR records and lockfiles are consistent with pnpm adr:check before committing",
+    "query": "Check if our ADR records and README indexes are consistent with pnpm adr:check before committing",
     "should_trigger": true
   },
   {

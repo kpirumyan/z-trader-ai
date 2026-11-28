@@ -20,6 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       code_changed: ${{ steps.filter.outputs.code_changed }}
+      adr_base: ${{ steps.filter.outputs.adr_base }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -33,15 +34,20 @@ jobs:
           set -euo pipefail
           code_changed="false"
           files=""
+          adr_base=""
 
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             code_changed="true"
+            adr_base=$(git rev-parse --verify --quiet HEAD~1 || true)
           elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            files=$(git diff --name-only "${{ github.event.pull_request.base.sha }}" HEAD || echo "__FALLBACK__")
+            adr_base="${{ github.event.pull_request.base.sha }}"
+            files=$(git diff --name-only "$adr_base" HEAD || echo "__FALLBACK__")
           elif [[ "${{ github.event.before }}" == "0000000000000000000000000000000000000000" ]]; then
             code_changed="true"
+            adr_base=$(git rev-parse --verify --quiet HEAD~1 || true)
           else
-            files=$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" || echo "__FALLBACK__")
+            adr_base="${{ github.event.before }}"
+            files=$(git diff --name-only "$adr_base" "${{ github.sha }}" || echo "__FALLBACK__")
           fi
 
           if [[ "$code_changed" != "true" ]]; then
@@ -53,6 +59,7 @@ jobs:
           fi
 
           echo "code_changed=$code_changed" >> "$GITHUB_OUTPUT"
+          echo "adr_base=$adr_base" >> "$GITHUB_OUTPUT"
           echo "code_changed=$code_changed"
 
   verify:
@@ -62,6 +69,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -77,10 +86,14 @@ jobs:
 
       - name: Verify docs & ADRs (docs-only change)
         if: needs.changes.outputs.code_changed != 'true'
+        env:
+          ADR_BASE_REF: ${{ needs.changes.outputs.adr_base }}
         run: pnpm check:docs
 
       - name: Verify static checks & unit tests
         if: needs.changes.outputs.code_changed == 'true'
+        env:
+          ADR_BASE_REF: ${{ needs.changes.outputs.adr_base }}
         run: pnpm check:fast
 
   e2e:

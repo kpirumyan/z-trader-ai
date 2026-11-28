@@ -1,6 +1,6 @@
 ---
 name: adr
-description: Architectural Decision Records (ADRs) management and governance for Z-Trader. Guides and enforces MADR 4.0 standards, active-decision querying, cryptographic immutability, automated synchronization, and lifecycle workflows (create, supersede, deprecate, retarget, remove-path). Use whenever creating or reviewing architectural decisions, modifying module boundaries, consulting governing ADRs before changing a module, or checking ADR compliance with pnpm adr:check.
+description: Architectural Decision Records (ADRs) management and governance for Z-Trader. Guides and enforces MADR 4.0 standards, active-decision querying, Git-anchored immutability, automated synchronization, and lifecycle workflows (create, supersede, deprecate, retarget, remove-path). Use whenever creating or reviewing architectural decisions, modifying module boundaries, consulting governing ADRs before changing a module, or checking ADR compliance with pnpm adr:check.
 ---
 
 # Architectural Decision Records (ADR) Governance
@@ -12,10 +12,10 @@ This skill guides humans and AI agents in querying, authoring, superseding, and 
 1. **Active vs. Historical Partitioning**:
    - Only active decisions (`status: "accepted"`) govern new code and CI path verification.
    - Historical records (`superseded by ADR-XXXX`, `deprecated`, `rejected`) remain permanent immutable records in `docs/adr/` to prevent broken links in code comments, PRs, and commit history.
-2. **Cryptographic Body Immutability**:
-   - The markdown body of every accepted ADR is hashed with SHA-256 and locked in `docs/adr/.adr-lock.json`.
-   - Modifying an existing ADR body is prohibited and flagged by `pnpm adr:check` against Git HEAD.
-   - To alter an architectural decision, always create a superseding record via `pnpm adr supersede`.
+2. **Git-Anchored Immutability**:
+   - Once an ADR is committed in Git, its Markdown body and core identity metadata (`id`, `title`, `date`, `area`, `decision-makers`, `supersedes`) are immutable and verified directly against Git history (`HEAD` and branch `merge-base` locally; `ADR_BASE_REF` / PR base commit in GitHub CI).
+   - Uncommitted draft ADRs created via `pnpm adr new` or `pnpm adr supersede` can be freely edited before committing—no separate lockfile or manual re-hashing is required.
+   - To alter an already-committed architectural decision, always create a superseding record via `pnpm adr supersede`.
 3. **Single Source of Truth**:
    - `applies_to` and `enforced_by` in frontmatter are the single authority.
    - Never edit table indexes in `docs/adr/README.md` or `## Governing ADRs` in `src/modules/*/README.md` manually; run `pnpm adr sync`.
@@ -52,22 +52,10 @@ When introducing a new architectural pattern, vertical slice, or global standard
 2. The CLI will:
    - Allocate the next sequential ID (e.g. `ADR-0008` in `docs/adr/0008-my-new-architecture.md`).
    - Populate the canonical MADR 4.0 template.
-   - Hash the initial body and register it in `docs/adr/.adr-lock.json`.
    - Synchronize `docs/adr/README.md` and module READMEs.
 3. Edit the sections in `docs/adr/0008-my-new-architecture.md` to document the decision drivers, outcome, consequences, and rejected alternatives.
-4. Update the lockfile hash if the body was edited before initial acceptance:
+4. Run `pnpm adr sync` (if you updated `applies_to` or `status`) and verify compliance:
    ```bash
-   # Re-hash and update during initial draft
-   node -e '
-     const fs = require("fs");
-     const crypto = require("crypto");
-     const raw = fs.readFileSync("docs/adr/0008-my-new-architecture.md", "utf8");
-     const m = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/);
-     const h = crypto.createHash("sha256").update(m[2].replace(/\r\n/g, "\n").trim()).digest("hex");
-     const lock = JSON.parse(fs.readFileSync("docs/adr/.adr-lock.json", "utf8"));
-     lock.records["ADR-0008"] = h;
-     fs.writeFileSync("docs/adr/.adr-lock.json", JSON.stringify(lock, null, 2) + "\n");
-   '
    pnpm adr:check
    ```
 
@@ -84,8 +72,7 @@ When an architectural decision is replaced, modified, or evolved:
    The CLI automatically:
 
    - Creates `docs/adr/0008-modular-architecture-v2.md` with `supersedes: "ADR-0001"`, seeding its body from `ADR-0001` (with an updated H1 title and `Supersedes [ADR-0001](./...)` prepended to `## Context and Problem Statement`) so existing drivers, invariants, checks, consequences, and rejected alternatives are preserved as the starting draft.
-   - Updates `ADR-0001` frontmatter with `status: "superseded by ADR-0008"` and `superseded_by: "ADR-0008"` (leaving the old body and its hash unchanged).
-   - Adds the new record to `docs/adr/.adr-lock.json`.
+   - Updates `ADR-0001` frontmatter with `status: "superseded by ADR-0008"` and `superseded_by: "ADR-0008"` (leaving the old body untouched).
    - Runs `pnpm adr sync` to reflect the change across all documentation.
 
 2. Edit the seeded draft in place so the new ADR is **fully self-contained**:
@@ -93,11 +80,11 @@ When an architectural decision is replaced, modified, or evolved:
    - Keep every still-valid invariant, enforcement gate, negative consequence, and rejected alternative from the superseded ADR.
    - For every rule, check, risk, or alternative that is intentionally changed or removed, explicitly state what changed and why (never silently drop items or rely on blanket statements like `"preserves all invariants of ADR-XXXX"`).
 
-3. **Run the mandatory clean-context Supersede Audit** before finalizing the lockfile hash and presenting the change:
+3. **Run the mandatory clean-context Supersede Audit** before finalizing and presenting the change:
 
    - Launch an independent read-only subagent with a **clean context** (e.g., `research`) using the prompt in [references/supersede-auditor-prompt.txt](references/supersede-auditor-prompt.txt), passing **only** `<OLD_ADR_PATH>` and `<NEW_ADR_PATH>`.
    - If the verdict is `FAIL`, fix every finding in `<NEW_ADR_PATH>` (either restore the lost/weakened item or explicitly document its removal and rationale) and re-run the clean-context audit until the verdict is `PASS`.
-   - Update the new ADR's hash in `docs/adr/.adr-lock.json`, run `pnpm adr:check`, and include the auditor's compact coverage summary (`PRESERVED` / `EXPLICITLY_CHANGED`) when reporting back to the user.
+   - Run `pnpm adr sync` (if frontmatter changed) and `pnpm adr:check`, and include the auditor's compact coverage summary (`PRESERVED` / `EXPLICITLY_CHANGED`) when reporting back to the user.
 
 ### 4. Renaming or Moving a Module Path
 
@@ -107,7 +94,7 @@ When a module or directory path is renamed or relocated:
 pnpm adr retarget src/modules/old-name src/modules/new-name
 ```
 
-Updates `applies_to` and `enforced_by` across all active ADRs and re-synchronizes indexes without breaking cryptographic body locks.
+Updates `applies_to` and `enforced_by` across all active ADRs and re-synchronizes indexes without modifying committed ADR bodies.
 
 ### 5. Removing a Module Path
 
@@ -117,12 +104,12 @@ When a module is deleted:
 pnpm adr remove-path src/modules/legacy-name
 ```
 
-- If an ADR exclusively governed this path, it is automatically marked `status: "deprecated"`.
-- If an ADR governed multiple paths, only the deleted path is removed.
+- If an ADR exclusively governed this path, it is automatically marked `status: "deprecated"` (allowed only once the governed `applies_to` paths are deleted from disk).
+- If an ADR governed multiple paths, only the deleted path is removed (allowed only for paths deleted from disk).
 
 ### 6. Verifying Compliance & Consistency
 
-Before committing changes, execute the verification gate:
+Before committing or finishing changes, execute the verification gate:
 
 ```bash
 pnpm adr:check
@@ -130,11 +117,11 @@ pnpm adr:check
 
 This verifies:
 
-- Frontmatter schema (id, title, status, date, decision-makers, area, applies_to, enforced_by).
+- Frontmatter schema (id, title, status, date, decision-makers, area, applies_to, enforced_by) and filename ID prefix.
 - Strict ordering of all 6 canonical MADR 4.0 H2 sections.
-- Bidirectional superseding links.
+- Bidirectional superseding links (`supersedes`, `superseded_by`, `status`).
 - Filesystem existence of `applies_to` and `enforced_by` for active decisions.
-- Cryptographic body hash against `docs/adr/.adr-lock.json` and Git HEAD.
+- Git-anchored immutability of committed ADR bodies, immutable metadata fields, and protected `applies_to`/`enforced_by`/deprecation rules (checked against `HEAD` + branch `merge-base` locally, or `--base` / `ADR_BASE_REF` in CI).
 - Zero drift in `docs/adr/README.md` and module READMEs.
 
 ---

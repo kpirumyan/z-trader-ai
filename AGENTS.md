@@ -15,7 +15,7 @@ Multi-window trading and market-analysis terminal (charts, order book, time & sa
 ## Rules
 
 - Never treat an ADR as the absolute, final authority. You should always follow best practices. If your decisions conflict with an ADR, you must bring the matter up for discussion.
-- A change is done only when `pnpm check:fast` passes; UI or user-flow changes also require `pnpm test:e2e`.
+- A change is done only when `pnpm check:docs` passes for changes limited to `docs/` and `*.md` files, or `pnpm check:fast` passes for any other change; UI or user-flow changes also require `pnpm test:e2e`.
 
 ## Context Map
 
